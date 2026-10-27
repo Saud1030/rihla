@@ -1,0 +1,59 @@
+# Sets up the test site exactly like the Codespace does (.devcontainer/setup.sh and start.sh),
+# then checks the main pages through a Codespaces-like public address.
+name: Test site (like Codespaces)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # the diagnostics report is pushed to the diagnostics-ci branch
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: rihla
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DB_HOST: localhost
+      REPORT_BRANCH: diagnostics-ci
+      CODESPACE_NAME: ci-check
+      GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN: app.github.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Setup (same script as the Codespace)
+        run: bash .devcontainer/setup.sh
+      - name: Start (same script as the Codespace)
+        run: bash .devcontainer/start.sh
+      - name: Check pages through the public address
+        run: |
+          PUB=ci-check-3000.app.github.dev
+          fail=0
+          for path in / /ar /en /ar/routes /ar/fleet /ar/contact /ar/terms /ar/booking "/ar/hourly?from=makkah&to=madinah&hours=12" "/ar/trip?from=riyadh-airport&to=at-turaif" /ar/routes/jeddah-airport-makkah /admin/login; do
+            code=$(curl -s -o /tmp/page.html -w "%{http_code}" -H "X-Forwarded-Host: $PUB" -H "X-Forwarded-Proto: https" "http://localhost:3000$path")
+            echo "$code $path"
+            case "$code" in 2*|3*) ;; *) fail=1 ;; esac
+          done
+          exit $fail
+      - name: Site log
+        if: always()
+        run: |
+          echo "----- /tmp/site.log -----"; tail -n 200 /tmp/site.log || true
+          echo "----- /tmp/mock.log -----"; tail -n 50 /tmp/mock.log || true
+      - name: Diagnostics report (same script as the Codespace)
+        if: always()
+        env:
+          REPORT_BRANCH: diagnostics-ci
+        run: bash .devcontainer/report.sh

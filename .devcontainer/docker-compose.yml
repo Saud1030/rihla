@@ -1,0 +1,19 @@
+# Used only by GitHub Codespaces / Dev Containers (see devcontainer.json)
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    depends_on:
+      - db
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rihla
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

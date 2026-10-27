@@ -1,0 +1,21 @@
+{
+  // Test copy of the site in GitHub Codespaces: database, demo data, site and a mock payment gateway.
+  // Open the repo on GitHub -> Code -> Codespaces -> Create codespace. Setup takes a few minutes the first time.
+  "name": "Rihla — test site",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [3000, 4010],
+  "portsAttributes": {
+    "3000": { "label": "Site / الموقع", "onAutoForward": "openBrowser" },
+    "4010": { "label": "Mock payment gateway / بوابة دفع تجريبية", "onAutoForward": "silent" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/start.sh",
+  // also when you open the codespace again: starts the site if it isn't running
+  "postAttachCommand": "bash .devcontainer/start.sh",
+  "hostRequirements": { "cpus": 2, "memory": "4gb" },
+  "customizations": {
+    "codespaces": { "openFiles": [".devcontainer/README.md"] }
+  }
+}

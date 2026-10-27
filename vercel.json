@@ -1,0 +1,5 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run db:migrate && npm run db:seed && next build",
+  "crons": [{ "path": "/api/admin/sweep", "schedule": "0 1 * * *" }]
+}
