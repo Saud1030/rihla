@@ -5,10 +5,11 @@
  *   npx tsx scripts/demo-bookings.ts
  */
 import "dotenv/config";
+import { requireDatabaseUrl } from "../src/db/url";
 import postgres from "postgres";
 import { randomBytes } from "node:crypto";
 
-const sql = postgres(process.env.DATABASE_URL!, { max: 1 });
+const sql = postgres(requireDatabaseUrl(), { max: 1 });
 
 const day = (offset: number) => {
   const d = new Date(Date.now() + offset * 864e5);

@@ -6,6 +6,7 @@
  *   npm run db:seed
  */
 import "dotenv/config";
+import { requireDatabaseUrl } from "../src/db/url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import bcrypt from "bcryptjs";
@@ -14,7 +15,7 @@ import * as s from "../src/db/schema";
 import { CITIES, PLACES } from "./data/saudi-places";
 import { CHAT_FAQS, CHAT_SETTINGS } from "./data/chat-faqs";
 
-const client = postgres(process.env.DATABASE_URL!, { max: 1 });
+const client = postgres(requireDatabaseUrl(), { max: 1 });
 const db = drizzle(client, { schema: s });
 
 const SAR = (n: number) => Math.round(n * 100);
