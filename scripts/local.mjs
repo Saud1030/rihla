@@ -85,9 +85,17 @@ MYFATOORAH_WEBHOOK_SECRET=test-mf-webhook-secret
 MOCK_PUBLIC_URL=/mock-pay
 MOCK_VIA_SITE=1
 # addresses allowed when you share the site from VS Code (Ports) or similar tunnels
-SERVER_ACTIONS_ALLOWED_ORIGINS=**.devtunnels.ms,*.app.github.dev,*.githubpreview.dev,**.ngrok-free.app,**.trycloudflare.com
+SERVER_ACTIONS_ALLOWED_ORIGINS=localhost:3000,127.0.0.1:3000,**.devtunnels.ms,*.app.github.dev,*.githubpreview.dev,**.ngrok-free.app,**.trycloudflare.com
 `,
   );
+}
+// VS Code's shared link (devtunnels) sends forms with Origin: localhost:3000, so that origin must be allowed.
+// .env files written by earlier versions get it added here (the changed .env also triggers a rebuild below).
+{
+  const text = fs.readFileSync(ENV_FILE, "utf8");
+  const m = text.match(/^SERVER_ACTIONS_ALLOWED_ORIGINS=(.*)$/m);
+  if (m && !m[1].split(",").map((x) => x.trim()).includes("localhost:3000"))
+    fs.writeFileSync(ENV_FILE, text.replace(m[0], `SERVER_ACTIONS_ALLOWED_ORIGINS=localhost:3000,127.0.0.1:3000,${m[1]}`));
 }
 const env = Object.fromEntries(
   fs
