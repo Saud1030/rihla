@@ -16,8 +16,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 process.chdir(ROOT);
@@ -50,15 +49,18 @@ if (!fs.existsSync(bin("next", "package.json"))) {
   say("تثبيت الحزم (أول مرة فقط، دقيقة إلى ثلاث)");
   npm(["install", "--no-audit", "--no-fund"]);
 }
-const require = createRequire(path.join(ROOT, "package.json"));
-let EmbeddedPostgres;
-try {
-  EmbeddedPostgres = (await import(require.resolve("embedded-postgres"))).default;
-} catch {
+// loaded by file address: works the same on Windows, macOS and Linux, right after installing
+const PG_ENTRY = path.join(ROOT, "node_modules", "embedded-postgres", "dist", "index.js");
+// the PostgreSQL program for this computer (npm skips it when asked to install without saving, so it's named here)
+const PG_PLATFORM = `@embedded-postgres/${process.platform === "win32" ? "windows" : process.platform}-${process.arch}`;
+const PG_PLATFORM_DIR = path.join(ROOT, "node_modules", ...PG_PLATFORM.split("/"));
+if (!fs.existsSync(PG_ENTRY) || !fs.existsSync(PG_PLATFORM_DIR)) {
   say("تنزيل قاعدة البيانات المحلية (أول مرة فقط)");
-  npm(["install", "--no-save", "--no-audit", "--no-fund", PG_PACKAGE]);
-  EmbeddedPostgres = (await import(require.resolve("embedded-postgres"))).default;
+  npm(["install", "--no-save", "--no-audit", "--no-fund", PG_PACKAGE, `${PG_PLATFORM}@${PG_PACKAGE.split("@")[1]}`]);
+  if (!fs.existsSync(PG_ENTRY) || !fs.existsSync(PG_PLATFORM_DIR))
+    fail("لم يكتمل تنزيل قاعدة البيانات المحلية. تأكد من اتصال الإنترنت ثم أعد تشغيل: npm run local");
 }
+const EmbeddedPostgres = (await import(pathToFileURL(PG_ENTRY).href)).default;
 
 /* ---------- settings (.env) ---------- */
 const ENV_FILE = path.join(ROOT, ".env");
