@@ -102,7 +102,12 @@ Object.assign(process.env, env);
 /* ---------- database ---------- */
 say("تشغيل قاعدة البيانات");
 fs.mkdirSync(LOCAL, { recursive: true });
-const pg = new EmbeddedPostgres({ databaseDir: DB_DIR, user: "postgres", password: "postgres", port: DB_PORT, persistent: true, onLog: () => {}, onError: () => {} });
+const pg = new EmbeddedPostgres({ databaseDir: DB_DIR, user: "postgres", password: "postgres", port: DB_PORT, persistent: true,
+  // UTF-8 always: Windows would otherwise pick its own code page (WIN1252), which can't store Arabic
+  initdbFlags: ["--encoding=UTF8", "--locale=C"],
+  onLog: () => {},
+  onError: () => {},
+});
 const firstRun = !fs.existsSync(path.join(DB_DIR, "PG_VERSION"));
 try {
   if (firstRun) await pg.initialise();
@@ -110,7 +115,19 @@ try {
 } catch (e) {
   fail(`تعذّر تشغيل قاعدة البيانات: ${e?.message ?? e}\nإذا كانت نافذة أخرى تشغّل الموقع أغلقها أولًا. وللبدء من جديد احذف المجلد .local`);
 }
-if (firstRun) await pg.createDatabase("rihla").catch(() => {});
+// the site's database must be UTF-8 (Arabic); one made by an earlier version on Windows is recreated
+{
+  const c = pg.getPgClient();
+  await c.connect();
+  const { rows } = await c.query("select pg_encoding_to_char(encoding) as enc from pg_database where datname = 'rihla'");
+  if (rows[0] && rows[0].enc !== "UTF8") {
+    say("إعادة إنشاء قاعدة البيانات بترميز يدعم العربية");
+    await c.query("drop database rihla");
+    fs.rmSync(path.join(LOCAL, "demo-data-added"), { force: true });
+  }
+  if (!rows[0] || rows[0].enc !== "UTF8") await c.query("create database rihla encoding 'UTF8' template template0 lc_collate 'C' lc_ctype 'C'");
+  await c.end();
+}
 
 let stopping = false;
 const children = [];
