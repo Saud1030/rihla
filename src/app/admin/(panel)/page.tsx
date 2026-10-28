@@ -3,6 +3,8 @@ import { maybeSweep } from "@/lib/sweep";
 import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { eq, sql } from "drizzle-orm";
+import { db, schema as s } from "@/db";
 import { requireAdmin } from "@/lib/auth";
 import { can, PATH_SECTIONS } from "@/lib/permissions";
 import { LINKS } from "@/lib/admin-links";
@@ -51,7 +53,12 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Record<string
       </div>
     );
   }
-  const [d, chats, rating] = await Promise.all([getDashboardStats(), chatCounts(), getRatingSummary()]);
+  const [d, chats, rating, [applications]] = await Promise.all([
+    getDashboardStats(),
+    chatCounts(),
+    getRatingSummary(),
+    db.select({ n: sql<number>`count(*)::int` }).from(s.drivers).where(eq(s.drivers.status, "pending")),
+  ]);
 
   const stats = [
     { label: "بحاجة لتأكيد السائق", value: formatNumber(d.toConfirm, "ar"), href: "/admin/bookings?status=paid", strong: d.toConfirm > 0 },
@@ -71,6 +78,9 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Record<string
       : []),
     ...(chats.needsReply > 0
       ? [{ label: "محادثات تنتظر ردك", value: formatNumber(chats.needsReply, "ar"), href: "/admin/chat", strong: true }]
+      : []),
+    ...(applications.n > 0
+      ? [{ label: "طلبات انضمام سائقين", value: formatNumber(applications.n, "ar"), href: "/admin/drivers#applications", strong: true }]
       : []),
     ...(rating.count > 0
       ? [

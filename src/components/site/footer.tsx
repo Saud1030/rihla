@@ -51,6 +51,7 @@ export function SiteFooter({ lang, t, brand }: { lang: Locale; t: Dictionary; br
           <Link href={`/${lang}/booking`} className="block text-white/80 hover:text-white">{t.nav.myBooking}</Link>
           <Link href={`/${lang}/contact`} className="block text-white/80 hover:text-white">{t.nav.contact}</Link>
           <Link href={`/${lang}/terms`} className="block text-white/80 hover:text-white">{t.footer.terms}</Link>
+          <Link href={`/${lang}/drivers/join`} className="block text-white/80 hover:text-white">{t.join.link}</Link>
         </nav>
         <Suspense fallback={null}>
           <FooterContact lang={lang} t={t} />

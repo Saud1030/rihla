@@ -46,9 +46,16 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
   // Always run bcrypt so response time doesn't reveal whether the email exists
   dummyHash ??= await bcrypt.hash("not-a-real-password", 12);
   const ok = await bcrypt.compare(password, user?.passwordHash ?? dummyHash);
-  if (!user || !ok || !user.active) {
+  if (!user || !ok) {
     recordLoginFailure(key);
     return { error: "البريد الإلكتروني أو كلمة المرور غير صحيحة." };
+  }
+  if (!user.active) {
+    // a driver who applied from the website, with the right password: tell them where the application stands
+    const d = user.role === "driver" && user.driverId ? await db.query.drivers.findFirst({ where: eq(s.drivers.id, user.driverId) }) : null;
+    if (d?.status === "pending") return { error: "طلب انضمامك قيد المراجعة. سنرد عليك على واتساب بعد مراجعته." };
+    if (d?.status === "rejected") return { error: `لم يُقبل طلب انضمامك.${d.rejectReason ? ` السبب: ${d.rejectReason}` : ""} تقدر تقدّم طلبًا جديدًا بعد التعديل.` };
+    return { error: "هذا الحساب موقوف. تواصل مع الإدارة." };
   }
   clearLoginFailures(key);
   await createSession({ uid: user.id, email: user.email, name: user.name });

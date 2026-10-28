@@ -6,7 +6,10 @@ import { z } from "zod";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireDriver, requireSection } from "@/lib/auth";
-import { detectFile, IMAGE_TYPES, MB } from "@/lib/files";
+import { detectFile, IMAGE_TYPES } from "@/lib/files";
+import { DRIVER_PHOTO_MAX, modelYears } from "@/lib/driver-docs";
+import { notify } from "@/lib/notify";
+import { publicBaseUrl } from "@/lib/public-url";
 import { normalizePhone } from "@/lib/phone";
 import { requestRating, sendDriverAssigned } from "@/lib/trip-messages";
 import type { ActionState } from "./actions";
@@ -14,8 +17,8 @@ import type { ActionState } from "./actions";
 const driverSchema = z.object({
   name: z.string().trim().min(2).max(80),
   plateNumber: z.string().trim().min(2).max(30),
-  carType: z.string().trim().min(2).max(60),
-  carModel: z.string().trim().max(20),
+  vehicleId: z.coerce.number().int().positive(),
+  carModel: z.string().refine((y) => y === "" || modelYears().includes(y)),
   carColor: z.string().trim().max(30),
   notes: z.string().trim().max(500),
   active: z.boolean(),
@@ -28,7 +31,7 @@ export async function saveDriver(_prev: ActionState, formData: FormData): Promis
   const parsed = driverSchema.safeParse({
     name: formData.get("name") ?? "",
     plateNumber: formData.get("plateNumber") ?? "",
-    carType: formData.get("carType") ?? "",
+    vehicleId: formData.get("vehicleId") ?? "",
     carModel: formData.get("carModel") ?? "",
     carColor: formData.get("carColor") ?? "",
     notes: formData.get("notes") ?? "",
@@ -36,21 +39,23 @@ export async function saveDriver(_prev: ActionState, formData: FormData): Promis
   });
   if (!parsed.success) {
     const f = parsed.error.issues[0]?.path[0];
-    return { error: f === "plateNumber" ? "اكتب رقم اللوحة." : f === "carType" ? "اكتب نوع السيارة." : "اكتب اسم السائق." };
+    return { error: f === "plateNumber" ? "اكتب رقم اللوحة." : f === "vehicleId" ? "اختر نوع السيارة." : f === "carModel" ? "اختر الموديل." : "اكتب اسم السائق." };
   }
   const phone = normalizePhone(String(formData.get("phone") ?? ""));
   if (!phone) return { error: "رقم جوال السائق غير صحيح. اكتبه مثل 0501234567 أو مع رمز الدولة." };
+  const vehicle = await db.query.vehicles.findFirst({ where: eq(s.vehicles.id, parsed.data.vehicleId) });
+  if (!vehicle) return { error: "اختر نوع السيارة." };
 
   let photo: { photo: Buffer; photoMime: string } | null = null;
   const file = formData.get("photo");
   if (file instanceof File && file.size > 0) {
-    if (file.size > 2 * MB) return { error: "حجم الصورة أكبر من ٢ ميجابايت." };
+    if (file.size > DRIVER_PHOTO_MAX) return { error: "حجم الصورة أكبر من ١ ميجابايت." };
     const buf = Buffer.from(await file.arrayBuffer());
     const kind = detectFile(buf, IMAGE_TYPES);
     if (!kind) return { error: "الصورة يجب أن تكون PNG أو JPG أو WEBP." };
     photo = { photo: buf, photoMime: kind.mime };
   }
-  const values = { ...parsed.data, phone, updatedAt: new Date(), ...(photo ?? {}) };
+  const values = { ...parsed.data, carType: vehicle.nameAr, phone, updatedAt: new Date(), ...(photo ?? {}) };
   if (id > 0) {
     const done = await db.update(s.drivers).set(values).where(eq(s.drivers.id, id)).returning({ id: s.drivers.id });
     if (!done.length) return { error: "السائق غير موجود." };
@@ -84,6 +89,53 @@ export async function removeDriverPhoto(_prev: ActionState, formData: FormData):
   return { ok: true, message: "تم حذف الصورة." };
 }
 
+/* ---------- Applications from the website ---------- */
+
+/** Approve: the driver can sign in and be given trips; told on WhatsApp */
+export async function approveDriver(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("drivers");
+  const id = Number(formData.get("id") ?? 0);
+  const [d] = await db
+    .update(s.drivers)
+    .set({ status: "approved", active: true, rejectReason: null, updatedAt: new Date() })
+    .where(and(eq(s.drivers.id, id), inArray(s.drivers.status, ["pending", "rejected"])))
+    .returning();
+  if (!d) return { error: "الطلب غير موجود أو رُوجع من قبل." };
+  await db.update(s.adminUsers).set({ active: true }).where(and(eq(s.adminUsers.driverId, d.id), eq(s.adminUsers.role, "driver")));
+  const login = `${await publicBaseUrl()}/admin/login`;
+  await notify({
+    channel: "whatsapp",
+    kind: "driver_approved",
+    recipient: d.phone,
+    recipientName: d.name,
+    body: `مرحبًا ${d.name}، تم قبول طلب انضمامك كسائق.\nادخل من هنا برقم جوالك وكلمة المرور التي اخترتها لترى رحلاتك:\n${login}`,
+    params: [d.name, login],
+  });
+  redirect(`/admin/drivers?approved=${d.id}`);
+}
+
+export async function rejectDriver(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("drivers");
+  const id = Number(formData.get("id") ?? 0);
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 300);
+  const [d] = await db
+    .update(s.drivers)
+    .set({ status: "rejected", active: false, rejectReason: reason || null, updatedAt: new Date() })
+    .where(and(eq(s.drivers.id, id), eq(s.drivers.status, "pending")))
+    .returning();
+  if (!d) return { error: "الطلب غير موجود أو رُوجع من قبل." };
+  await db.update(s.adminUsers).set({ active: false }).where(and(eq(s.adminUsers.driverId, d.id), eq(s.adminUsers.role, "driver")));
+  await notify({
+    channel: "whatsapp",
+    kind: "driver_rejected",
+    recipient: d.phone,
+    recipientName: d.name,
+    body: `مرحبًا ${d.name}، نعتذر، لم يُقبل طلب انضمامك كسائق${reason ? ` (${reason})` : ""}. تقدر تقدّم طلبًا جديدًا بعد التعديل.`,
+    params: [d.name, reason || "-"],
+  });
+  redirect(`/admin/drivers?rejected=${d.id}`);
+}
+
 /**
  * Assign (or change) the booking's driver. The driver gets the customer's details and the
  * customer gets the driver's on WhatsApp, automatically.
@@ -98,7 +150,7 @@ export async function assignDriver(_prev: ActionState, formData: FormData): Prom
     db.query.drivers.findFirst({ where: eq(s.drivers.id, driverId) }),
   ]);
   if (!b) return { error: "الحجز غير موجود." };
-  if (!d || !d.active) return { error: "السائق غير موجود أو موقوف." };
+  if (!d || !d.active || d.status !== "approved") return { error: "السائق غير موجود أو موقوف أو لم يُقبل طلبه بعد." };
   if (b.status === "pending_payment") return { error: "لم يُدفع الحجز بعد. أكّد الدفع أولًا ثم أسند السائق." };
   if (b.status === "cancelled" || b.status === "completed") return { error: "لا يمكن إسناد سائق لحجز ملغي أو منتهٍ." };
   // choosing the same driver again sends both messages again

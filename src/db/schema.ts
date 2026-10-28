@@ -290,6 +290,9 @@ export const adminUsers = pgTable("admin_users", {
 });
 
 /* ---------- Drivers ---------- */
+/** pending: applied from the website, waiting for review; approved: can be given trips; rejected: application refused */
+export const driverStatus = pgEnum("driver_status", ["pending", "approved", "rejected"]);
+
 export const drivers = pgTable("drivers", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -305,9 +308,31 @@ export const drivers = pgTable("drivers", {
   photo: bytea("photo"),
   notes: text("notes").notNull().default(""),
   active: boolean("active").notNull().default(true),
+  /** which car of the fleet list (Admin -> Vehicles) the driver has; carType keeps its name */
+  vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
+  status: driverStatus("status").notNull().default("approved"),
+  rejectReason: text("reject_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Documents a driver uploads when applying: ID, car registration (istimara), car inside and outside */
+export const driverDocKind = pgEnum("driver_doc_kind", ["id_card", "registration", "car_inside", "car_outside"]);
+export const driverDocuments = pgTable(
+  "driver_documents",
+  {
+    id: serial("id").primaryKey(),
+    driverId: integer("driver_id")
+      .notNull()
+      .references(() => drivers.id, { onDelete: "cascade" }),
+    kind: driverDocKind("kind").notNull(),
+    mime: text("mime").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("driver_documents_driver_kind_uq").on(t.driverId, t.kind)],
+);
 
 /** One rating per booking: the driver and the company, 1 to 5 stars */
 export const ratings = pgTable(
@@ -504,3 +529,4 @@ export type Driver = typeof drivers.$inferSelect;
 export type Rating = typeof ratings.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type AdminUser = typeof adminUsers.$inferSelect;
+export type DriverDocument = typeof driverDocuments.$inferSelect;

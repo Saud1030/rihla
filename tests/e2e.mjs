@@ -1937,8 +1937,8 @@ if (!ONLY || ONLY === "drivers") {
     await f.locator('input[name="name"]').fill(o.name);
     await f.locator('input[name="phone"]').fill(o.phone);
     await f.locator('input[name="plateNumber"]').fill(o.plate ?? "أ ب ج ١٢٣٤");
-    await f.locator('input[name="carType"]').fill(o.car ?? "تويوتا كامري");
-    await f.locator('input[name="carModel"]').fill(o.model ?? "2024");
+    await f.locator('select[name="vehicleId"]').selectOption({ label: o.car ?? "تويوتا كامري" });
+    await f.locator('select[name="carModel"]').selectOption(o.model ?? "2024");
     await f.locator('input[name="carColor"]').fill(o.color ?? "أبيض");
     if (o.photo) await f.locator('input[name="photo"]').setInputFiles(o.photo);
     await f.getByRole("button", { name: "إضافة السائق" }).click();
@@ -2255,6 +2255,110 @@ if (!ONLY || ONLY === "prices") {
   });
   cleanup();
   await pctx.close();
+}
+
+/* ======================================================================= */
+if (!ONLY || ONLY === "join") {
+  section = "Drivers apply from the website";
+  console.log(`\n${section}`);
+  const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+  const img = (n) => ({ name: `${n}.png`, mimeType: "image/png", buffer: PNG });
+  const BIG = { name: "big.jpg", mimeType: "image/jpeg", buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(1100 * 1024)]) };
+  const jctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const j = await jctx.newPage();
+  const actx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const a = await actx.newPage();
+  const cleanup = () => sql("delete from admin_users where email in ('+966559990001','+966559990002'); delete from drivers where phone in ('+966559990001','+966559990002')");
+  cleanup();
+  const fill = async (o) => {
+    await j.goto(`${BASE}/ar/drivers/join`, { waitUntil: "networkidle" });
+    await j.fill('input[name="name"]', o.name ?? "بندر السائق");
+    await j.fill('input[name="phone"]', o.phone);
+    await j.fill('input[name="password"]', o.password ?? "Driver-Join-1");
+    await j.selectOption('select[name="vehicleId"]', { label: "تويوتا كامري" });
+    await j.selectOption('select[name="carModel"]', "2022");
+    await j.fill('input[name="carColor"]', "أبيض");
+    await j.fill('input[name="plateNumber"]', "ك ل م ٤٤٤٤");
+    for (const k of ["photo", "id_card", "registration", "car_inside", "car_outside"]) await j.setInputFiles(`input[name="${k}"]`, img(k));
+    await j.check('input[name="agree"]');
+  };
+  await check("join page: linked in the footer; car types come from the fleet list; model years to choose", async () => {
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    assert(await page.locator('footer a[href="/ar/drivers/join"]').count(), "footer link");
+    await j.goto(`${BASE}/ar/drivers/join`, { waitUntil: "networkidle" });
+    const opts = (await j.locator('select[name="vehicleId"] option').allInnerTexts()).slice(1);
+    eq(opts.length, Number(sql("select count(*) from vehicles where active")), "every active car");
+    assert(opts.includes("تويوتا كامري"), "car names");
+    assert((await j.locator('select[name="carModel"] option').allInnerTexts()).includes("2022"), "years");
+  });
+  await check("a photo over 1 MB is refused in the browser, and on the server if the browser check is skipped", async () => {
+    await fill({ phone: "0559990001" });
+    await j.setInputFiles('input[name="car_inside"]', BIG);
+    await j.locator('[data-photo="car_inside"]').getByText("أكبر من ١ ميجابايت").waitFor();
+    eq(await j.locator('input[name="car_inside"]').evaluate((i) => i.files.length), 0, "cleared");
+    // put the big file back without the browser check
+    await j.evaluate(() => {
+      const dt = new DataTransfer();
+      const bytes = new Uint8Array(1100 * 1024);
+      bytes.set([0xff, 0xd8, 0xff]);
+      dt.items.add(new File([bytes], "big.jpg", { type: "image/jpeg" }));
+      document.querySelector('input[name="car_inside"]').files = dt.files;
+    });
+    await j.getByRole("button", { name: "إرسال الطلب" }).click();
+    await j.getByText("إحدى الصور أكبر من ١ ميجابايت").waitFor();
+    eq(sql("select count(*) from drivers where phone='+966559990001'"), "0", "nothing saved");
+  });
+  await check("application sent: waits for review, can't sign in yet, the same number can't apply twice", async () => {
+    await fill({ phone: "0559990001" });
+    await j.getByRole("button", { name: "إرسال الطلب" }).click();
+    await j.getByTestId("join-done").waitFor();
+    eq(sql("select status, active, car_type, car_model, vehicle_id is not null from drivers where phone='+966559990001'"), "pending|f|تويوتا كامري|2022|t", "pending driver");
+    eq(sql("select count(*) from driver_documents d join drivers r on r.id=d.driver_id where r.phone='+966559990001'"), "4", "4 documents");
+    eq(sql("select role, active from admin_users where email='+966559990001'"), "driver|f", "account off");
+    await adminLogin(j, "0559990001", "Driver-Join-1");
+    await j.getByText("طلب انضمامك قيد المراجعة").waitFor();
+    await fill({ phone: "+966 55 999 0001" });
+    await j.getByRole("button", { name: "إرسال الطلب" }).click();
+    await j.getByText("هذا الرقم مسجّل من قبل").waitFor();
+  });
+  await check("admin reviews: photos visible to staff only; approve turns the account on and tells the driver on WhatsApp", async () => {
+    await adminLogin(a, "admin@example.com", env("ADMIN_PASSWORD"));
+    await a.waitForURL(/\/admin$/);
+    await a.getByText("طلبات انضمام سائقين").waitFor();
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    const app = a.getByTestId("application").filter({ hasText: "+966559990001" });
+    eq(await app.locator("img").count(), 5, "photo + 4 documents");
+    const id = sql("select id from drivers where phone='+966559990001'");
+    eq((await a.request.get(`${BASE}/api/admin/drivers/${id}/doc/id_card`)).status(), 200, "staff sees the ID");
+    eq((await fetch(`${BASE}/api/admin/drivers/${id}/doc/id_card`)).status, 404, "public can't");
+    await app.getByRole("button", { name: "قبول السائق وتفعيل حسابه" }).click();
+    await a.waitForURL(/approved=/, { waitUntil: "commit" });
+    eq(sql(`select status, active from drivers where id=${id}`), "approved|t", "approved");
+    eq(sql("select active from admin_users where email='+966559990001'"), "t", "account on");
+    assert(sql("select body from notifications where kind='driver_approved' order by id desc limit 1").includes("/admin/login"), "WhatsApp with sign-in link");
+    await adminLogin(j, "0559990001", "Driver-Join-1");
+    await j.waitForURL(/\/admin\/my-trips$/);
+  });
+  await check("a rejected applicant is told why when signing in, and may apply again", async () => {
+    await fill({ phone: "0559990002", name: "سائق مرفوض" });
+    await j.getByRole("button", { name: "إرسال الطلب" }).click();
+    await j.getByTestId("join-done").waitFor();
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    const app = a.getByTestId("application").filter({ hasText: "+966559990002" });
+    await app.getByText("رفض الطلب").first().click();
+    await app.locator('input[name="reason"]').fill("صورة الاستمارة غير واضحة");
+    await app.getByRole("button", { name: "رفض الطلب" }).click();
+    await a.waitForURL(/rejected=/, { waitUntil: "commit" });
+    await adminLogin(j, "0559990002", "Driver-Join-1");
+    await j.getByText("صورة الاستمارة غير واضحة").waitFor();
+    await fill({ phone: "0559990002", name: "سائق مرفوض", password: "New-Pass-123" });
+    await j.getByRole("button", { name: "إرسال الطلب" }).click();
+    await j.getByTestId("join-done").waitFor();
+    eq(sql("select status from drivers where phone='+966559990002'"), "pending", "pending again");
+  });
+  cleanup();
+  await jctx.close();
+  await actx.close();
 }
 
 await browser.close();

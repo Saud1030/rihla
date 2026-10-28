@@ -24,6 +24,12 @@ export default function LoginPage() {
           <p className="text-white/80 text-sm">لوحة التحكم</p>
         </div>
         <LoginForm />
+        <p className="mt-4 text-center text-sm text-muted">
+          سائق جديد؟{" "}
+          <a href="/ar/drivers/join" className="text-sign font-medium hover:underline">
+            سجّل طلب انضمام
+          </a>
+        </p>
       </div>
     </div>
   );

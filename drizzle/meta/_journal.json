@@ -57,6 +57,13 @@
       "when": 1793120282121,
       "tag": "0007_rating_visible",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793213755501,
+      "tag": "0008_driver_applications",
+      "breakpoints": true
     }
   ]
 }

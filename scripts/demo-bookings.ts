@@ -37,9 +37,9 @@ const demo = [
 ] as const;
 
 const DRIVERS = [
-  { name: "خالد العتيبي", phone: "+966551000001", plate: "أ ر ك ٤٥١٢", car: "جي إم سي يوكن", model: "2024", color: "أسود" },
-  { name: "سعيد الحربي", phone: "+966551000002", plate: "ب ن د ٧٣٢٠", car: "تويوتا هايس", model: "2023", color: "أبيض" },
-  { name: "ماجد القرني", phone: "+966551000003", plate: "ح ط س ١٩٨٦", car: "تويوتا كامري", model: "2025", color: "فضي" },
+  { name: "خالد العتيبي", phone: "+966551000001", plate: "أ ر ك ٤٥١٢", vehicle: "gmc-yukon", model: "2024", color: "أسود" },
+  { name: "سعيد الحربي", phone: "+966551000002", plate: "ب ن د ٧٣٢٠", vehicle: "toyota-hiace", model: "2023", color: "أبيض" },
+  { name: "ماجد القرني", phone: "+966551000003", plate: "ح ط س ١٩٨٦", vehicle: "toyota-camry", model: "2025", color: "فضي" },
 ];
 
 async function main() {
@@ -51,8 +51,9 @@ async function main() {
   await sql`delete from drivers`;
   const driverIds: number[] = [];
   for (const d of DRIVERS) {
-    const [row] = await sql`insert into drivers (name, phone, plate_number, car_type, car_model, car_color)
-      values (${d.name}, ${d.phone}, ${d.plate}, ${d.car}, ${d.model}, ${d.color}) returning id`;
+    const [row] = await sql`insert into drivers (name, phone, plate_number, car_type, car_model, car_color, vehicle_id)
+      select ${d.name}, ${d.phone}, ${d.plate}, v.name_ar, ${d.model}, ${d.color}, v.id from vehicles v where v.slug = ${d.vehicle}
+      returning id`;
     driverIds.push(row.id);
   }
 
