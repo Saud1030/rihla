@@ -122,8 +122,12 @@ const portBusy = (port) =>
     sock.once("error", () => resolve(false));
   });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-/** Node.js processes listening on a port (only those: anything else on the port is left alone) */
-function nodeOnPort(port) {
+/**
+ * Programs of this site listening on a port: Node.js (site, payment page) or the local PostgreSQL.
+ * Anything else using the port is left alone.
+ */
+function staleOnPort(port) {
+  const isDb = port === DB_PORT;
   const out = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8" }).stdout ?? "";
   const pids = new Set();
   if (isWin) {
@@ -131,13 +135,15 @@ function nodeOnPort(port) {
       const m = line.trim().split(/\s+/);
       if (m[3] === "LISTENING" && m[1]?.endsWith(`:${port}`)) pids.add(Number(m[4]));
     }
-    return [...pids].filter((pid) => /node\.exe/i.test(out("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"])));
+    const exe = isDb ? /postgres\.exe/i : /node\.exe/i;
+    return [...pids].filter((pid) => exe.test(out("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"])));
   }
   for (const pid of out("lsof", ["-t", "-iTCP:" + port, "-sTCP:LISTEN"]).split(/\s+/).filter(Boolean)) pids.add(Number(pid));
-  const found = [...pids].filter((pid) => /node|next-server/i.test(out("ps", ["-p", String(pid), "-o", "comm="])));
+  const comm = isDb ? /postgres/i : /node|next-server/i;
+  const found = [...pids].filter((pid) => comm.test(out("ps", ["-p", String(pid), "-o", "comm="])));
   if (found.length) return found;
   // lsof can miss some sockets: fall back to this site's own programs by name
-  const name = port === 3000 ? /next-server|next\/dist\/bin\/next start/ : /tests\/mock-myfatoorah\.mjs/;
+  const name = isDb ? /@embedded-postgres\/.*\/bin\/postgres /: port === 3000 ? /next-server|next\/dist\/bin\/next start/ : /tests\/mock-myfatoorah\.mjs/;
   return out("ps", ["-eo", "pid=,args="])
     .split("\n")
     .map((l) => l.trim().match(/^(\d+)\s+(.*)$/))
@@ -150,28 +156,32 @@ function nodeOnPort(port) {
     old.push(...JSON.parse(fs.readFileSync(PIDS, "utf8")));
   } catch {}
   const pgPidFile = path.join(DB_DIR, "postmaster.pid");
-  if (fs.existsSync(pgPidFile)) old.push(Number(fs.readFileSync(pgPidFile, "utf8").split(/\r?\n/)[0]));
+  const pgPid = fs.existsSync(pgPidFile) ? Number(fs.readFileSync(pgPidFile, "utf8").split(/\r?\n/)[0]) : 0;
+  if (pgPid) old.push(pgPid);
   const left = old.filter((pid) => pid > 0 && pid !== process.pid && alive(pid));
   if (left.length) {
     say("إيقاف نسخة سابقة ما زالت تعمل في الخلفية");
-    for (const pid of left) {
+    // the site first, then the database (fast shutdown)
+    for (const pid of [...left.filter((p) => p !== pgPid), ...left.filter((p) => p === pgPid)]) {
       try {
-        process.kill(pid);
+        process.kill(pid, pid === pgPid && !isWin ? "SIGINT" : "SIGTERM");
       } catch {}
     }
     for (let i = 0; i < 20 && left.some(alive); i++) await sleep(500);
   }
   // the database's lock file of a process that no longer exists
   if (fs.existsSync(pgPidFile) && !alive(Number(fs.readFileSync(pgPidFile, "utf8").split(/\r?\n/)[0]))) fs.rmSync(pgPidFile, { force: true });
-  for (const port of [3000, 4010]) {
+  // the database port too: a database left running from another copy of this folder holds it
+  for (const port of [3000, 4010, DB_PORT]) {
     for (let i = 0; i < 6 && (await portBusy(port)); i++) await sleep(500);
     if (await portBusy(port)) {
-      // a Node.js program left from an earlier run of this site (older versions didn't record it): stop it
-      const stale = nodeOnPort(port);
+      // left from an earlier run of this site (older versions didn't record it, or another copy of the folder): stop it
+      const stale = staleOnPort(port);
       if (stale.length) say(`إيقاف برنامج قديم يستخدم المنفذ ${port}`);
       for (const pid of stale) {
         try {
-          process.kill(pid);
+          // PostgreSQL: SIGINT is its "fast shutdown" (SIGTERM would wait for every connection to close)
+          process.kill(pid, port === DB_PORT && !isWin ? "SIGINT" : "SIGTERM");
         } catch {}
       }
       for (let i = 0; i < 10 && (await portBusy(port)); i++) await sleep(500);
