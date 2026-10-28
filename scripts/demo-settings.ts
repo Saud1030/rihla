@@ -13,6 +13,13 @@ const values: [string, string][] = [
   ["bank_account_name", "شركة رحلة للنقل (تجربة)"],
   ["bank_iban", "SA0380000000608010167519"],
 ];
-for (const [k, v] of values) await sql`insert into settings (key, value) values (${k}, ${v}) on conflict (key) do update set value = excluded.value`;
-await sql.end();
-console.log("Test bank account added");
+async function main() {
+  for (const [k, v] of values) await sql`insert into settings (key, value) values (${k}, ${v}) on conflict (key) do update set value = excluded.value`;
+  await sql.end();
+  console.log("Test bank account added");
+}
+main().catch(async (e) => {
+  console.error(e);
+  await sql.end();
+  process.exit(1);
+});
