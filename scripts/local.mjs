@@ -15,6 +15,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -35,7 +36,7 @@ const [major, minor] = process.versions.node.split(".").map(Number);
 if (major < 20 || (major === 20 && minor < 9)) fail(`Node.js 20.9 أو أحدث مطلوب (عندك ${process.versions.node}). حمّله من https://nodejs.org`);
 
 const npm = (args) => {
-  const r = spawnSync(isWin ? "npm.cmd" : "npm", args, { stdio: "inherit", shell: isWin });
+  const r = isWin ? spawnSync(`npm ${args.join(" ")}`, { stdio: "inherit", shell: true }) : spawnSync("npm", args, { stdio: "inherit" });
   if (r.status !== 0) fail(`تعذّر تنفيذ: npm ${args.join(" ")}`);
 };
 const node = (args, env = {}) => {
@@ -100,20 +101,104 @@ if (env.DATABASE_URL !== DB_URL)
 Object.assign(process.env, env);
 
 /* ---------- database ---------- */
-say("تشغيل قاعدة البيانات");
+/* ---------- leftovers from an earlier run ----------
+ * Closing the terminal (instead of Ctrl+C) can leave the database, the site and the payment page
+ * running in the background. They hold the ports and the database folder, and an old site keeps
+ * serving after the code was updated. They are stopped here before starting fresh. */
 fs.mkdirSync(LOCAL, { recursive: true });
+const PIDS = path.join(LOCAL, "running.json");
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+const portBusy = (port) =>
+  new Promise((resolve) => {
+    const sock = net.connect({ port, host: "127.0.0.1" });
+    sock.once("connect", () => (sock.destroy(), resolve(true)));
+    sock.once("error", () => resolve(false));
+  });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Node.js processes listening on a port (only those: anything else on the port is left alone) */
+function nodeOnPort(port) {
+  const out = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8" }).stdout ?? "";
+  const pids = new Set();
+  if (isWin) {
+    for (const line of out("netstat", ["-ano", "-p", "tcp"]).split(/\r?\n/)) {
+      const m = line.trim().split(/\s+/);
+      if (m[3] === "LISTENING" && m[1]?.endsWith(`:${port}`)) pids.add(Number(m[4]));
+    }
+    return [...pids].filter((pid) => /node\.exe/i.test(out("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"])));
+  }
+  for (const pid of out("lsof", ["-t", "-iTCP:" + port, "-sTCP:LISTEN"]).split(/\s+/).filter(Boolean)) pids.add(Number(pid));
+  const found = [...pids].filter((pid) => /node|next-server/i.test(out("ps", ["-p", String(pid), "-o", "comm="])));
+  if (found.length) return found;
+  // lsof can miss some sockets: fall back to this site's own programs by name
+  const name = port === 3000 ? /next-server|next\/dist\/bin\/next start/ : /tests\/mock-myfatoorah\.mjs/;
+  return out("ps", ["-eo", "pid=,args="])
+    .split("\n")
+    .map((l) => l.trim().match(/^(\d+)\s+(.*)$/))
+    .filter((m) => m && name.test(m[2]) && Number(m[1]) !== process.pid)
+    .map((m) => Number(m[1]));
+}
+{
+  const old = [];
+  try {
+    old.push(...JSON.parse(fs.readFileSync(PIDS, "utf8")));
+  } catch {}
+  const pgPidFile = path.join(DB_DIR, "postmaster.pid");
+  if (fs.existsSync(pgPidFile)) old.push(Number(fs.readFileSync(pgPidFile, "utf8").split(/\r?\n/)[0]));
+  const left = old.filter((pid) => pid > 0 && pid !== process.pid && alive(pid));
+  if (left.length) {
+    say("إيقاف نسخة سابقة ما زالت تعمل في الخلفية");
+    for (const pid of left) {
+      try {
+        process.kill(pid);
+      } catch {}
+    }
+    for (let i = 0; i < 20 && left.some(alive); i++) await sleep(500);
+  }
+  // the database's lock file of a process that no longer exists
+  if (fs.existsSync(pgPidFile) && !alive(Number(fs.readFileSync(pgPidFile, "utf8").split(/\r?\n/)[0]))) fs.rmSync(pgPidFile, { force: true });
+  for (const port of [3000, 4010]) {
+    for (let i = 0; i < 6 && (await portBusy(port)); i++) await sleep(500);
+    if (await portBusy(port)) {
+      // a Node.js program left from an earlier run of this site (older versions didn't record it): stop it
+      const stale = nodeOnPort(port);
+      if (stale.length) say(`إيقاف برنامج قديم يستخدم المنفذ ${port}`);
+      for (const pid of stale) {
+        try {
+          process.kill(pid);
+        } catch {}
+      }
+      for (let i = 0; i < 10 && (await portBusy(port)); i++) await sleep(500);
+    }
+    if (await portBusy(port))
+      fail(`المنفذ ${port} مستخدم من برنامج آخر. أغلق أي نافذة Terminal أخرى تشغّل الموقع (أو أعد تشغيل الجهاز) ثم شغّل npm run local من جديد.`);
+  }
+}
+
+say("تشغيل قاعدة البيانات");
+const pgLog = [];
 const pg = new EmbeddedPostgres({ databaseDir: DB_DIR, user: "postgres", password: "postgres", port: DB_PORT, persistent: true,
   // UTF-8 always: Windows would otherwise pick its own code page (WIN1252), which can't store Arabic
   initdbFlags: ["--encoding=UTF8", "--locale=C"],
-  onLog: () => {},
-  onError: () => {},
+  onLog: (m) => pgLog.push(String(m)),
+  onError: (m) => pgLog.push(String(m)),
 });
 const firstRun = !fs.existsSync(path.join(DB_DIR, "PG_VERSION"));
 try {
   if (firstRun) await pg.initialise();
   await pg.start();
 } catch (e) {
-  fail(`تعذّر تشغيل قاعدة البيانات: ${e?.message ?? e}\nإذا كانت نافذة أخرى تشغّل الموقع أغلقها أولًا. وللبدء من جديد احذف المجلد .local`);
+  const log = pgLog.join("").trim().slice(-800);
+  fail(
+    `تعذّر تشغيل قاعدة البيانات: ${e?.message || (typeof e === "string" ? e : "")}${log ? `\n${log}` : ""}\n` +
+      "أغلق أي نافذة Terminal أخرى تشغّل الموقع ثم أعد المحاولة. وإذا تكرر احذف المجلد .local (تُحذف البيانات التجريبية فقط) وشغّل npm run local.",
+  );
 }
 // the site's database must be UTF-8 (Arabic); one made by an earlier version on Windows is recreated
 {
@@ -137,6 +222,7 @@ async function shutdown(code = 0) {
   console.log("\nإيقاف...");
   for (const c of children) c.kill();
   await pg.stop().catch(() => {});
+  fs.rmSync(PIDS, { force: true });
   process.exit(code);
 }
 process.on("SIGINT", () => shutdown(0));
@@ -183,6 +269,7 @@ const run = (args, name) => {
 };
 run(["tests/mock-myfatoorah.mjs"], "payment");
 run([bin("next", "dist/bin/next"), "start", "-p", "3000"], "site");
+fs.writeFileSync(PIDS, JSON.stringify([process.pid, ...children.map((c) => c.pid)]));
 
 for (let i = 0; i < 60; i++) {
   try {
