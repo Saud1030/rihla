@@ -45,6 +45,7 @@ echo "==> Database tables, Saudi destinations, demo bookings"
 npm run db:migrate
 npm run db:seed
 npx tsx scripts/demo-bookings.ts
+npx tsx scripts/demo-routes.ts
 # demo bank account so the bank-transfer option can be tried (example IBAN, not a real account)
 node -e "
 const sql=require('postgres')(process.env.DATABASE_URL,{max:1});

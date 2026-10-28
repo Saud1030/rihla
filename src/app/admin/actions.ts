@@ -22,6 +22,7 @@ import { requestRating } from "@/lib/trip-messages";
 import { invalidateCatalogCache } from "@/lib/catalog";
 import { cancelPaidBooking, requestRefund } from "@/lib/cancellation";
 import { REGIONS, type RegionSlug } from "@/lib/regions";
+import { driveMinutes, roadKm } from "@/lib/pricing";
 import { CORNERS, FONTS, parseTheme, themeWarnings, type CornerKey, type FontKey } from "@/lib/theme";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
@@ -420,6 +421,82 @@ export async function saveRoute(_prev: ActionState, formData: FormData): Promise
   invalidateCatalogCache();
   revalidatePath("/admin/routes");
   return { ok: true, message: d.id ? "تم الحفظ." : "تمت إضافة الرحلة. أضف أسعارها من صفحة الأسعار." };
+}
+
+/**
+ * Prices page: add a route between two destinations together with its price per car.
+ * Empty prices can be filled from the distance (each car's distance rates), rounded to 10 SAR.
+ */
+export async function addPricedRoute(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("catalog");
+  const fromId = Number(formData.get("fromLocationId") ?? 0);
+  const toId = Number(formData.get("toLocationId") ?? 0);
+  if (!fromId || !toId) return { error: "اختر نقطة الانطلاق والوجهة." };
+  if (fromId === toId) return { error: "نقطة الانطلاق والوجهة متطابقتان." };
+  const locs = await db.select().from(s.locations).where(inArray(s.locations.id, [fromId, toId]));
+  const from = locs.find((l) => l.id === fromId);
+  const to = locs.find((l) => l.id === toId);
+  if (!from || !to) return { error: "الوجهة غير موجودة." };
+
+  const num = (v: FormDataEntryValue | null) => {
+    const str = String(v ?? "").trim().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+    if (!str) return null;
+    const n = Number(str);
+    return Number.isFinite(n) && n > 0 ? n : NaN;
+  };
+  const typedKm = num(formData.get("distanceKm"));
+  if (Number.isNaN(typedKm) || (typedKm != null && typedKm > 3000)) return { error: "المسافة غير صحيحة (بالكيلومتر)." };
+  const km = typedKm != null ? Math.round(typedKm) : roadKm(from, to);
+  const autoFill = formData.get("autoFill") === "on";
+
+  const vehicles = await db.select().from(s.vehicles);
+  const prices: { vehicleId: number; price: number }[] = [];
+  for (const v of vehicles) {
+    const p = num(formData.get(`newprice_${v.id}`));
+    if (Number.isNaN(p) || (p != null && p > 1_000_000)) return { error: `سعر ${v.nameAr} غير صحيح. اكتب رقمًا بالريال مثل 250.` };
+    if (p != null) prices.push({ vehicleId: v.id, price: Math.round(p * 100) });
+    else if (autoFill && km && v.active)
+      prices.push({ vehicleId: v.id, price: Math.ceil(Math.max(v.minFare, v.baseFare + v.perKm * km) / 1000) * 1000 });
+  }
+  if (!prices.length)
+    return { error: km ? "اكتب سعرًا لسيارة واحدة على الأقل، أو فعّل «املأ الأسعار الفارغة حسب المسافة»." : "اكتب سعرًا لسيارة واحدة على الأقل (لا توجد إحداثيات لحساب المسافة)." };
+
+  const [existing] = await db
+    .select({ id: s.routes.id })
+    .from(s.routes)
+    .where(
+      and(
+        eq(s.routes.kind, "transfer"),
+        or(
+          and(eq(s.routes.fromLocationId, fromId), eq(s.routes.toLocationId, toId)),
+          and(eq(s.routes.fromLocationId, toId), eq(s.routes.toLocationId, fromId)),
+        ),
+      ),
+    )
+    .limit(1);
+  if (existing) return { error: "توجد رحلة بين هاتين الوجهتين من قبل. عدّل أسعارها من الجدول بالأسفل." };
+
+  const base = `${from.slug}-${to.slug}`;
+  let slug = base;
+  for (let i = 2; await db.query.routes.findFirst({ where: eq(s.routes.slug, slug) }); i++) slug = `${base}-${i}`;
+  await db.transaction(async (tx) => {
+    const [r] = await tx
+      .insert(s.routes)
+      .values({
+        slug,
+        kind: "transfer",
+        fromLocationId: fromId,
+        toLocationId: toId,
+        bidirectional: formData.get("bidirectional") === "on",
+        distanceKm: km ?? null,
+        durationMin: km ? driveMinutes(km) : null,
+        active: true,
+      })
+      .returning({ id: s.routes.id });
+    await tx.insert(s.trips).values(prices.map((p) => ({ routeId: r.id, vehicleId: p.vehicleId, price: p.price, active: true })));
+  });
+  invalidateCatalogCache();
+  redirect(`/admin/prices?added=${encodeURIComponent(slug)}`);
 }
 
 /* ---------- Settings ---------- */

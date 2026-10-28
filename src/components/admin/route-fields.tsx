@@ -2,7 +2,7 @@ import type { City, Location, Route } from "@/db/schema";
 import { Field } from "./ui";
 
 /** Destinations grouped by city, so a long list stays easy to scan */
-function LocationOptions({ locations, cities }: { locations: Location[]; cities: City[] }) {
+export function LocationOptions({ locations, cities }: { locations: Location[]; cities: City[] }) {
   return (
     <>
       {cities.map((c) => {

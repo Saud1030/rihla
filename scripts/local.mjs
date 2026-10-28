@@ -152,6 +152,12 @@ if (!fs.existsSync(demoMark) && env.DATABASE_URL === DB_URL) {
   if (node([tsx, "scripts/demo-bookings.ts"]) && node([tsx, "scripts/demo-settings.ts"])) fs.writeFileSync(demoMark, new Date().toISOString());
 }
 
+const routesMark = path.join(LOCAL, "demo-routes-added");
+if (!fs.existsSync(routesMark) && env.DATABASE_URL === DB_URL) {
+  say("إضافة رحلات وأسعار تجريبية لكل المدن");
+  if (node([tsx, "scripts/demo-routes.ts"])) fs.writeFileSync(routesMark, new Date().toISOString());
+}
+
 /* ---------- build (when the code changed) ---------- */
 const newest = (dir) =>
   fs.readdirSync(dir, { withFileTypes: true }).reduce((t, d) => {

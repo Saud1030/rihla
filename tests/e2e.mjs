@@ -1926,9 +1926,9 @@ if (!ONLY || ONLY === "drivers") {
   const paidBooking = (o = {}) => {
     const ref = "D" + Math.random().toString(36).slice(2, 9).toUpperCase().replace(/[^A-Z0-9]/g, "X").padEnd(7, "Z");
     sql(`insert into bookings (ref, route_title, vehicle_name, customer_name, customer_phone, passengers, bags, pickup_date, pickup_time, pickup_address,
-         dropoff_address, notes, subtotal, amount, status, locale, duration_min, paid_at)
+         dropoff_address, notes, subtotal, vat_rate, vat_amount, amount, status, locale, duration_min, paid_at)
          values ('${ref}', 'مطار جدة ← مكة', 'تويوتا كامري', '${o.name ?? "سلمان الدوسري"}', '${o.phone ?? "+966551112299"}', 2, 2, '${o.date ?? inDaysUTC(2)}', '${o.time ?? "09:30"}',
-         'صالة ١', 'فندق الصفوة', 'عندنا كرسي أطفال', 20000, 23000, '${o.status ?? "paid"}', '${o.locale ?? "ar"}', 60, now())`);
+         'صالة ١', 'فندق الصفوة', 'عندنا كرسي أطفال', 20000, 1500, 3000, 23000, '${o.status ?? "paid"}', '${o.locale ?? "ar"}', 60, now())`);
     return ref;
   };
   const addDriver = async (o) => {
@@ -2208,6 +2208,53 @@ if (!ONLY || ONLY === "drivers") {
   await dctx.close();
   await cctx.close();
   clean();
+}
+
+/* ======================================================================= */
+if (!ONLY || ONLY === "prices") {
+  section = "Prices page: add a route with its prices";
+  console.log(`\n${section}`);
+  const pctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const a = await pctx.newPage();
+  await adminLogin(a, "admin@example.com", env("ADMIN_PASSWORD"));
+  await a.waitForURL(/\/admin$/);
+  const id = (slug) => sql(`select id from locations where slug='${slug}'`);
+  const form = () => a.getByTestId("add-priced-route");
+  const cleanup = () => sql("delete from routes where slug like 'abha-airport-tabuk%' or slug like 'tabuk-abha-airport%'");
+  cleanup();
+  await check("add a route with typed prices; empty ones filled from the distance; it shows on the site", async () => {
+    await a.goto(`${BASE}/admin/prices`, { waitUntil: "networkidle" });
+    await form().locator('select[name="fromLocationId"]').selectOption(id("abha-airport"));
+    await form().locator('select[name="toLocationId"]').selectOption(id("abha-airport"));
+    await form().getByRole("button", { name: "إضافة الرحلة والأسعار" }).click();
+    await form().getByText("متطابقتان").waitFor();
+    await form().locator('select[name="toLocationId"]').selectOption(id("tabuk"));
+    const camry = sql("select id from vehicles where slug='toyota-camry'");
+    await form().locator(`input[name="newprice_${camry}"]`).fill("1500");
+    await form().getByRole("button", { name: "إضافة الرحلة والأسعار" }).click();
+    await a.waitForURL(/added=/, { waitUntil: "commit" });
+    await a.getByText("تمت إضافة الرحلة بأسعارها").waitFor();
+    const [rid, km] = sql("select id, distance_km from routes where slug='abha-airport-tabuk'").split("|");
+    assert(Number(km) > 800, "distance from coordinates: " + km);
+    eq(sql(`select price from trips where route_id=${rid} and vehicle_id=${camry}`), "150000", "typed price kept");
+    eq(Number(sql(`select count(*) from trips where route_id=${rid} and active`)), Number(sql("select count(*) from vehicles where active")), "every car priced");
+    const yukon = Number(sql(`select price from trips t join vehicles v on v.id=t.vehicle_id where route_id=${rid} and v.slug='gmc-yukon'`));
+    eq(yukon % 1000, 0, "auto price rounded to 10 SAR");
+    await page.goto(`${BASE}/ar/routes/abha-airport-tabuk`, { waitUntil: "networkidle" });
+    await page.getByText("١٬٥٠٠ ر.س").first().waitFor();
+  });
+  await check("the same pair again (either direction) is refused; city filter shows only that city's routes", async () => {
+    await a.goto(`${BASE}/admin/prices`, { waitUntil: "networkidle" });
+    await form().locator('select[name="fromLocationId"]').selectOption(id("tabuk"));
+    await form().locator('select[name="toLocationId"]').selectOption(id("abha-airport"));
+    await form().getByRole("button", { name: "إضافة الرحلة والأسعار" }).click();
+    await form().getByText("توجد رحلة بين هاتين الوجهتين").waitFor();
+    await a.goto(`${BASE}/admin/prices?city=tabuk`, { waitUntil: "networkidle" });
+    const rows = await a.locator("tbody th").allInnerTexts();
+    assert(rows.length >= 1 && rows.every((r) => r.includes("تبوك")), "only Tabuk routes: " + rows.join(" / "));
+  });
+  cleanup();
+  await pctx.close();
 }
 
 await browser.close();
