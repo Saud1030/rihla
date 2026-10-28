@@ -6,7 +6,7 @@ import { db, schema as s } from "@/db";
 import { isLocale } from "@/i18n/dictionaries";
 import { getBookingByRef } from "@/lib/booking";
 import { createInvoice, GatewayError, isGatewayConfigured } from "@/lib/myfatoorah";
-import { site } from "@/config/site";
+import { publicBaseUrl } from "@/lib/public-url";
 import { getBankConfig } from "@/lib/catalog";
 
 export type PayState = { error?: "gateway" | "not_configured" };
@@ -21,7 +21,7 @@ export async function startPayment(ref: string, lang: string, _prev: PayState, _
 
   let url: string;
   try {
-    const invoice = await createInvoice(b, locale, site.url);
+    const invoice = await createInvoice(b, locale, await publicBaseUrl());
     await db
       .update(s.bookings)
       .set({ invoiceId: invoice.invoiceId, paymentMethod: "myfatoorah", updatedAt: new Date() })

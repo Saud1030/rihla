@@ -55,6 +55,6 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  // skip API routes, Next internals and files with an extension (images, svg, robots.txt ...)
-  matcher: ["/((?!api|_next/static|_next/image|.*\\..*).*)"],
+  // skip API routes, the local test payment page (mock-pay), Next internals and files with an extension (images, svg, robots.txt ...)
+  matcher: ["/((?!api|mock-pay|_next/static|_next/image|.*\\..*).*)"],
 };

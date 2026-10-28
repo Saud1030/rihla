@@ -25,6 +25,11 @@ const nextConfig: NextConfig = {
         .filter(Boolean),
     },
   },
+  // npm run local: the test payment page (tests/mock-myfatoorah.mjs) is served through the site,
+  // so it also works when the site is shared from your computer (VS Code "Ports")
+  async rewrites() {
+    return process.env.MOCK_VIA_SITE === "1" ? [{ source: "/mock-pay/:path*", destination: "http://localhost:4010/:path*" }] : [];
+  },
   async headers() {
     return [
       {

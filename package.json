@@ -13,7 +13,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "test:mock": "node tests/mock-myfatoorah.mjs",
-    "test:e2e": "node tests/e2e.mjs"
+    "test:e2e": "node tests/e2e.mjs",
+    "local": "node scripts/local.mjs"
   },
   "dependencies": {
     "@fontsource-variable/cairo": "^5.3.0",

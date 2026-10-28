@@ -14,7 +14,9 @@ import fs from "node:fs";
 const TOKEN = process.env.MF_TOKEN ?? fs.readFileSync(".env", "utf8").match(/^MYFATOORAH_API_KEY=(.*)$/m)?.[1]?.trim();
 const PORT = 4010;
 // where the browser reaches this mock (differs from localhost in Codespaces)
+// may be relative ("/mock-pay") when the site forwards that path here (npm run local)
 const PUBLIC_URL = (process.env.MOCK_PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
+const PREFIX = new URL(PUBLIC_URL, "http://x").pathname.replace(/\/$/, "");
 const invoices = new Map(); // id -> invoice
 const byPayment = new Map(); // paymentId -> invoiceId
 let nextInvoice = 6400000;
@@ -124,7 +126,7 @@ http
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         return res.end(`<!doctype html><meta charset=utf-8><title>MyFatoorah (mock)</title><h1>MyFatoorah mock checkout</h1>
           <p id=amount>${inv.InvoiceValue} SAR</p><p>Ref ${inv.CustomerReference}</p>
-          <a id=pay href="/pay/${inv.InvoiceId}/success">Pay</a> <a id=decline href="/pay/${inv.InvoiceId}/fail">Decline</a>`);
+          <a id=pay href="${PREFIX}/pay/${inv.InvoiceId}/success">Pay</a> <a id=decline href="${PREFIX}/pay/${inv.InvoiceId}/fail">Decline</a>`);
       }
       const pid = newPaymentId(inv);
       byPayment.set(pid, inv.InvoiceId);

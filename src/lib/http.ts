@@ -16,7 +16,10 @@ export function extraAllowedHosts() {
     .filter(Boolean);
 }
 
-/** host matches an entry like "example.com" or "*.app.github.dev" */
+/** host matches an entry like "example.com", "*.app.github.dev" or "**.devtunnels.ms" (any subdomain) */
 export function hostAllowed(host: string, patterns: string[]) {
-  return patterns.some((p) => (p.startsWith("*.") ? host.endsWith(p.slice(1)) && host.length > p.length - 1 : host === p));
+  return patterns.some((p) => {
+    const suffix = p.startsWith("**.") ? p.slice(2) : p.startsWith("*.") ? p.slice(1) : null;
+    return suffix ? host.endsWith(suffix) && host.length > suffix.length : host === p;
+  });
 }

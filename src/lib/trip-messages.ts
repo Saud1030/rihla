@@ -3,14 +3,13 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Booking, Driver, Rating } from "@/db/schema";
-import { site } from "@/config/site";
+import { publicBaseUrl } from "./public-url";
 import { formatDate, formatTime } from "./format";
 import { companyName, notify, readSettings } from "./notify";
 
 /** The messages sent around a trip: driver assigned (to both sides), rating request, new rating (to the company email). */
 
-const base = () => site.url.replace(/\/$/, "");
-export const bookingLink = (b: Pick<Booking, "ref" | "locale">) => `${base()}/${b.locale === "en" ? "en" : "ar"}/booking/${b.ref}`;
+export const bookingLink = async (b: Pick<Booking, "ref" | "locale">) => `${await publicBaseUrl()}/${b.locale === "en" ? "en" : "ar"}/booking/${b.ref}`;
 export const carLine = (d: Pick<Driver, "carType" | "carModel" | "carColor">, lang: "ar" | "en" = "ar") =>
   [d.carType, d.carModel, d.carColor].filter(Boolean).join(lang === "ar" ? " · " : " · ");
 const when = (b: Booking, lang: "ar" | "en") => `${formatDate(b.pickupDate, lang)} ${lang === "ar" ? "الساعة" : "at"} ${formatTime(b.pickupTime, lang)}`;
@@ -36,7 +35,7 @@ export async function sendDriverAssigned(b: Booking, d: Driver) {
     .join("\n");
 
   const ar = b.locale !== "en";
-  const link = bookingLink(b);
+  const link = await bookingLink(b);
   const car = carLine(d, ar ? "ar" : "en");
   const customerParams = [b.customerName, b.ref, d.name, d.phone, car, d.plateNumber, link];
   const customerBody = ar
@@ -84,7 +83,7 @@ export async function requestRating(bookingId: string) {
   if (!b) return null; // not completed, or already asked
   const driver = b.driverId ? await db.query.drivers.findFirst({ where: eq(s.drivers.id, b.driverId) }) : null;
   const ar = b.locale !== "en";
-  const link = `${base()}/${ar ? "ar" : "en"}/rate/${token}`;
+  const link = `${await publicBaseUrl()}/${ar ? "ar" : "en"}/rate/${token}`;
   const driverName = driver?.name ?? (ar ? "السائق" : "your driver");
   const body = ar
     ? `شكرًا ${b.customerName} لاختيارك ${companyName(st, "ar")}.\nنسعد بتقييمك للسائق ${driverName} ولخدمتنا في رحلتك رقم ${b.ref}، يستغرق أقل من دقيقة:\n${link}`
@@ -98,6 +97,7 @@ export async function emailRating(r: Rating, b: Booking, driverName: string | nu
   const to = (st.notify_email || st.email || "").trim();
   if (!to) return null;
   const stars = (n: number) => "★".repeat(n) + "☆".repeat(5 - n);
+  const base = await publicBaseUrl();
   const body = [
     `تقييم جديد للحجز ${b.ref}`,
     "",
@@ -109,7 +109,7 @@ export async function emailRating(r: Rating, b: Booking, driverName: string | nu
     `الرحلة: ${b.routeTitle}`,
     `الموعد: ${when(b, "ar")}`,
     "",
-    `تفاصيل الحجز في لوحة التحكم: ${base()}/admin/bookings/${b.ref}`,
+    `تفاصيل الحجز في لوحة التحكم: ${base}/admin/bookings/${b.ref}`,
   ].join("\n");
   return notify({
     bookingId: b.id,

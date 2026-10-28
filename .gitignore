@@ -43,3 +43,6 @@ next-env.d.ts
 
 # codespaces: marks the first-time setup as finished
 /.devcontainer/.setup-done
+
+# npm run local: database and markers
+/.local
