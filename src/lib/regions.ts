@@ -28,7 +28,7 @@ export const KIND_LABELS: Record<LocationKind, { ar: string; en: string }> = {
   airport: { ar: "مطار", en: "Airport" },
   station: { ar: "محطة قطار", en: "Train station" },
   city: { ar: "داخل المدينة", en: "City" },
-  hotels: { ar: "منطقة فنادق", en: "Hotels" },
+  hotels: { ar: "فنادق", en: "Hotels" },
   religious: { ar: "مسجد ومشعر", en: "Holy site" },
   landmark: { ar: "معلم سياحي", en: "Landmark" },
   other: { ar: "أخرى", en: "Other" },

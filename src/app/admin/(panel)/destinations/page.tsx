@@ -6,7 +6,7 @@ import { requireSection } from "@/lib/auth";
 import { db, schema as s } from "@/db";
 import { addCity, bulkLocations, saveLocation, toggleCity } from "../../actions";
 import { DestinationsTable } from "@/components/admin/destinations-table";
-import { KIND_LABELS, LOCATION_KINDS, REGIONS, regionName, type LocationKind } from "@/lib/regions";
+import { KIND_LABELS, LOCATION_KINDS, type LocationKind } from "@/lib/regions";
 import { formatNumber } from "@/lib/format";
 import { fold } from "@/lib/text";
 import { ActionForm } from "@/components/admin/action-form";
@@ -38,7 +38,6 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
     db.select().from(s.locations).orderBy(asc(s.locations.sortOrder), asc(s.locations.id)),
   ]);
 
-  const region = REGIONS.find((r) => r.slug === one("region"))?.slug ?? "";
   const city = cities.find((c) => c.slug === one("city"))?.slug ?? "";
   const kind = (LOCATION_KINDS as readonly string[]).includes(one("kind")) ? (one("kind") as LocationKind) : "";
   const q = one("q").slice(0, 60);
@@ -48,7 +47,6 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
   const filtered = locations.filter((l) => {
     const c = cityBySlug.get(l.city);
     if (city && l.city !== city) return false;
-    if (region && c?.region !== region) return false;
     if (kind && l.kind !== kind) return false;
     if (visibility === "hidden" && l.active) return false;
     if (visibility === "visible" && !l.active) return false;
@@ -59,7 +57,6 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
     return true;
   });
 
-  const citiesInRegion = region ? cities.filter((c) => c.region === region) : cities;
   const counts = new Map<string, number>();
   for (const l of locations) counts.set(l.city, (counts.get(l.city) ?? 0) + 1);
 
@@ -76,22 +73,12 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
         <Field label="بحث" className="grow min-w-48">
           <input name="q" defaultValue={q} placeholder="اسم الوجهة أو المدينة" className="field" />
         </Field>
-        <Field label="المنطقة">
-          <select name="region" defaultValue={region} className="field">
-            <option value="">كل المناطق</option>
-            {REGIONS.map((r) => (
-              <option key={r.slug} value={r.slug}>
-                {r.ar}
-              </option>
-            ))}
-          </select>
-        </Field>
         <Field label="المدينة">
           <select name="city" defaultValue={city} className="field">
             <option value="">كل المدن</option>
-            {citiesInRegion.map((c) => (
+            {cities.map((c) => (
               <option key={c.slug} value={c.slug}>
-                {c.nameAr}
+                مدينة {c.nameAr}
               </option>
             ))}
           </select>
@@ -114,7 +101,7 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
           </select>
         </Field>
         <button className="btn btn-primary">تصفية</button>
-        {(q || region || city || kind || visibility) && (
+        {(q || city || kind || visibility) && (
           <Link href="/admin/destinations" className="btn btn-ghost">
             مسح
           </Link>
@@ -136,7 +123,6 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
               nameEn: l.nameEn,
               kind: KIND_LABELS[l.kind].ar,
               city: c?.nameAr ?? l.city,
-              region: c ? regionName(c.region, "ar") : "",
               active: l.active,
               noCoords: l.lat == null,
             };
@@ -156,32 +142,23 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
 
       {/* Cities */}
       <section id="cities" className="space-y-4">
-        <h2 className="text-lg font-semibold">المدن حسب المنطقة</h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          {REGIONS.map((r) => {
-            const list = cities.filter((c) => c.region === r.slug);
-            if (!list.length) return null;
-            return (
-              <Card key={r.slug}>
-                <h3 className="font-medium px-4 py-3 border-b border-line">{r.ar}</h3>
-                <ul className="divide-y divide-line text-sm">
-                  {list.map((c) => (
-                    <li key={c.slug} className="flex items-center justify-between gap-3 px-4 py-2">
-                      <Link href={`/admin/destinations?city=${c.slug}`} className={c.active ? "hover:text-sign" : "text-muted line-through"}>
-                        {c.nameAr}
-                        <span className="text-muted tabular"> · {formatNumber(counts.get(c.slug) ?? 0, "ar")} وجهة</span>
-                      </Link>
-                      <ActionForm action={toggleCity} submitLabel={c.active ? "إخفاء" : "إظهار"} className="flex items-center gap-2" submitClassName="text-xs text-sign hover:underline">
-                        <input type="hidden" name="slug" value={c.slug} />
-                        <input type="hidden" name="active" value={c.active ? "0" : "1"} />
-                      </ActionForm>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            );
-          })}
-        </div>
+        <h2 className="text-lg font-semibold">المدن</h2>
+        <Card>
+          <ul className="divide-y divide-line text-sm">
+            {cities.map((c) => (
+              <li key={c.slug} className="flex items-center justify-between gap-3 px-4 py-2">
+                <Link href={`/admin/destinations?city=${c.slug}`} className={c.active ? "hover:text-sign" : "text-muted line-through"}>
+                  مدينة {c.nameAr}
+                  <span className="text-muted tabular"> · {formatNumber(counts.get(c.slug) ?? 0, "ar")} وجهة</span>
+                </Link>
+                <ActionForm action={toggleCity} submitLabel={c.active ? "إخفاء" : "إظهار"} className="flex items-center gap-2" submitClassName="text-xs text-sign hover:underline">
+                  <input type="hidden" name="slug" value={c.slug} />
+                  <input type="hidden" name="active" value={c.active ? "0" : "1"} />
+                </ActionForm>
+              </li>
+            ))}
+          </ul>
+        </Card>
 
         <Card className="p-6">
           <h3 className="font-semibold mb-4">إضافة مدينة</h3>
@@ -192,18 +169,6 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
               </Field>
               <Field label="اسم المدينة بالإنجليزي">
                 <input name="nameEn" required maxLength={80} dir="ltr" className="field text-start" />
-              </Field>
-              <Field label="المنطقة">
-                <select name="region" required defaultValue="" className="field">
-                  <option value="" disabled>
-                    اختر المنطقة
-                  </option>
-                  {REGIONS.map((r) => (
-                    <option key={r.slug} value={r.slug}>
-                      {r.ar}
-                    </option>
-                  ))}
-                </select>
               </Field>
               <Field label="موقع المدينة" hint="رابط خرائط جوجل لوسط المدينة، أو الإحداثيات">
                 <input name="coords" required dir="ltr" maxLength={2000} placeholder="24.7136, 46.6753" className="field text-start" />

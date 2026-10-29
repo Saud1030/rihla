@@ -29,6 +29,9 @@ export type SignSearchLabels = {
   showPrices: string;
   missing: { from: string; to: string; date: string; time: string };
   regions: string;
+  cities: string;
+  /** word shown before a city's name in the chooser ("مدينة ") */
+  cityPrefix: string;
   back: string;
   close: string;
   chooseFrom: string;
@@ -102,6 +105,20 @@ export function SignSearch({
     [regions, options],
   );
 
+  // a small catalog (the company's own cities) is shown as a flat list of cities, no regions step
+  const allCities = useMemo(
+    () =>
+      [...new Map(options.map((o) => [o.citySlug, o.city])).entries()].map(
+        ([slug, name]) => ({
+          slug,
+          name,
+          count: options.filter((o) => o.citySlug === slug).length,
+        }),
+      ),
+    [options],
+  );
+  const flat = allCities.length <= 12;
+
   useEffect(() => {
     if (open) headingRef.current?.focus();
   }, [open, nav]);
@@ -139,7 +156,9 @@ export function SignSearch({
   /* ---------- panel content ---------- */
   const regionName = (slug?: string) =>
     regions.find((r) => r.slug === slug)?.name ?? "";
-  const cityList = nav.region
+  const cityList = flat
+    ? allCities
+    : nav.region
     ? [
         ...new Map(
           options
@@ -178,7 +197,7 @@ export function SignSearch({
           : L.chooseFrom
         : L.chooseTo;
   const crumb = nav.city
-    ? cityName
+    ? `${L.cityPrefix}${cityName}`
     : nav.region
       ? regionName(nav.region)
       : null;
@@ -282,7 +301,7 @@ export function SignSearch({
         {(nav.region || nav.city) && (
           <button
             type="button"
-            onClick={() => setNav(nav.city ? { region: nav.region } : {})}
+            onClick={() => setNav(nav.city && !flat ? { region: nav.region } : {})}
             className="grid place-items-center size-8 rounded-md border border-line hover:border-sign shrink-0"
             aria-label={L.back}
           >
@@ -346,7 +365,7 @@ export function SignSearch({
         </div>
       ) : (
         <div className="max-h-[22rem] overflow-y-auto -mx-1 px-1 space-y-4">
-          {!nav.region && !nav.city && (
+          {!flat && !nav.region && !nav.city && (
             <section>
               <h4 className="text-xs font-semibold text-muted mb-2">
                 {L.regions}
@@ -371,17 +390,24 @@ export function SignSearch({
             </section>
           )}
 
-          {nav.region && !nav.city && (
+          {(flat ? !nav.city : nav.region && !nav.city) && (
+            <section>
+              {flat && (
+                <h4 className="text-xs font-semibold text-muted mb-2">
+                  {L.cities}
+                </h4>
+              )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {cityList.map((c) => (
                 <button
                   key={c.slug}
                   type="button"
                   onClick={() => setNav({ region: nav.region, city: c.slug })}
+                  data-city={c.slug}
                   className="rounded-lg border border-line px-3 py-2.5 text-start hover:border-sign"
                 >
                   <span className="block text-[15px] font-medium leading-snug">
-                    {c.name}
+                    {flat ? `${L.cityPrefix}${c.name}` : c.name}
                   </span>
                   <span className="block text-xs text-muted tabular">
                     {num(c.count)} {L.places}
@@ -389,6 +415,7 @@ export function SignSearch({
                 </button>
               ))}
             </div>
+            </section>
           )}
 
           {nav.city &&

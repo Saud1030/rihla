@@ -6,7 +6,7 @@ import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries
 import { getCities, getLocations, getSettings, getVatConfig, getVehicles } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { HOUR_PACKAGES, hourlyPrice, isHourPackage } from "@/lib/policy";
-import { KIND_LABELS, regionName } from "@/lib/regions";
+import { KIND_LABELS } from "@/lib/regions";
 import { isClock, isDay } from "@/lib/timespan";
 import { BookingForm, type FormTrip } from "@/components/site/booking-form";
 import { createBooking } from "@/app/actions/booking";
@@ -86,7 +86,7 @@ async function HourlyContent({
         </h1>
         <p className="mt-2 text-muted">
           {t.hourly.from}: {name}
-          {city ? ` — ${KIND_LABELS[place.kind][lang]} · ${lang === "ar" ? city.nameAr : city.nameEn}، ${regionName(city.region, lang)}` : ""}
+          {city ? ` — ${KIND_LABELS[place.kind][lang]} · ${lang === "ar" ? `مدينة ${city.nameAr}` : city.nameEn}` : ""}
         </p>
         {dest && (
           <p className="text-muted">

@@ -953,7 +953,6 @@ if (!ONLY || ONLY === "features") {
     const f = a.locator("#cities form").filter({ has: a.getByRole("button", { name: "إضافة المدينة" }) });
     await f.locator('input[name="nameAr"]').fill("مدينة الاختبار");
     await f.locator('input[name="nameEn"]').fill("Test Town");
-    await f.locator('select[name="region"]').selectOption("hail");
     await f.locator('input[name="coords"]').fill("27.9, 42.1");
     await f.getByRole("button", { name: "إضافة المدينة" }).click();
     await a.getByText("تمت إضافة المدينة ووجهة").waitFor();

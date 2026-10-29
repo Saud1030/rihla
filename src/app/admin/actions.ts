@@ -21,7 +21,6 @@ import { normalizePhone } from "@/lib/phone";
 import { requestRating } from "@/lib/trip-messages";
 import { invalidateCatalogCache } from "@/lib/catalog";
 import { cancelPaidBooking, requestRefund } from "@/lib/cancellation";
-import { REGIONS, type RegionSlug } from "@/lib/regions";
 import { driveMinutes, roadKm } from "@/lib/pricing";
 import { CORNERS, FONTS, parseTheme, themeWarnings, type CornerKey, type FontKey } from "@/lib/theme";
 
@@ -320,7 +319,6 @@ export async function deleteLocation(_prev: ActionState, formData: FormData): Pr
 const citySchema = z.object({
   nameAr: z.string().trim().min(2).max(80),
   nameEn: z.string().trim().min(2).max(80),
-  region: z.enum(REGIONS.map((r) => r.slug) as [RegionSlug, ...RegionSlug[]]),
   coords: z.string().max(2000).default(""),
   addStop: z.boolean(),
 });
@@ -329,13 +327,18 @@ export async function addCity(_prev: ActionState, formData: FormData): Promise<A
   await requireSection("catalog");
   const raw = Object.fromEntries(formData.entries());
   const parsed = citySchema.safeParse({ ...raw, addStop: raw.addStop === "on" });
-  if (!parsed.success) return { error: "اكتب اسم المدينة بالعربي والإنجليزي واختر المنطقة." };
+  if (!parsed.success) return { error: "اكتب اسم المدينة بالعربي والإنجليزي." };
   const d = parsed.data;
   const coords = parseCoords(d.coords);
   if (coords === null) return { error: "حدّد موقع المدينة: الصق رابط خرائط جوجل أو اكتب الإحداثيات." };
   if (coords === "invalid") return { error: "الإحداثيات غير صحيحة. الصق رابط خرائط جوجل للمدينة، أو اكتبها هكذا: 24.7136, 46.6753" };
   const slug = await uniqueSlug(s.cities, slugify(d.nameEn));
-  await db.insert(s.cities).values({ slug, nameAr: d.nameAr, nameEn: d.nameEn, region: d.region, lat: coords.lat, lng: coords.lng, sortOrder: 5000 });
+  // the region is not asked for: it is taken from the nearest existing city
+  const others = await db.select({ region: s.cities.region, lat: s.cities.lat, lng: s.cities.lng }).from(s.cities);
+  const near = others
+    .filter((c) => c.lat != null && c.lng != null)
+    .sort((x, y) => (x.lat! - coords.lat) ** 2 + (x.lng! - coords.lng) ** 2 - ((y.lat! - coords.lat) ** 2 + (y.lng! - coords.lng) ** 2))[0];
+  await db.insert(s.cities).values({ slug, nameAr: d.nameAr, nameEn: d.nameEn, region: near?.region ?? "makkah", lat: coords.lat, lng: coords.lng, sortOrder: 5000 });
   if (d.addStop) {
     const stopSlug = await uniqueSlug(s.locations, slug);
     await db.insert(s.locations).values({

@@ -10,7 +10,6 @@ export type DestinationRow = {
   nameEn: string;
   kind: string;
   city: string;
-  region: string;
   active: boolean;
   noCoords: boolean;
 };
@@ -97,7 +96,7 @@ export function DestinationsTable({ rows, action }: { rows: DestinationRow[]; ac
                 </th>
                 <th className="text-start font-medium px-4 py-3">الوجهة</th>
                 <th className="text-start font-medium px-4 py-3">النوع</th>
-                <th className="text-start font-medium px-4 py-3">المدينة والمنطقة</th>
+                <th className="text-start font-medium px-4 py-3">المدينة</th>
                 <th className="text-start font-medium px-4 py-3">الحالة</th>
                 <th className="text-start font-medium px-4 py-3">إجراءات</th>
               </tr>
@@ -124,8 +123,7 @@ export function DestinationsTable({ rows, action }: { rows: DestinationRow[]; ac
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap">{r.kind}</td>
                   <td className="px-4 py-2.5 whitespace-nowrap">
-                    {r.city}
-                    <span className="block text-xs text-muted">{r.region}</span>
+                    مدينة {r.city}
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap">
                     {r.active ? <span className="text-sign">ظاهرة</span> : <span className="text-danger">مخفية</span>}

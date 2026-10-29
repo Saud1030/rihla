@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { LoginForm } from "./login-form";
 import { Suspense } from "react";
@@ -26,9 +27,9 @@ export default function LoginPage() {
         <LoginForm />
         <p className="mt-4 text-center text-sm text-muted">
           سائق جديد؟{" "}
-          <a href="/ar/drivers/join" className="text-sign font-medium hover:underline">
+          <Link href="/ar/drivers/join" className="text-sign font-medium hover:underline">
             سجّل طلب انضمام
-          </a>
+          </Link>
         </p>
       </div>
     </div>

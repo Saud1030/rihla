@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { applyAsDriver, type JoinState } from "@/app/actions/driver-apply";
 import { DOC_KINDS, DOC_LABELS, DRIVER_PHOTO_MAX } from "@/lib/driver-docs";
@@ -66,9 +67,9 @@ export function DriverJoinForm({ lang, t, vehicles, years }: { lang: Locale; t: 
         </p>
         <h2 className="mt-2 text-2xl font-semibold">{t.doneTitle}</h2>
         <p className="mt-2 text-muted max-w-[50ch] mx-auto">{t.doneLead}</p>
-        <a href="/admin/login" className="btn btn-primary mt-5">
+        <Link href="/admin/login" className="btn btn-primary mt-5">
           {t.login}
-        </a>
+        </Link>
       </div>
     );
 

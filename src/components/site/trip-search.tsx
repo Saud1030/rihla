@@ -62,6 +62,8 @@ export async function signSearchProps(
       showPrices: t.hero.showPrices,
       missing: t.search.missing,
       regions: t.search.regions,
+      cities: t.search.cities,
+      cityPrefix: t.search.cityPrefix,
       back: t.search.back,
       close: t.search.close,
       chooseFrom: t.search.chooseFrom,

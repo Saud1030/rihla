@@ -1,5 +1,5 @@
 import type { City, Location } from "@/db/schema";
-import { KIND_LABELS, LOCATION_KINDS, REGIONS } from "@/lib/regions";
+import { KIND_LABELS, LOCATION_KINDS } from "@/lib/regions";
 import { Field } from "./ui";
 
 /** Shared fields for adding and editing a destination */
@@ -18,19 +18,11 @@ export function LocationFields({ cities, l, defaultCity }: { cities: City[]; l?:
           <option value="" disabled>
             اختر المدينة
           </option>
-          {REGIONS.map((r) => {
-            const inRegion = cities.filter((c) => c.region === r.slug);
-            if (!inRegion.length) return null;
-            return (
-              <optgroup key={r.slug} label={r.ar}>
-                {inRegion.map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.nameAr}
-                  </option>
-                ))}
-              </optgroup>
-            );
-          })}
+          {cities.map((c) => (
+            <option key={c.slug} value={c.slug}>
+              مدينة {c.nameAr}
+            </option>
+          ))}
         </select>
       </Field>
       <Field label="النوع">

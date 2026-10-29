@@ -8,7 +8,7 @@
 
 ```bash
 # 1) قاعدة بيانات تجريبية + بيانات أولية
-npm run db:migrate && npm run db:seed
+npm run db:migrate && SEED_CATALOG=full npm run db:seed   # the tests use every Saudi city
 
 # 2) في ملف .env للاختبار:
 #    MYFATOORAH_API_KEY=test-mf-token-123

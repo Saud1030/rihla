@@ -116,6 +116,8 @@ export async function getPickerOptions(lang: Locale): Promise<PickerOption[]> {
   const cityBySlug = new Map(cities.map((c) => [c.slug, c]));
   const regionOrder = new Map<string, number>(REGIONS.map((r, i) => [r.slug, i]));
   const cityOrder = new Map(cities.map((c, i) => [c.slug, i]));
+  // a small catalog is listed as plain cities in the panel's order, without grouping by region
+  const byRegion = cities.length > 12;
   const kindOrder: Record<string, number> = { hotels: 0, city: 1, airport: 2, station: 3, religious: 4, landmark: 5, other: 6 };
 
   return locations
@@ -124,7 +126,7 @@ export async function getPickerOptions(lang: Locale): Promise<PickerOption[]> {
       const ca = cityBySlug.get(a.city)!;
       const cb = cityBySlug.get(b.city)!;
       return (
-        (regionOrder.get(ca.region) ?? 99) - (regionOrder.get(cb.region) ?? 99) ||
+        (byRegion ? (regionOrder.get(ca.region) ?? 99) - (regionOrder.get(cb.region) ?? 99) : 0) ||
         (cityOrder.get(a.city) ?? 0) - (cityOrder.get(b.city) ?? 0) ||
         kindOrder[a.kind] - kindOrder[b.kind] ||
         a.sortOrder - b.sortOrder

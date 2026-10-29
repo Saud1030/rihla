@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { requireSection } from "@/lib/auth";
 import { asc } from "drizzle-orm";
@@ -76,9 +77,9 @@ async function Matrix({
           اختر من أين وإلى أين، واكتب سعر كل سيارة بالريال قبل الضريبة. الخانة
           الفارغة تُحسب تلقائيًا من المسافة إذا فعّلت الخيار. وجهتك غير موجودة؟
           أضفها أولًا من{" "}
-          <a href="/admin/destinations" className="text-sign hover:underline">
+          <Link href="/admin/destinations" className="text-sign hover:underline">
             الوجهات والمدن
-          </a>
+          </Link>
           .
         </p>
         <ActionForm

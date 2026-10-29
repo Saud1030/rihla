@@ -7,7 +7,7 @@ import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries
 import { findRoute, getCatalog, getCities, getVatConfig, pairTitle, quoteDistanceTrip } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { formatDuration, formatNumber } from "@/lib/format";
-import { KIND_LABELS, regionName } from "@/lib/regions";
+import { KIND_LABELS } from "@/lib/regions";
 import { isClock, isDay } from "@/lib/timespan";
 import { BookingForm, type FormTrip } from "@/components/site/booking-form";
 import { createBooking } from "@/app/actions/booking";
@@ -74,7 +74,7 @@ async function TripContent({
   const city = (slug: string) => cities.find((c) => c.slug === slug);
   const place = (l: typeof quote.from) => {
     const c = city(l.city);
-    return `${KIND_LABELS[l.kind][lang]} · ${c ? (lang === "ar" ? c.nameAr : c.nameEn) : ""}${c ? `، ${regionName(c.region, lang)}` : ""}`;
+    return `${KIND_LABELS[l.kind][lang]} · ${c ? (lang === "ar" ? `مدينة ${c.nameAr}` : c.nameEn) : ""}`;
   };
 
   const trips: FormTrip[] = quote.options.map(({ vehicle, price }) => ({
