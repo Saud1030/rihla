@@ -10,6 +10,7 @@ import { formatSAR } from "@/lib/format";
 import { distancePrice } from "@/lib/pricing";
 import { ActionForm } from "@/components/admin/action-form";
 import { Card, Field, Skeleton } from "@/components/admin/ui";
+import { VehicleImageField } from "@/components/admin/vehicle-image-field";
 
 const t = getDictionary("ar");
 
@@ -114,18 +115,8 @@ async function Editor({ params }: { params: Promise<{ id: string }> }) {
                 className="field tabular"
               />
             </Field>
-            <Field
-              label="رابط الصورة"
-              hint="اتركه فارغًا لاستخدام الرسم الافتراضي للفئة"
-              className="sm:col-span-2"
-            >
-              <input
-                name="imageUrl"
-                defaultValue={v?.imageUrl ?? ""}
-                dir="ltr"
-                placeholder="https://…"
-                className="field text-start"
-              />
+            <Field label="صورة السيارة" className="sm:col-span-2">
+              <VehicleImageField current={v?.imageUrl ?? null} fallback={`/vehicles/${v?.category ?? "sedan"}.svg`} />
             </Field>
             <Field label="المميزات بالعربي" hint="ميزة في كل سطر">
               <textarea

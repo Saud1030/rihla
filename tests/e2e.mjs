@@ -534,7 +534,38 @@ if (!ONLY || ONLY === "admin") {
     await a.getByText("تم الحفظ.").waitFor();
     await site.goto(`${BASE}/ar/fleet`, { waitUntil: "networkidle" });
     eq(await site.getByText("فان اختبار").count(), 0, "hidden when inactive");
-    sql("delete from vehicles where slug='test-van'");
+    sql(`delete from assets where key='vehicle:${id}'; delete from vehicles where slug='test-van'`);
+  });
+  await check("vehicles: the car photo is uploaded from the device (no link), shown on the site, can be removed", async () => {
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+    const id = sql("select id from vehicles where active order by sort_order limit 1");
+    const before = sql(`select coalesce(image_url,'') from vehicles where id=${id}`);
+    await a.goto(`${BASE}/admin/vehicles/${id}`, { waitUntil: "networkidle" });
+    eq(await a.locator('input[name="imageUrl"]').count(), 0, "no link field");
+    // a non-image is refused by the server
+    await a.setInputFiles('input[name="image"]', { name: "x.png", mimeType: "image/png", buffer: Buffer.from("not an image") });
+    await a.getByRole("button", { name: "حفظ" }).click();
+    await a.getByText("الصورة يجب أن تكون PNG").waitFor();
+    // over 2 MB is refused in the browser
+    await a.setInputFiles('input[name="image"]', { name: "big.png", mimeType: "image/png", buffer: Buffer.concat([png, Buffer.alloc(2 * 1024 * 1024 + 10)]) });
+    await a.getByText("أكبر من ٢ ميجابايت").waitFor();
+    await a.setInputFiles('input[name="image"]', { name: "car.png", mimeType: "image/png", buffer: png });
+    await a.getByRole("button", { name: "حفظ" }).click();
+    await a.getByText("تم الحفظ.").waitFor();
+    const url = sql(`select image_url from vehicles where id=${id}`);
+    assert(url.startsWith(`/api/vehicles/${id}/image?v=`), "stored url " + url);
+    const r = await fetch(BASE + url);
+    eq(r.status, 200, "served"); eq(r.headers.get("content-type"), "image/png", "type");
+    eq(Buffer.from(await r.arrayBuffer()).equals(png), true, "same bytes");
+    await site.goto(`${BASE}/ar/fleet`, { waitUntil: "networkidle" });
+    assert(await site.locator(`img[src*="/api/vehicles/${id}/image"]`).count() > 0, "photo on fleet page");
+    await a.goto(`${BASE}/admin/vehicles/${id}`, { waitUntil: "networkidle" });
+    await a.check('input[name="removeImage"]');
+    await a.getByRole("button", { name: "حفظ" }).click();
+    await a.getByText("تم الحفظ.").waitFor();
+    eq(sql(`select coalesce(image_url,'') from vehicles where id=${id}`), "", "removed");
+    eq((await fetch(`${BASE}/api/vehicles/${id}/image`)).status, 404, "file gone");
+    if (before) sql(`update vehicles set image_url='${before}' where id=${id}`);
   });
   await check("routes: validation errors, add route, price it, appears on site", async () => {
     sql("delete from trips where route_id in (select id from routes where slug like 'taif-jeddah-airport%'); delete from routes where slug like 'taif-jeddah-airport%'");

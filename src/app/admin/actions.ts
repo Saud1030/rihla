@@ -22,6 +22,7 @@ import { requestRating } from "@/lib/trip-messages";
 import { invalidateCatalogCache } from "@/lib/catalog";
 import { cancelPaidBooking, requestRefund } from "@/lib/cancellation";
 import { driveMinutes, roadKm } from "@/lib/pricing";
+import { detectFile, IMAGE_TYPES, MB } from "@/lib/files";
 import { CORNERS, FONTS, parseTheme, themeWarnings, type CornerKey, type FontKey } from "@/lib/theme";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
@@ -169,7 +170,6 @@ const vehicleSchema = z.object({
   category: z.enum(s.vehicleCategory.enumValues),
   passengers: z.coerce.number().int().min(1).max(100),
   bags: z.coerce.number().int().min(0).max(200),
-  imageUrl: z.string().trim().max(500).default(""),
   featuresAr: z.string().default(""),
   featuresEn: z.string().default(""),
   sortOrder: z.coerce.number().int().default(0),
@@ -188,7 +188,17 @@ export async function saveVehicle(_prev: ActionState, formData: FormData): Promi
   const parsed = vehicleSchema.safeParse({ ...raw, id: raw.id || undefined, active: raw.active === "on" });
   if (!parsed.success) return { error: "راجع الحقول: الرمز بحروف إنجليزية صغيرة وأرقام وشرطات، والأسماء مطلوبة، وأسعار المسافة أرقام." };
   const d = parsed.data;
-  if (d.imageUrl && !/^(https:\/\/|\/)/.test(d.imageUrl)) return { error: "رابط الصورة يجب أن يبدأ بـ https:// أو /" };
+  // the car photo is uploaded from the device and kept in the database (served by /api/vehicles/<id>/image)
+  let image: { mime: string; data: Buffer } | null = null;
+  const file = formData.get("image");
+  if (file instanceof File && file.size > 0) {
+    if (file.size > 2 * MB) return { error: "حجم الصورة أكبر من ٢ ميجابايت. صغّرها ثم حاول مرة أخرى." };
+    const buf = Buffer.from(await file.arrayBuffer());
+    const kind = detectFile(buf, IMAGE_TYPES);
+    if (!kind) return { error: "الصورة يجب أن تكون PNG أو JPG أو WEBP." };
+    image = { mime: kind.mime, data: buf };
+  }
+  const removeImage = !image && formData.get("removeImage") === "on";
 
   const ar = d.featuresAr.split("\n").map((x) => x.trim()).filter(Boolean);
   const en = d.featuresEn.split("\n").map((x) => x.trim()).filter(Boolean);
@@ -201,7 +211,7 @@ export async function saveVehicle(_prev: ActionState, formData: FormData): Promi
     category: d.category,
     passengers: d.passengers,
     bags: d.bags,
-    imageUrl: d.imageUrl || null,
+    ...(removeImage ? { imageUrl: null } : {}),
     features,
     sortOrder: d.sortOrder,
     active: d.active,
@@ -212,12 +222,21 @@ export async function saveVehicle(_prev: ActionState, formData: FormData): Promi
     hourly12: Math.round(d.hourly12 * 100),
     hourly24: Math.round(d.hourly24 * 100),
   };
+  let vehicleId = d.id;
   try {
     if (d.id) await db.update(s.vehicles).set(values).where(eq(s.vehicles.id, d.id));
-    else await db.insert(s.vehicles).values(values);
+    else [{ id: vehicleId }] = await db.insert(s.vehicles).values(values).returning({ id: s.vehicles.id });
   } catch {
     return { error: "يوجد مركبة أخرى بنفس الرمز." };
   }
+  const key = `vehicle:${vehicleId}`;
+  if (image) {
+    await db
+      .insert(s.assets)
+      .values({ key, ...image })
+      .onConflictDoUpdate({ target: s.assets.key, set: { ...image, updatedAt: new Date() } });
+    await db.update(s.vehicles).set({ imageUrl: `/api/vehicles/${vehicleId}/image?v=${Date.now()}` }).where(eq(s.vehicles.id, vehicleId!));
+  } else if (removeImage) await db.delete(s.assets).where(eq(s.assets.key, key));
   invalidateCatalogCache();
   revalidatePath("/admin/vehicles");
   if (!d.id) redirect("/admin/vehicles");
