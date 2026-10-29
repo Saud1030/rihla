@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Booking, Driver, Rating } from "@/db/schema";
 import { publicBaseUrl } from "./public-url";
-import { formatDate, formatTime } from "./format";
+import { bookingNo, formatDate, formatTime } from "./format";
 import { companyName, notify, readSettings } from "./notify";
 
 /** The messages sent around a trip: driver assigned (to both sides), rating request, new rating (to the company email). */
@@ -18,9 +18,9 @@ const when = (b: Booking, lang: "ar" | "en") => `${formatDate(b.pickupDate, lang
 export async function sendDriverAssigned(b: Booking, d: Driver) {
   const destination = b.dropoffAddress || b.routeTitle;
   const people = `${b.passengers} راكب، ${b.bags} حقيبة`;
-  const driverParams = [d.name, b.ref, b.customerName, b.customerPhone, when(b, "ar"), b.pickupAddress, destination, people, [b.flightNumber && `رحلة الطيران ${b.flightNumber}`, b.notes].filter(Boolean).join(" - ") || "-"];
+  const driverParams = [d.name, bookingNo(b.number), b.customerName, b.customerPhone, when(b, "ar"), b.pickupAddress, destination, people, [b.flightNumber && `رحلة الطيران ${b.flightNumber}`, b.notes].filter(Boolean).join(" - ") || "-"];
   const driverBody = [
-    `مرحبًا ${d.name}، لديك رحلة جديدة رقم ${b.ref}.`,
+    `مرحبًا ${d.name}، لديك رحلة جديدة رقم ${bookingNo(b.number)}.`,
     `الرحلة: ${b.routeTitle}`,
     `العميل: ${b.customerName}`,
     `جوال العميل (واتساب): ${b.customerPhone}`,
@@ -99,7 +99,7 @@ export async function emailRating(r: Rating, b: Booking, driverName: string | nu
   const stars = (n: number) => "★".repeat(n) + "☆".repeat(5 - n);
   const base = await publicBaseUrl();
   const body = [
-    `تقييم جديد للحجز ${b.ref}`,
+    `تقييم جديد للحجز ${bookingNo(b.number)}`,
     "",
     `تقييم الشركة: ${stars(r.companyStars)} (${r.companyStars} من 5)`,
     `تقييم السائق${driverName ? ` ${driverName}` : ""}: ${stars(r.driverStars)} (${r.driverStars} من 5)`,
@@ -117,7 +117,7 @@ export async function emailRating(r: Rating, b: Booking, driverName: string | nu
     kind: "rating_received",
     recipient: to,
     recipientName: companyName(st, "ar"),
-    subject: `تقييم جديد ${r.companyStars}/5 - حجز ${b.ref}`,
+    subject: `تقييم جديد ${r.companyStars}/5 - حجز ${bookingNo(b.number)}`,
     body,
   });
 }

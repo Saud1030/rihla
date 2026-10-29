@@ -1987,7 +1987,8 @@ if (!ONLY || ONLY === "drivers") {
     const toDriver = msgs.find((m) => m.to === "966551234321");
     const toCustomer = msgs.find((m) => m.to === "966551112299");
     assert(toDriver && toCustomer, "one to each");
-    for (const x of ["سلمان الدوسري", "+966551112299", "صالة ١", "فندق الصفوة", "كرسي أطفال", ref]) assert(toDriver.text.body.includes(x), "driver message has " + x);
+    const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
+    for (const x of ["سلمان الدوسري", "+966551112299", "صالة ١", "فندق الصفوة", "كرسي أطفال", no]) assert(toDriver.text.body.includes(x), "driver message has " + x);
     for (const x of ["فهد الحربي", "+966551234321", "تويوتا كامري", "ر س ع ٥٥٥٥", `/ar/booking/${ref}`]) assert(toCustomer.text.body.includes(x), "customer message has " + x);
     eq(sql(`select string_agg(status::text, ',' order by id) from notifications where booking_id=(select id from bookings where ref='${ref}')`), "sent,sent", "logged as sent");
   });
@@ -2000,6 +2001,58 @@ if (!ONLY || ONLY === "drivers") {
     eq(await img.evaluate((el) => el.complete && el.naturalWidth > 0), true, "photo loads");
     assert((await d.getByRole("link", { name: /واتساب/ }).getAttribute("href")).includes("wa.me/966551234321"), "WhatsApp link");
     eq((await fetch(`${BASE}/api/booking/ZZZZZZZZ/driver-photo`)).status, 404, "unknown booking: no photo");
+  });
+
+  await check("bookings list: running number MHT.., date, time, from, to, car, customer, mobiles and driver each in its own column; search by number", async () => {
+    const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
+    await a.goto(`${BASE}/admin/bookings?q=${no}`, { waitUntil: "networkidle" });
+    const heads = await a.getByTestId("bookings-table").locator("thead th").allInnerTexts();
+    eq(heads.join("|"), "رقم الحجز|التاريخ|الوقت|من|إلى|السيارة|العميل|جوال العميل|السائق|جوال السائق|المبلغ|الحالة", "columns");
+    const cells = await a.getByTestId("bookings-table").locator("tbody tr").first().locator("td").allInnerTexts();
+    eq(cells[0], no, "number");
+    assert(cells[2].includes("٩:٣٠"), "time alone: " + cells[2]);
+    eq(cells[3], "مطار جدة", "from");
+    eq(cells[4], "مكة", "to");
+    eq(cells[6], "سلمان الدوسري", "customer");
+    eq(cells[7], "+966551112299", "customer mobile");
+    eq(cells[8], "فهد الحربي", "driver");
+    eq(cells[9], "+966551234321", "driver mobile");
+    eq(await a.getByTestId("bookings-table").locator("tbody tr").count(), 1, "search by number finds one");
+  });
+
+  await check("bookings filters: date, time, customer, mobile, city, destination, driver and car — each narrows the list", async () => {
+    const r = await makeBooking(c, { name: "عميل فلتر", phone: "0551231234", date: inDaysUTC(3) });
+    const rows = async (q) => {
+      await a.goto(`${BASE}/admin/bookings?${q}`, { waitUntil: "networkidle" });
+      return (await a.getByTestId("bookings-table").count()) ? a.getByTestId("bookings-table").locator("tbody tr").allInnerTexts() : [];
+    };
+    const has = async (q) => (await rows(q)).some((t) => t.includes("عميل فلتر"));
+    const jed = sql("select id from locations where slug='jeddah-airport'");
+    const ruh = sql("select id from locations where slug='riyadh-airport'");
+    const camry = sql(`select vehicle_id from bookings where ref='${r}'`);
+    for (const [q, want] of [
+      ["customer=فلتر", true],
+      ["phone=0551231234", true],
+      ["phone=966551231234", true],
+      ["phone=0559999999", false],
+      ["city=makkah", true],
+      ["city=riyadh", false],
+      [`place=${jed}`, true],
+      [`place=${ruh}`, false],
+      ["timeFrom=14:00&timeTo=15:00", true],
+      ["timeFrom=16:00", false],
+      [`from=${inDaysUTC(3)}&to=${inDaysUTC(3)}`, true],
+      [`from=${inDaysUTC(4)}`, false],
+      ["driver=none&customer=فلتر", true],
+      [`driver=${driverId}&customer=فلتر`, false],
+      [`vehicle=${camry}&customer=فلتر`, true],
+    ])
+      eq(await has(q), want, q);
+    // the form keeps what was chosen, and "clear" removes it
+    await a.goto(`${BASE}/admin/bookings?city=makkah&customer=فلتر`, { waitUntil: "networkidle" });
+    eq(await a.getByTestId("booking-filters").locator('select[name="city"]').inputValue(), "makkah", "kept");
+    await a.getByRole("link", { name: "مسح الفلاتر" }).click();
+    await a.waitForURL(/\/admin\/bookings$/);
   });
 
   await check("with templates set, WhatsApp messages go as approved templates without line breaks in parameters", async () => {
@@ -2071,7 +2124,8 @@ if (!ONLY || ONLY === "drivers") {
     await drv.getByTestId("my-trips").waitFor();
     const nav = (await drv.locator("nav[aria-label='لوحة التحكم'] a").allInnerTexts()).join("|");
     eq(nav, "رحلاتي|حسابي", "driver menu");
-    const trip = drv.getByTestId("my-trips").locator("li").filter({ hasText: ref });
+    const tripNo = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
+    const trip = drv.getByTestId("my-trips").locator("li").filter({ hasText: tripNo });
     await trip.getByText("سلمان الدوسري").waitFor();
     await trip.getByRole("button", { name: "بدأت الرحلة" }).click();
     await trip.getByText("بدأت الرحلة الساعة").waitFor();
@@ -2080,9 +2134,9 @@ if (!ONLY || ONLY === "drivers") {
       assert(drv.url().endsWith("/admin/my-trips"), "kept out of " + path);
     }
     eq((await drv.request.get(`${BASE}/api/admin/receipts/00000000-0000-0000-0000-000000000000`)).status(), 404, "no receipts");
-    const trip2 = drv.getByTestId("my-trips").locator("li").filter({ hasText: ref });
+    const trip2 = drv.getByTestId("my-trips").locator("li").filter({ hasText: tripNo });
     await trip2.getByRole("button", { name: "انتهت الرحلة" }).click();
-    await drv.getByText(`انتهت الرحلة ${ref}. شكرًا لك!`).waitFor();
+    await drv.getByText(`انتهت الرحلة ${tripNo}. شكرًا لك!`).waitFor();
     eq(sql(`select status, started_at is not null, completed_at is not null, rating_requested_at is not null from bookings where ref='${ref}'`), "completed|t|t|t", "completed");
     const msgs = await wa();
     eq(msgs.length, 1, "one rating request");
@@ -2093,7 +2147,8 @@ if (!ONLY || ONLY === "drivers") {
   await check("driver doesn't see other drivers' trips", async () => {
     const other = paidBooking({ status: "confirmed" });
     await drv.reload({ waitUntil: "networkidle" });
-    eq(await drv.getByText(other).count(), 0, "not in his list");
+    const otherNo = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${other}'`);
+    eq(await drv.getByText(otherNo).count(), 0, "not in his list");
   });
 
   await check("rating page: customer rates the driver and the company; company email gets it; one rating per trip; bad links refused", async () => {

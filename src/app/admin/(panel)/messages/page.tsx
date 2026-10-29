@@ -34,7 +34,7 @@ async function Messages({ searchParams }: { searchParams: Promise<Record<string,
   const filter = (["pending", "failed", "sent"] as const).find((x) => x === status);
   const [rows, st] = await Promise.all([
     db
-      .select({ n: s.notifications, ref: s.bookings.ref })
+      .select({ n: s.notifications, ref: s.bookings.ref, number: s.bookings.number })
       .from(s.notifications)
       .leftJoin(s.bookings, eq(s.bookings.id, s.notifications.bookingId))
       .where(filter ? eq(s.notifications.status, filter) : undefined)
@@ -73,7 +73,7 @@ async function Messages({ searchParams }: { searchParams: Promise<Record<string,
             </Link>
           ))}
         </div>
-        <NotificationList rows={rows.map((r) => ({ ...r.n, ref: r.ref }))} showBooking />
+        <NotificationList rows={rows.map((r) => ({ ...r.n, ref: r.ref, number: r.number }))} showBooking />
       </Card>
 
       <Card className="p-6">

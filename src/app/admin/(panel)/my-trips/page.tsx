@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireDriver } from "@/lib/auth";
-import { formatDate, formatNumber, formatTime } from "@/lib/format";
+import { bookingNo, formatDate, formatNumber, formatTime } from "@/lib/format";
 import { bookingEnd } from "@/lib/timespan";
 import { driverCompleteTrip, driverStartTrip } from "../../driver-actions";
 import { ActionForm } from "@/components/admin/action-form";
@@ -51,7 +51,7 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
       <AutoRefresh every={60_000} />
       {/^[A-Z0-9]{8}$/.test(done) && (
         <p role="status" className="rounded-lg bg-sign-soft border border-sign/20 px-4 py-3 text-sign">
-          انتهت الرحلة {done}. شكرًا لك! طلبنا من العميل تقييم الرحلة.
+          انتهت الرحلة {bookingNo(finished.find(({ b }) => b.ref === done)?.b.number)}. شكرًا لك! طلبنا من العميل تقييم الرحلة.
         </p>
       )}
       <section>
@@ -71,7 +71,7 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
                         {formatDate(b.pickupDate, "ar")}، {formatTime(b.pickupTime, "ar")}
                       </p>
                       <p className="text-sm text-muted" dir="ltr">
-                        {b.ref}
+                        {bookingNo(b.number)}
                       </p>
                     </div>
                     <p>{b.routeTitle}</p>

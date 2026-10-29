@@ -47,6 +47,7 @@ async function main() {
   await sql`delete from notifications`;
   await sql`delete from ratings`;
   await sql`delete from bookings`;
+  await sql`select setval(pg_get_serial_sequence('bookings', 'number'), 1, false)`; // numbering starts again at MHT01
   await sql`delete from admin_users where role = 'driver'`;
   await sql`delete from drivers`;
   const driverIds: number[] = [];

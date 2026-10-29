@@ -5,7 +5,7 @@ import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
 import { driverRatings, getRatingSummary, listRatings } from "@/lib/ratings";
-import { formatDate, formatNumber } from "@/lib/format";
+import { bookingNo, formatDate, formatNumber } from "@/lib/format";
 import { saveReviewsDisplay, toggleRating } from "../../rating-actions";
 import { ActionForm } from "@/components/admin/action-form";
 import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
@@ -119,7 +119,7 @@ async function Ratings({ searchParams }: { searchParams: Promise<Record<string, 
                   <p className="font-medium">
                     {r.customerName} ·{" "}
                     <Link href={`/admin/bookings/${r.ref}`} className="text-sign hover:underline" dir="ltr">
-                      {r.ref}
+                      {bookingNo(r.number)}
                     </Link>
                   </p>
                   <p className="text-muted">{formatDate(r.createdAt.toISOString().slice(0, 10), "ar")}</p>

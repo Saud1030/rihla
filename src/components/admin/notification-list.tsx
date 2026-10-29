@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Notification } from "@/db/schema";
 import { KIND_LABELS, type NotifyKind } from "@/lib/notify";
-import { formatDateTime } from "@/lib/format";
+import { bookingNo, formatDateTime } from "@/lib/format";
 import { markNotificationManual, retryNotification } from "@/app/admin/notify-actions";
 import { ActionForm } from "./action-form";
 import { waLink } from "@/components/site/whatsapp-fab";
@@ -15,7 +15,7 @@ const STATUS: Record<Notification["status"], [string, string]> = {
 };
 
 /** Messages with their state, and the buttons to send by hand / retry */
-export function NotificationList({ rows, showBooking = false }: { rows: (Notification & { ref?: string | null })[]; showBooking?: boolean }) {
+export function NotificationList({ rows, showBooking = false }: { rows: (Notification & { ref?: string | null; number?: number | null })[]; showBooking?: boolean }) {
   if (!rows.length) return <p className="px-5 py-4 text-sm text-muted">لا توجد رسائل.</p>;
   return (
     <ul className="divide-y divide-line" data-testid="notification-list">
@@ -36,7 +36,7 @@ export function NotificationList({ rows, showBooking = false }: { rows: (Notific
                 <>
                   {" · "}
                   <Link href={`/admin/bookings/${n.ref}`} className="text-sign hover:underline" dir="ltr">
-                    {n.ref}
+                    {bookingNo(n.number)}
                   </Link>
                 </>
               )}

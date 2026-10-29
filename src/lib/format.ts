@@ -27,10 +27,10 @@ export function formatDuration(min: number, locale: Locale) {
   return m ? `${h} h ${m} min` : `${h} h`;
 }
 
-export function formatDate(d: string | Date, locale: Locale) {
+export function formatDate(d: string | Date, locale: Locale, opts: { weekday?: boolean } = {}) {
   const date = typeof d === "string" ? new Date(`${d}T00:00:00`) : d;
   return new Intl.DateTimeFormat(locale === "ar" ? "ar-SA-u-ca-gregory" : "en-GB", {
-    weekday: "short",
+    ...(opts.weekday === false ? {} : { weekday: "short" as const }),
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -64,3 +64,6 @@ export function vatNote(vat: { rateBp: number; inclusiveDisplay: boolean }, loca
   if (vat.inclusiveDisplay) return locale === "ar" ? `شامل ضريبة ${pct}٪` : `incl. ${pct}% VAT`;
   return locale === "ar" ? `+ ضريبة ${pct}٪` : `+ ${pct}% VAT`;
 }
+
+/** Staff-facing running booking number: 1 -> MHT01, 120 -> MHT120 */
+export const bookingNo = (n: number | null | undefined) => (n ? `MHT${String(n).padStart(2, "0")}` : "—");

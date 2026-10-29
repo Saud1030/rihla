@@ -15,6 +15,7 @@ import { cancelQuote, parseCancelPolicy } from "@/lib/policy";
 import { getDictionary } from "@/i18n/dictionaries";
 import { bookingEnd } from "@/lib/timespan";
 import {
+  bookingNo,
   formatDate,
   formatDateTime,
   formatNumber,
@@ -167,8 +168,11 @@ async function Detail({
         <div className="space-y-6 min-w-0">
           <Card>
             <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-line">
-              <h1 className="font-display text-2xl font-semibold" dir="ltr">
-                {b.ref}
+              <h1 className="font-display text-2xl font-semibold" data-testid="booking-number">
+                <bdi dir="ltr">{bookingNo(b.number)}</bdi>
+                <span className="ms-3 align-middle text-xs font-sans font-normal text-muted" title="الرمز الذي يراه العميل ويستخدمه في صفحة «حجزي»">
+                  رمز العميل <bdi dir="ltr">{b.ref}</bdi>
+                </span>
               </h1>
               <div className="flex items-center gap-3">
                 <span className="font-display text-xl font-semibold tabular">

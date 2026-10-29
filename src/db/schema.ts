@@ -183,6 +183,8 @@ export const bookings = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     /** public, unguessable reference shown to the customer */
     ref: text("ref").notNull().unique(),
+    /** running booking number for staff: shown as MHT01, MHT02 ... (see bookingNo) */
+    number: serial("number").notNull().unique(),
     tripId: integer("trip_id").references(() => trips.id, { onDelete: "set null" }),
     /** fixed = a priced route (tripId); distance = priced from the distance between two destinations */
     pricingMode: pricingMode("pricing_mode").notNull().default("fixed"),

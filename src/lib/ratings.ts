@@ -37,6 +37,7 @@ export async function listRatings(opts: { driverId?: number; limit?: number; off
       visible: s.ratings.visible,
       createdAt: s.ratings.createdAt,
       ref: s.bookings.ref,
+      number: s.bookings.number,
       customerName: s.bookings.customerName,
       routeTitle: s.bookings.routeTitle,
       pickupDate: s.bookings.pickupDate,
