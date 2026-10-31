@@ -92,6 +92,13 @@
       "when": 1793450718868,
       "tag": "0012_receipts_invoices",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793458599349,
+      "tag": "0013_notification_attachment",
+      "breakpoints": true
     }
   ]
 }

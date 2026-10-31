@@ -18,6 +18,8 @@ export const invoiceNo = (n: number | null | undefined) => (n ? `INV-${String(n)
 
 const lang = (b: Pick<Booking, "locale">) => (b.locale === "en" ? "en" : "ar");
 export const receiptLink = async (b: Pick<Booking, "ref" | "locale">) => `${await publicBaseUrl()}/${lang(b)}/booking/${b.ref}/receipt`;
+/** the voucher as a PDF file (sent as a WhatsApp document) */
+export const receiptPdfLink = async (b: Pick<Booking, "ref">) => `${await publicBaseUrl()}/api/booking/${b.ref}/receipt`;
 export const invoiceLink = async (b: Pick<Booking, "ref" | "locale">) => `${await publicBaseUrl()}/${lang(b)}/booking/${b.ref}/invoice`;
 
 /** Give a paid booking its voucher number (once) and send the voucher link on WhatsApp. Never throws. */
@@ -37,14 +39,14 @@ export async function issueReceipt(bookingId: string) {
           `مرحبًا ${b.customerName}، استلمنا دفعتك بنجاح.`,
           `رقم الحجز: ${b.ref}`,
           `المبلغ: ${amount}`,
-          `سند الدفع رقم ${receiptNo(b.receiptNo)}: ${link}`,
+          `مرفق سند الدفع رقم ${receiptNo(b.receiptNo)}، ورابطه: ${link}`,
           "تصلك الفاتورة الضريبية بعد انتهاء الرحلة.",
         ].join("\n")
       : [
           `Hello ${b.customerName}, we have received your payment.`,
           `Booking: ${b.ref}`,
           `Amount: ${amount}`,
-          `Payment voucher ${receiptNo(b.receiptNo)}: ${link}`,
+          `Your payment voucher ${receiptNo(b.receiptNo)} is attached. Link: ${link}`,
           "Your tax invoice will follow when the trip ends.",
         ].join("\n");
     return await notify({
@@ -55,6 +57,7 @@ export async function issueReceipt(bookingId: string) {
       recipientName: b.customerName,
       body,
       params: [b.customerName, b.ref, amount, link],
+      attachment: { url: await receiptPdfLink(b), name: `${receiptNo(b.receiptNo)}.pdf` },
     });
   } catch (e) {
     console.error("payment voucher failed", e);

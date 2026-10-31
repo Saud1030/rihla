@@ -391,6 +391,9 @@ export const notifications = pgTable(
     body: text("body").notNull(),
     /** template parameters, in order, for WhatsApp templates */
     params: jsonb("params").$type<string[]>().notNull().default([]),
+    /** a file sent with the message (WhatsApp document), e.g. the payment voucher PDF */
+    attachmentUrl: text("attachment_url"),
+    attachmentName: text("attachment_name"),
     status: notifyStatus("status").notNull().default("pending"),
     attempts: integer("attempts").notNull().default(0),
     error: text("error"),

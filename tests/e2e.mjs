@@ -1244,9 +1244,17 @@ if (!ONLY || ONLY === "features") {
     const rno = Number(sql(`select receipt_no from bookings where ref='${ref}'`));
     assert(rno > 0, "voucher numbered");
     eq(sql(`select coalesce(invoice_no::text,'') from bookings where ref='${ref}'`), "", "no invoice yet");
-    const voucherMsg = (await mf("/__wa")).find((m) => m.text?.body?.includes(`/booking/${ref}/receipt`));
-    assert(voucherMsg, "voucher sent on WhatsApp");
-    assert(voucherMsg.text.body.includes(`REC-${String(rno).padStart(4, "0")}`) && voucherMsg.text.body.includes("تصلك الفاتورة الضريبية بعد انتهاء الرحلة"), "voucher message: " + voucherMsg.text.body);
+    // the voucher itself goes to the customer on WhatsApp, as a PDF document with the message as its caption
+    const voucherMsg = (await mf("/__wa")).find((m) => m.type === "document" && m.document?.caption?.includes(`/booking/${ref}/receipt`));
+    assert(voucherMsg, "voucher sent on WhatsApp as a document");
+    eq(voucherMsg.to, "966501234567", "to the customer");
+    eq(voucherMsg.document.filename, `REC-${String(rno).padStart(4, "0")}.pdf`, "file name");
+    assert(voucherMsg.document.caption.includes("تصلك الفاتورة الضريبية بعد انتهاء الرحلة"), "caption: " + voucherMsg.document.caption);
+    const pdf = await fetch(new URL(new URL(voucherMsg.document.link).pathname, BASE));
+    eq(pdf.status, 200, "PDF reachable");
+    eq(pdf.headers.get("content-type"), "application/pdf", "PDF type");
+    eq(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString(), "%PDF-", "a real PDF");
+    eq((await fetch(`${BASE}/api/booking/ZZZZZZZZ/receipt`)).status, 404, "unknown booking: no file");
     // the voucher page
     await cp.goto(`${BASE}/ar/booking/${ref}/receipt`, { waitUntil: "networkidle" });
     const r = cp.getByTestId("receipt");
@@ -1534,6 +1542,11 @@ if (!ONLY || ONLY === "features") {
     await submit(a, "تأكيد استلام التحويل");
     eq(sql(`select status||','||payment_id from bookings where ref='${bankRef}'`), `paid,BT-${bankRef}`, "paid");
     eq(sql(`select source||','||amount from payments where id='BT-${bankRef}'`), "bank_transfer,28750", "payment row");
+    // the payment voucher goes to the customer on WhatsApp, as a PDF
+    const v = sql(`select n.attachment_name, n.attachment_url from notifications n join bookings b on b.id=n.booking_id where b.ref='${bankRef}' and n.kind='payment_receipt'`);
+    assert(/^REC-\d{4}\.pdf\|\S+\/api\/booking\/[A-Z0-9]+\/receipt$/.test(v), "voucher PDF for the bank transfer: " + v);
+    await bp.goto(`${BASE}/ar/booking/${bankRef}/receipt`, { waitUntil: "networkidle" });
+    await bp.getByTestId("receipt").getByText("تحويل بنكي").waitFor();
     // the form is gone now that it's paid; a forged second confirm is refused by the server
     eq(await a.getByRole("button", { name: "تأكيد استلام التحويل" }).count(), 0, "no confirm button once paid");
     await bp.goto(`${BASE}/ar/booking/${bankRef}`, { waitUntil: "networkidle" });

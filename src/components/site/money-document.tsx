@@ -38,6 +38,7 @@ const T = {
     tripDate: "موعد الرحلة",
     voucher: "سند الدفع",
     print: "طباعة / حفظ PDF",
+    pdf: "تحميل ملف PDF",
     status: { paid: "مدفوع", cancelled: "الحجز ملغي" },
     refunded: "تم إلغاء هذا الحجز",
   },
@@ -70,6 +71,7 @@ const T = {
     tripDate: "Trip date",
     voucher: "Payment voucher",
     print: "Print / save as PDF",
+    pdf: "Download PDF",
     status: { paid: "Paid", cancelled: "Booking cancelled" },
     refunded: "This booking was cancelled",
   },
@@ -155,7 +157,10 @@ export function ReceiptSheet({ b, c, lang }: { b: Booking; c: Company; lang: Loc
         <dd className="tabular">{b.paidAt ? formatDateTime(b.paidAt, lang) : "—"}</dd>
       </dl>
       <p className="rounded-lg bg-stone px-4 py-3 text-sm">{t.receiptNote}</p>
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-3 print:hidden">
+        <a href={`/api/booking/${b.ref}/receipt`} className="btn btn-ghost border border-line" data-testid="receipt-pdf">
+          {t.pdf}
+        </a>
         <PrintButton label={t.print} />
       </div>
     </article>

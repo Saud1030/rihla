@@ -55,7 +55,7 @@ export const TEMPLATES: Record<Exclude<NotifyKind, "rating_received" | "driver_a
   payment_receipt: {
     setting: "wa_tpl_payment_receipt",
     params: ["اسم العميل", "رقم الحجز", "المبلغ", "رابط سند الدفع"],
-    suggested: "مرحبًا {{1}}، استلمنا دفعتك لحجز رقم {{2}} بمبلغ {{3}}. سند الدفع: {{4}} وتصلك الفاتورة بعد انتهاء الرحلة.",
+    suggested: "(رأس القالب: Document — يُرفق ملف سند الدفع PDF)\nمرحبًا {{1}}، استلمنا دفعتك لحجز رقم {{2}} بمبلغ {{3}}. مرفق سند الدفع، ورابطه: {{4}}\nتصلك الفاتورة الضريبية بعد انتهاء الرحلة.",
   },
   trip_invoice: {
     setting: "wa_tpl_trip_invoice",
@@ -88,6 +88,8 @@ type NewMessage = {
   subject?: string;
   body: string;
   params?: string[];
+  /** sent as a WhatsApp document (PDF); the link must be reachable from the internet */
+  attachment?: { url: string; name: string };
 };
 
 /** Template parameters may not contain line breaks, tabs or long runs of spaces */
@@ -107,6 +109,8 @@ export async function notify(m: NewMessage): Promise<Notification | null> {
         subject: m.subject ?? "",
         body: m.body,
         params: (m.params ?? []).map(oneLine),
+        attachmentUrl: m.attachment?.url ?? null,
+        attachmentName: m.attachment?.name ?? null,
       })
       .returning();
     return await deliver(row);
@@ -143,6 +147,7 @@ async function sendWhatsApp(row: Notification, st: Record<string, string>) {
   const tpl = row.kind in TEMPLATES ? TEMPLATES[row.kind as keyof typeof TEMPLATES] : null;
   const templateName = tpl ? (st[tpl.setting] ?? "").trim() : "";
   const to = waNumber(row.recipient);
+  const doc = row.attachmentUrl ? { link: row.attachmentUrl, filename: row.attachmentName || "document.pdf" } : null;
   const payload = templateName
     ? {
         messaging_product: "whatsapp",
@@ -151,11 +156,18 @@ async function sendWhatsApp(row: Notification, st: Record<string, string>) {
         template: {
           name: templateName,
           language: { code: st.wa_template_lang || "ar" },
-          components: [{ type: "body", parameters: row.params.map((text) => ({ type: "text", text })) }],
+          components: [
+            // a template with a file has a "Document" header in Meta
+            ...(doc ? [{ type: "header", parameters: [{ type: "document", document: doc }] }] : []),
+            { type: "body", parameters: row.params.map((text) => ({ type: "text", text })) },
+          ],
         },
       }
-    : // plain text only reaches people who wrote to your WhatsApp number in the last 24 hours
-      { messaging_product: "whatsapp", to, type: "text", text: { preview_url: true, body: row.body } };
+    : doc
+      ? // the file itself, with the message as its caption
+        { messaging_product: "whatsapp", to, type: "document", document: { ...doc, caption: row.body.slice(0, 1024) } }
+      : // plain text only reaches people who wrote to your WhatsApp number in the last 24 hours
+        { messaging_product: "whatsapp", to, type: "text", text: { preview_url: true, body: row.body } };
   try {
     const res = await fetch(`${WA_BASE()}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
       method: "POST",
