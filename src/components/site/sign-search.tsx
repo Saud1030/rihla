@@ -20,7 +20,7 @@ export type SignSearchLabels = {
   to: string;
   pickupPlace: string;
   duration: string;
-  hoursLabel: Record<6 | 12 | 24, string>;
+  hoursLabel: Record<10 | 12 | 24, string>;
   choose: string;
   chooseTime: string;
   date: string;
@@ -29,6 +29,11 @@ export type SignSearchLabels = {
   showPrices: string;
   missing: { from: string; to: string; date: string; time: string };
   regions: string;
+  multi: string;
+  stop: string;
+  addStop: string;
+  removeStop: string;
+  chooseStop: string;
   cities: string;
   /** word shown before a city's name in the chooser ("مدينة ") */
   cityPrefix: string;
@@ -49,16 +54,20 @@ type Props = {
   options: ChoiceOption[];
   regions: { slug: string; name: string }[];
   hourlyEnabled: boolean;
+  multiEnabled: boolean;
   minDate: string;
   maxDate: string;
   /** form id; the home page uses "search" so links can jump to it */
   id?: string;
 };
 
-type Target = "from" | "to" | "hours";
+/** "s0", "s1"... are the stops of a multi-destination trip */
+type Target = "from" | "to" | "hours" | `s${number}`;
+type Mode = "transfer" | "hourly" | "multi";
+const MAX_STOPS = 5;
 type Nav = { region?: string; city?: string };
 type Field = "from" | "to" | "date" | "time";
-const PACKAGES = [6, 12, 24] as const;
+const PACKAGES = [10, 12, 24] as const;
 
 export function SignSearch({
   lang,
@@ -67,14 +76,16 @@ export function SignSearch({
   options,
   regions,
   hourlyEnabled,
+  multiEnabled,
   minDate,
   maxDate,
   id = "search",
 }: Props) {
-  const [mode, setMode] = useState<"transfer" | "hourly">("transfer");
+  const [mode, setMode] = useState<Mode>("transfer");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [hours, setHours] = useState<6 | 12 | 24>(6);
+  const [stops, setStops] = useState<string[]>(["", ""]);
+  const [hours, setHours] = useState<10 | 12 | 24>(10);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [open, setOpen] = useState<Target | null>(null);
@@ -83,11 +94,7 @@ export function SignSearch({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const num = (n: number) =>
     n.toLocaleString(lang === "ar" ? "ar-SA" : "en-US");
-  const triggers = {
-    from: useRef<HTMLButtonElement>(null),
-    to: useRef<HTMLButtonElement>(null),
-    hours: useRef<HTMLButtonElement>(null),
-  };
+  const triggers = useRef<Record<string, HTMLButtonElement | null>>({});
   const panelId = `${id}-panel`;
 
   const bySlug = useMemo(
@@ -134,10 +141,14 @@ export function SignSearch({
     const t = open;
     setOpen(null);
     setNav({});
-    if (refocus && t) triggers[t].current?.focus();
+    if (refocus && t) triggers.current[t]?.focus();
   }
   function choose(slug: string) {
-    if (open === "from") {
+    if (open?.startsWith("s")) {
+      const i = Number(open.slice(1));
+      setStops((list) => list.map((x, j) => (j === i ? slug : x)));
+      clear("to");
+    } else if (open === "from") {
       setFrom(slug);
       clear("from");
       if (slug === to) setTo("");
@@ -148,6 +159,7 @@ export function SignSearch({
     close();
   }
 
+  const modes: Mode[] = ["transfer", ...(hourlyEnabled ? (["hourly"] as const) : []), ...(multiEnabled ? (["multi"] as const) : [])];
   const end =
     mode === "hourly" && time
       ? addToClock(date || null, time, hours * 60)
@@ -186,7 +198,8 @@ export function SignSearch({
       }))
     : [];
   const cityName = options.find((o) => o.citySlug === nav.city)?.city ?? "";
-  const excluded = open === "to" ? from : "";
+  // the place right before a stop can't be chosen again for it
+  const excluded = open === "to" ? from : open?.startsWith("s") ? (Number(open.slice(1)) === 0 ? from : stops[Number(open.slice(1)) - 1]) : "";
 
   const title =
     open === "hours"
@@ -195,7 +208,9 @@ export function SignSearch({
         ? mode === "hourly"
           ? L.choosePickup
           : L.chooseFrom
-        : L.chooseTo;
+        : open?.startsWith("s")
+          ? L.chooseStop
+          : L.chooseTo;
   const crumb = nav.city
     ? `${L.cityPrefix}${cityName}`
     : nav.region
@@ -203,7 +218,7 @@ export function SignSearch({
       : null;
 
   const placeButton = (o: ChoiceOption) => {
-    const selected = (open === "from" ? from : to) === o.slug;
+    const selected = (open === "from" ? from : open?.startsWith("s") ? stops[Number(open.slice(1))] : to) === o.slug;
     return (
       <button
         key={o.slug}
@@ -231,7 +246,7 @@ export function SignSearch({
     sub: string,
   ) => {
     const isOpen = open === t;
-    const bad = (t === "from" || t === "to") && missing.includes(t);
+    const bad = (t === "from" && missing.includes("from")) || ((t === "to" || (t.startsWith("s") && !stops[Number(t.slice(1))])) && missing.includes("to"));
     return (
       <div className="min-w-0">
         <span
@@ -241,7 +256,9 @@ export function SignSearch({
           {label}
         </span>
         <button
-          ref={triggers[t]}
+          ref={(el) => {
+            triggers.current[t] = el;
+          }}
           type="button"
           onClick={() => openFor(t)}
           aria-expanded={isOpen}
@@ -278,8 +295,8 @@ export function SignSearch({
       </div>
     );
   };
-  const placeField = (t: "from" | "to", label: string) => {
-    const v = bySlug.get(t === "from" ? from : to);
+  const placeField = (t: Target, label: string) => {
+    const v = bySlug.get(t === "from" ? from : t.startsWith("s") ? stops[Number(t.slice(1))] : to);
     return fieldButton(
       t,
       label,
@@ -441,7 +458,7 @@ export function SignSearch({
       onSubmit={(e) => {
         const m: Field[] = [];
         if (!from) m.push("from");
-        if (!to) m.push("to");
+        if (mode === "multi" ? stops.some((x) => !x) : !to) m.push("to");
         if (!date) m.push("date");
         if (!time) m.push("time");
         if (m.length) {
@@ -460,16 +477,16 @@ export function SignSearch({
     >
       <input type="hidden" name="mode" value={mode} />
       <input type="hidden" name="from" value={from} />
-      <input type="hidden" name="to" value={to} />
+      {mode === "multi" ? <input type="hidden" name="stops" value={stops.join(",")} /> : <input type="hidden" name="to" value={to} />}
       {mode === "hourly" && <input type="hidden" name="hours" value={hours} />}
 
-      {hourlyEnabled && (
+      {modes.length > 1 && (
         <div
-          className="grid grid-cols-2 gap-1 rounded-lg bg-white/10 p-1"
+          className={`grid gap-1 rounded-lg bg-white/10 p-1 sm:max-w-xl ${modes.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}
           role="tablist"
-          aria-label={`${L.transfer} / ${L.hourly}`}
+          aria-label={modes.map((m) => L[m]).join(" / ")}
         >
-          {(["transfer", "hourly"] as const).map((m) => (
+          {modes.map((m) => (
             <button
               key={m}
               type="button"
@@ -482,13 +499,53 @@ export function SignSearch({
               }}
               className={`rounded-md py-2 text-[15px] font-medium ${mode === m ? "bg-paper text-sign" : "text-white hover:bg-white/10"}`}
             >
-              {m === "transfer" ? L.transfer : L.hourly}
+              {L[m]}
             </button>
           ))}
         </div>
       )}
 
-      {/* where from / where to: the same in both tabs */}
+      {mode === "multi" ? (
+        /* start + stops, in order */
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="multi-stops">
+          {placeField("from", L.from)}
+          {stops.map((_, i) => (
+            <div key={i} className="relative min-w-0">
+              {placeField(`s${i}`, `${L.stop} ${num(i + 1)}`)}
+              {stops.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStops((list) => list.filter((_, j) => j !== i));
+                    setOpen(null);
+                  }}
+                  aria-label={`${L.removeStop} ${num(i + 1)}`}
+                  title={L.removeStop}
+                  className="absolute top-0 end-0 grid place-items-center size-6 rounded-full text-white/85 hover:bg-white/15"
+                >
+                  <svg viewBox="0 0 20 20" className="size-3.5" aria-hidden="true">
+                    <path d="m5 5 10 10M15 5 5 15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          ))}
+          {stops.length < MAX_STOPS && (
+            <button
+              type="button"
+              onClick={() => {
+                setStops((list) => [...list, ""]);
+                setOpen(`s${stops.length}`);
+                setNav({});
+              }}
+              className="self-start sm:mt-6 rounded-lg border-2 border-dashed border-white/40 px-3 py-2.5 text-[15px] font-medium text-white hover:border-white hover:bg-white/10"
+            >
+              + {L.addStop}
+            </button>
+          )}
+        </div>
+      ) : (
+      /* where from / where to: the same in transfer and hourly */
       <div className="relative grid gap-3 sm:grid-cols-2 sm:gap-x-10">
         {placeField("from", L.from)}
         {/* swap from <-> to: in the flow on phones, between the two fields on wider screens */}
@@ -521,19 +578,20 @@ export function SignSearch({
         </button>
         {placeField("to", L.to)}
       </div>
+      )}
 
       {open && open !== "hours" && panel}
 
       {/* duration (hourly), date and time */}
       <div
-        className={`grid grid-cols-2 gap-3 ${mode === "hourly" ? "sm:grid-cols-3" : ""}`}
+        className={`grid grid-cols-2 gap-3 items-end ${mode === "hourly" ? "sm:grid-cols-3 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,14rem)]" : "lg:grid-cols-[repeat(2,minmax(0,1fr))_minmax(0,14rem)]"}`}
       >
         {mode === "hourly" && (
           <div className="col-span-2 sm:col-span-1">
             {fieldButton("hours", L.duration, L.hoursLabel[hours], "")}
           </div>
         )}
-        <label className="block min-w-0">
+        <label className="block min-w-0 self-start">
           <span className="block text-sm text-white/85 mb-1">{L.date}</span>
           <input
             type="date"
@@ -549,7 +607,7 @@ export function SignSearch({
             className={`field ${missing.includes("date") ? "!border-danger ring-2 ring-danger/40" : ""}`}
           />
         </label>
-        <label className="block min-w-0">
+        <label className="block min-w-0 self-start">
           <span className="block text-sm text-white/85 mb-1">{L.time}</span>
           <select
             name="time"
@@ -569,6 +627,9 @@ export function SignSearch({
             ))}
           </select>
         </label>
+        <button type="submit" className="btn btn-amber w-full text-[17px] col-span-2 sm:col-span-full lg:col-span-1 lg:self-end">
+          {L.showPrices}
+        </button>
       </div>
       {open === "hours" && panel}
 
@@ -590,9 +651,6 @@ export function SignSearch({
         </p>
       )}
 
-      <button type="submit" className="btn btn-amber w-full text-[17px]">
-        {L.showPrices}
-      </button>
     </form>
   );
 }

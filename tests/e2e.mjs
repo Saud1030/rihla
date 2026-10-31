@@ -68,7 +68,7 @@ page.on("dialog", (d) => { pageErrors.push("DIALOG OPENED: " + d.message()); d.d
 
 async function fillBooking(p, o = {}) {
   const lang = o.lang ?? "ar";
-  await p.goto(`${BASE}/${lang}/routes/${o.route ?? "jeddah-airport-makkah"}${o.query ?? ""}`, { waitUntil: "networkidle" });
+  await p.goto(o.url ? BASE + o.url : `${BASE}/${lang}/routes/${o.route ?? "jeddah-airport-makkah"}${o.query ?? ""}`, { waitUntil: "networkidle" });
   if (o.vehicle) await p.getByRole("radiogroup").getByText(o.vehicle, { exact: true }).click();
   if (o.reverse) await p.locator('input[name="reversed"][value="1"]').check();
   await p.fill("#date", o.date ?? tomorrow());
@@ -1109,7 +1109,7 @@ if (!ONLY || ONLY === "features") {
     await page.getByText("اختر الوجهة التي تريد الذهاب إليها.").waitFor(); // "to" is required here too
     await pickPlace(page, 1, "منطقة المدينة المنورة", "المدينة المنورة", "المدينة المنورة (الفنادق)");
     // duration is chosen like a place: open the field, tap a package; every package works
-    for (const h of ["٦ ساعات", "١٢ ساعة", "٢٤ ساعة"]) {
+    for (const h of ["١٠ ساعات", "١٢ ساعة", "٢٤ ساعة"]) {
       await page.locator("form#search button[aria-controls=search-panel]").nth(2).click();
       await page.locator("#search-panel").getByRole("button", { name: h }).click();
       assert((await page.locator("form#search").textContent()).includes(h), "picked " + h);
@@ -1123,8 +1123,8 @@ if (!ONLY || ONLY === "features") {
     assert((await page.getByTestId("form-end").textContent()).includes("ينتهي الحجز"), "end shown on the form");
     assert((await page.textContent("main")).includes("الوجهة: المدينة المنورة (الفنادق)"), "destination shown");
     // switching package keeps from, to, date and time
-    await page.getByRole("link", { name: "٦ ساعات" }).click();
-    await page.waitForURL(/\/ar\/hourly\?from=makkah&to=madinah&hours=6&date=.*&time=18/, { waitUntil: "commit" });
+    await page.getByRole("link", { name: "١٠ ساعات" }).click();
+    await page.waitForURL(/\/ar\/hourly\?from=makkah&to=madinah&hours=10&date=.*&time=18/, { waitUntil: "commit" });
   });
   let hourRef;
   await check("hourly 12h: server price + VAT, destination and end time stored, paid end to end", async () => {
@@ -1149,15 +1149,15 @@ if (!ONLY || ONLY === "features") {
       const r = await fetch(`${BASE}/ar/search?mode=hourly&${q}`, { redirect: "manual" });
       assert(/\/ar#search$/.test(r.headers.get("location")), q + " -> " + r.headers.get("location"));
     }
-    const ok = await fetch(`${BASE}/ar/search?mode=hourly&from=makkah&to=madinah&hours=6&date=${inDaysUTC(2)}&time=08:00`, { redirect: "manual" });
-    assert(ok.headers.get("location").includes(`/ar/hourly?from=makkah&to=madinah&hours=6&date=${inDaysUTC(2)}&time=08%3A00`), ok.headers.get("location"));
+    const ok = await fetch(`${BASE}/ar/search?mode=hourly&from=makkah&to=madinah&hours=10&date=${inDaysUTC(2)}&time=08:00`, { redirect: "manual" });
+    assert(ok.headers.get("location").includes(`/ar/hourly?from=makkah&to=madinah&hours=10&date=${inDaysUTC(2)}&time=08%3A00`), ok.headers.get("location"));
   });
-  await check("hourly: switching package changes prices (6h = 350)", async () => {
+  await check("hourly: switching package changes prices (10h = 550)", async () => {
     await page.goto(`${BASE}/ar/hourly?from=makkah&hours=12`, { waitUntil: "networkidle" });
-    await page.getByRole("link", { name: "٦ ساعات" }).click();
-    await page.waitForURL(/hours=6$/, { waitUntil: "commit" });
+    await page.getByRole("link", { name: "١٠ ساعات" }).click();
+    await page.waitForURL(/hours=10$/, { waitUntil: "commit" });
     await page.waitForLoadState("networkidle");
-    assert((await page.getByRole("radiogroup").textContent()).includes("٣٥٠"), "6h price");
+    assert((await page.getByRole("radiogroup").textContent()).includes("٥٥٠"), "10h price");
   });
   await check("hourly tampering: fake vehicle, 7 hours, unknown place, bad or same destination are rejected", async () => {
     for (const tamper of [
@@ -1190,18 +1190,58 @@ if (!ONLY || ONLY === "features") {
     await savePolicy(() => a.check('input[name="hourly_enabled"]'));
     await a.getByText("تم حفظ سياسة الإلغاء").waitFor();
   });
+  await check("multi-stop trip: a tab on the home page; start + stops; each leg priced (fixed route, else distance); booked and paid as one trip", async () => {
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    await page.getByRole("tab", { name: "رحلة متعددة" }).click();
+    await pickPlace(page, 0, "منطقة مكة المكرمة", "جدة", "مطار الملك عبدالعزيز");
+    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.getByText("اختر الوجهة التي تريد الذهاب إليها.").waitFor(); // every stop is required
+    await pickPlace(page, 1, "منطقة مكة المكرمة", "مكة المكرمة", "مكة المكرمة (الفنادق)");
+    await pickPlace(page, 2, "منطقة المدينة المنورة", "المدينة المنورة", "المدينة المنورة (الفنادق)");
+    // up to five stops; an extra one can be removed again
+    await page.getByRole("button", { name: /أضف وجهة/ }).click();
+    await page.locator("#search-panel").getByRole("button", { name: "إغلاق" }).click();
+    eq(await page.getByTestId("multi-stops").locator("button[aria-controls]").count(), 4, "start + 3 stops");
+    await page.getByRole("button", { name: "احذف هذه الوجهة ٣" }).click();
+    eq(await page.getByTestId("multi-stops").locator("button[aria-controls]").count(), 3, "back to 2 stops");
+    await page.fill('form#search input[name="date"]', inDaysUTC(3));
+    await page.selectOption('form#search select[name="time"]', "10:00");
+    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.waitForURL(/\/ar\/multi\?stops=jeddah-airport%2Cmakkah%2Cmadinah&date=.*&time=10/, { waitUntil: "commit" });
+    await page.waitForLoadState("networkidle");
+    eq(await page.getByTestId("multi-legs").locator("li").count(), 2, "two legs");
+    // the Camry price is the two fixed-route prices added up
+    const legPrice = (from, to) => Number(sql(`select t.price from trips t join routes r on r.id=t.route_id join vehicles v on v.id=t.vehicle_id
+      join locations a on a.id=r.from_location_id join locations b on b.id=r.to_location_id
+      where v.slug='toyota-camry' and ((a.slug='${from}' and b.slug='${to}') or (r.bidirectional and a.slug='${to}' and b.slug='${from}')) limit 1`));
+    const want = legPrice("jeddah-airport", "makkah") + legPrice("makkah", "madinah");
+    assert(want > 0, "fixed prices exist");
+    const ref = await makeBooking(page, { url: "/ar/multi?stops=jeddah-airport,makkah,madinah", vehicle: "تويوتا كامري" });
+    const [mode, subtotal, stops, title] = sql(`select pricing_mode, subtotal, stops::text, route_title from bookings where ref='${ref}'`).split("|");
+    eq(mode, "multi", "mode");
+    eq(Number(subtotal), want, "sum of the legs");
+    eq(JSON.parse(stops).length, 3, "three places kept");
+    assert(title.split("←").length === 3, "title through every stop: " + title);
+    // a forged list (same place twice in a row, or one stop only) is refused
+    for (const q of ["stops=makkah,makkah,madinah", "stops=makkah,madinah", "stops=makkah,nowhere,madinah"]) {
+      await page.goto(`${BASE}/ar/multi?${q}`, { waitUntil: "networkidle" });
+      await page.getByText("لا يمكن حساب هذه الرحلة").waitFor();
+    }
+    await payInBrowser(page, ref, "pay");
+    eq(sql(`select status from bookings where ref='${ref}'`), "paid", "paid");
+  });
   await check("vehicle hourly prices are editable in admin", async () => {
     const id = sql("select id from vehicles where slug='toyota-camry'");
     await a.goto(`${BASE}/admin/vehicles/${id}`, { waitUntil: "networkidle" });
-    await a.fill('input[name="hourly6"]', "400");
+    await a.fill('input[name="hourly10"]', "400");
     await submit(a, "حفظ");
     await a.getByText("تم الحفظ.").waitFor();
-    eq(sql("select hourly_6 from vehicles where slug='toyota-camry'"), "40000", "stored in halalas");
-    await page.goto(`${BASE}/ar/hourly?from=makkah&hours=6`, { waitUntil: "networkidle" });
+    eq(sql("select hourly_10 from vehicles where slug='toyota-camry'"), "40000", "stored in halalas");
+    await page.goto(`${BASE}/ar/hourly?from=makkah&hours=10`, { waitUntil: "networkidle" });
     assert((await page.getByRole("radiogroup").textContent()).includes("٤٠٠"), "new price shown");
-    await a.fill('input[name="hourly6"]', "350");
+    await a.fill('input[name="hourly10"]', "550");
     await submit(a, "حفظ");
-    eq(sql("select hourly_6 from vehicles where slug='toyota-camry'"), "35000", "restored");
+    eq(sql("select hourly_10 from vehicles where slug='toyota-camry'"), "55000", "restored");
   });
 
   /* ---------- customer cancellation ---------- */
@@ -1728,7 +1768,7 @@ if (!ONLY || ONLY === "features") {
       ["وين حجزي؟ ابغى اعرف حالته", "رقم الحجز المكوّن من ٨ خانات"],
       ["كيف احجز", "من الصفحة الرئيسية اختر"],
       ["ابغى ادفع تحويل بنكي", "ماي فاتورة"],
-      ["ابغى سائق ١٢ ساعه", "٦ أو ١٢ أو ٢٤ ساعة"],
+      ["ابغى سائق ١٢ ساعه", "١٠ أو ١٢ أو ٢٤ ساعة"],
       ["ابغى اغير موعد الرحله", "مرة واحدة مجانًا"],
       ["can I get a refund", "بـ٢٤ ساعة"],
       ["السلام عليكم", "ما لقيت إجابة دقيقة"],
@@ -2031,27 +2071,40 @@ if (!ONLY || ONLY === "drivers") {
     const f = a.locator("form").filter({ has: a.getByRole("button", { name: "إضافة السائق" }) });
     await f.locator('input[name="name"]').fill(o.name);
     await f.locator('input[name="phone"]').fill(o.phone);
-    await f.locator('input[name="plateNumber"]').fill(o.plate ?? "أ ب ج ١٢٣٤");
+    // the plate: three letter boxes and a numbers box
+    const [l1, l2, l3, digits] = (o.plate ?? "ا ب ح 1234").split(" ");
+    for (const [i, l] of [l1, l2, l3].entries()) await f.locator(`select[name="plateL${i + 1}"]`).selectOption(l);
+    await f.locator('input[name="plateDigits"]').fill(digits);
     await f.locator('select[name="vehicleId"]').selectOption({ label: o.car ?? "تويوتا كامري" });
     await f.locator('select[name="carModel"]').selectOption(o.model ?? "2024");
-    await f.locator('input[name="carColor"]').fill(o.color ?? "أبيض");
-    if (o.photo) await f.locator('input[name="photo"]').setInputFiles(o.photo);
+    await f.locator('select[name="carColor"]').selectOption(o.color ?? "أبيض");
+    if (o.photo) {
+      // the photo is cropped to 4 x 4 cm first (a file that isn't an image is refused right there)
+      await f.locator('input[name="photo"]').setInputFiles(o.photo);
+      const cropper = a.getByTestId("card-cropper");
+      if (!o.noSubmit && (await cropper.waitFor({ timeout: 3000 }).then(() => true, () => false))) {
+        await cropper.getByRole("button", { name: "اعتماد" }).click();
+        await cropper.waitFor({ state: "detached" });
+      }
+    }
+    if (o.noSubmit) return;
     await f.getByRole("button", { name: "إضافة السائق" }).click();
   };
 
   let driverId, ref;
   await check("drivers: added from the panel with name, mobile, plate, car, model, colour and photo; bad mobile and fake photo refused", async () => {
-    await addDriver({ name: "فهد الحربي", phone: "05123", plate: "ر س ع ٥٥٥٥" });
+    await addDriver({ name: "فهد الحربي", phone: "05123", plate: "ر س ع 5555" });
     await a.getByText("رقم جوال السائق غير صحيح").waitFor();
-    await addDriver({ name: "فهد الحربي", phone: "0551234321", photo: { name: "x.png", mimeType: "image/png", buffer: Buffer.from("<script>alert(1)</script>") } });
-    await a.getByText("الصورة يجب أن تكون PNG").waitFor();
-    await addDriver({ name: "فهد الحربي", phone: "0551234321", plate: "ر س ع ٥٥٥٥", photo: { name: "me.png", mimeType: "image/png", buffer: PHOTO } });
+    await addDriver({ name: "فهد الحربي", phone: "0551234321", photo: { name: "x.png", mimeType: "image/png", buffer: Buffer.from("<script>alert(1)</script>") }, noSubmit: true });
+    await a.getByText("هذا الملف ليس صورة صالحة").waitFor();
+    eq(await a.locator('form input[name="photo"]').first().evaluate((i) => i.files.length), 0, "fake photo not kept");
+    await addDriver({ name: "فهد الحربي", phone: "0551234321", plate: "ر س ع 5555", photo: { name: "me.png", mimeType: "image/png", buffer: PHOTO } });
     await a.waitForURL(/added=1/, { waitUntil: "commit" });
     await a.getByTestId("driver-list").getByText("فهد الحربي").waitFor();
     const [id, phone, plate, hasPhoto] = sql("select id, phone, plate_number, photo is not null from drivers where name='فهد الحربي'").split("|");
     driverId = Number(id);
     eq(phone, "+966551234321", "mobile stored with country code");
-    eq(plate, "ر س ع ٥٥٥٥", "plate");
+    eq(plate, "ر س ع 5555", "plate");
     eq(hasPhoto, "t", "photo saved");
     eq((await a.request.get(`${BASE}/api/admin/drivers/${driverId}/photo`)).status(), 200, "photo for staff");
     eq((await fetch(`${BASE}/api/admin/drivers/${driverId}/photo`)).status, 404, "photo hidden from the public");
@@ -2084,14 +2137,14 @@ if (!ONLY || ONLY === "drivers") {
     assert(toDriver && toCustomer, "one to each");
     const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
     for (const x of ["سلمان الدوسري", "+966551112299", "صالة ١", "فندق الصفوة", "كرسي أطفال", no]) assert(toDriver.text.body.includes(x), "driver message has " + x);
-    for (const x of ["فهد الحربي", "+966551234321", "تويوتا كامري", "ر س ع ٥٥٥٥", `/ar/booking/${ref}`]) assert(toCustomer.text.body.includes(x), "customer message has " + x);
+    for (const x of ["فهد الحربي", "+966551234321", "تويوتا كامري", "ر س ع 5555", `/ar/booking/${ref}`]) assert(toCustomer.text.body.includes(x), "customer message has " + x);
     eq(sql(`select string_agg(status::text, ',' order by id) from notifications where booking_id=(select id from bookings where ref='${ref}')`), "sent,sent", "logged as sent");
   });
 
   await check("customer's booking page shows the driver: photo, name, car, plate and contact", async () => {
     await c.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
     const d = c.getByTestId("customer-driver");
-    for (const x of ["سائقك", "فهد الحربي", "ر س ع ٥٥٥٥", "تويوتا كامري"]) await d.getByText(x, { exact: false }).first().waitFor();
+    for (const x of ["سائقك", "فهد الحربي", "ر س ع 5555", "تويوتا كامري"]) await d.getByText(x, { exact: false }).first().waitFor();
     const img = d.locator("img");
     eq(await img.evaluate((el) => el.complete && el.naturalWidth > 0), true, "photo loads");
     assert((await d.getByRole("link", { name: /واتساب/ }).getAttribute("href")).includes("wa.me/966551234321"), "WhatsApp link");
@@ -2102,7 +2155,7 @@ if (!ONLY || ONLY === "drivers") {
     const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
     await a.goto(`${BASE}/admin/bookings?q=${no}`, { waitUntil: "networkidle" });
     const heads = await a.getByTestId("bookings-table").locator("thead th").allInnerTexts();
-    eq(heads.join("|"), "رقم الحجز|التاريخ|الوقت|من|إلى|السيارة|العميل|جوال العميل|السائق|جوال السائق|المبلغ|الحالة", "columns");
+    eq(heads.join("|"), "رقم الحجز|التاريخ|الوقت|من|إلى|السيارة|العميل|جوال العميل|السائق|جوال السائق|قبل الضريبة|بعد الضريبة|أجرة السائق|الحالة", "columns");
     const cells = await a.getByTestId("bookings-table").locator("tbody tr").first().locator("td").allInnerTexts();
     eq(cells[0], no, "number");
     assert(cells[2].includes("٩:٣٠"), "time alone: " + cells[2]);
@@ -2112,6 +2165,7 @@ if (!ONLY || ONLY === "drivers") {
     eq(cells[7], "+966551112299", "customer mobile");
     eq(cells[8], "فهد الحربي", "driver");
     eq(cells[9], "+966551234321", "driver mobile");
+    assert(cells[10].includes("٢٠٠") && cells[11].includes("٢٣٠"), "before and after VAT: " + cells[10] + " / " + cells[11]);
     eq(await a.getByTestId("bookings-table").locator("tbody tr").count(), 1, "search by number finds one");
   });
 
@@ -2389,6 +2443,84 @@ if (!ONLY || ONLY === "drivers") {
     sql(`delete from bookings where ref in ('${ref}','${other}'); delete from drivers where phone='+966550000777'`);
   });
 
+  await check("driver money: fare set on the booking shows on the driver's page; earned, paid and remaining add up; payouts and bank account", async () => {
+    sql(`delete from driver_payouts where driver_id=${driverId}; update bookings set driver_fare=null where driver_id=${driverId}`);
+    const r1 = paidBooking({ name: "عميل الأجرة", status: "confirmed" });
+    sql(`update bookings set driver_id=${driverId} where ref='${r1}'`);
+    // the admin types the driver's fare on the booking
+    await a.goto(`${BASE}/admin/bookings/${r1}`, { waitUntil: "networkidle" });
+    const ff = a.getByTestId("driver-fare-form");
+    await ff.locator('input[name="fare"]').fill("abc");
+    await ff.getByRole("button", { name: "حفظ الأجرة" }).click();
+    await ff.getByText("اكتب المبلغ بالريال").waitFor();
+    await ff.locator('input[name="fare"]').fill("١٥٠");
+    await ff.getByRole("button", { name: "حفظ الأجرة" }).click();
+    await ff.getByText("تم حفظ أجرة السائق").waitFor();
+    eq(sql(`select driver_fare from bookings where ref='${r1}'`), "15000", "stored in halalas");
+    // the bookings list shows it in its own column
+    const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${r1}'`);
+    await a.goto(`${BASE}/admin/bookings?q=${no}`, { waitUntil: "networkidle" });
+    assert((await a.locator('[data-col="driver-fare"]').first().innerText()).includes("١٥٠"), "fare column");
+    // the driver sees it at once
+    await drv.goto(`${BASE}/admin/my-trips`, { waitUntil: "networkidle" });
+    const trip = drv.getByTestId("my-trips").locator("li").filter({ hasText: no });
+    assert((await trip.getByTestId("trip-fare").innerText()).includes("١٥٠"), "driver sees his fare");
+    const money = () => drv.getByTestId("driver-money").locator("[data-money]").allInnerTexts();
+    // trip ends -> earned 150; a payout of 100 leaves 50
+    sql(`update bookings set status='completed', completed_at=now() where ref='${r1}'`);
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    const card = a.locator(`[data-driver="${driverId}"]`);
+    await card.getByTestId("driver-money-admin").locator("summary").click();
+    const pf = card.locator("form").filter({ has: a.getByRole("button", { name: "تسجيل الدفعة" }) });
+    await pf.locator('input[name="amount"]').fill("100");
+    await pf.locator('input[name="note"]').fill("تحويل بنكي");
+    await pf.getByRole("button", { name: "تسجيل الدفعة" }).click();
+    await a.waitForURL(/paid=/, { waitUntil: "commit" });
+    await a.locator(`[data-driver="${driverId}"]`).getByText("تم تسجيل الدفعة.").waitFor();
+    eq(sql(`select amount, note from driver_payouts where driver_id=${driverId}`), "10000|تحويل بنكي", "payout stored");
+    await drv.reload({ waitUntil: "networkidle" });
+    const [earned, paid, left] = await money();
+    assert(earned.includes("١٥٠") && paid.includes("١٠٠") && left.includes("٥٠"), `earned ${earned}, paid ${paid}, left ${left}`);
+    await drv.getByTestId("driver-money").getByText("الدفعات التي استلمتها").click();
+    await drv.getByTestId("my-payouts").getByText("تحويل بنكي").waitFor();
+    // the driver adds his bank account; the admin sees it
+    await drv.getByTestId("my-bank").locator("summary").click();
+    await drv.getByTestId("my-bank").locator("textarea").fill("مصرف الإنماء SA4405000068201234567000 فهد الحربي");
+    await drv.getByRole("button", { name: "حفظ الحساب البنكي" }).click();
+    await drv.getByText("تم حفظ حسابك البنكي.").waitFor();
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.locator(`[data-driver="${driverId}"]`).getByTestId("driver-money-admin").locator("summary").click();
+    await a.locator(`[data-driver="${driverId}"]`).getByTestId("driver-money-admin").getByText("SA4405000068201234567000", { exact: false }).waitFor();
+    // removing the payout puts the 150 back as owed
+    await a.locator(`[data-driver="${driverId}"]`).getByTestId("payout-list").getByRole("button", { name: "حذف" }).click();
+    await a.waitForURL(/unpaid=/, { waitUntil: "commit" });
+    eq(sql(`select count(*) from driver_payouts where driver_id=${driverId}`), "0", "payout removed");
+    sql(`delete from bookings where ref='${r1}'`);
+  });
+
+  await check("bookings list downloads as Excel and PDF, with the page's filters; staff only", async () => {
+    const r1 = paidBooking({ name: "عميل التصدير" });
+    const xlsx = await a.request.get(`${BASE}/api/admin/bookings/export?format=xlsx&customer=${encodeURIComponent("عميل التصدير")}`);
+    eq(xlsx.status(), 200, "xlsx");
+    eq(xlsx.headers()["content-type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx type");
+    const ExcelJS = require("exceljs");
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await xlsx.body());
+    const ws = wb.worksheets[0];
+    eq(ws.getRow(2).getCell(1).value, "رقم الحجز", "header row");
+    eq(ws.getRow(3).getCell(8).value, "عميل التصدير", "the filtered booking");
+    eq(ws.getRow(3).getCell(12).value, 200, "before VAT");
+    eq(ws.getRow(3).getCell(14).value, 230, "after VAT");
+    eq(ws.rowCount, 4, "one booking + totals row");
+    const pdf = await a.request.get(`${BASE}/api/admin/bookings/export?format=pdf`);
+    eq(pdf.status(), 200, "pdf");
+    eq((await pdf.body()).subarray(0, 5).toString(), "%PDF-", "a real PDF");
+    eq((await fetch(`${BASE}/api/admin/bookings/export?format=xlsx`)).status, 404, "not for the public");
+    await a.goto(`${BASE}/admin/bookings?status=paid`, { waitUntil: "networkidle" });
+    assert((await a.getByTestId("bookings-export").getByRole("link", { name: "Excel" }).getAttribute("href")).includes("status=paid"), "download keeps the filters");
+    sql(`delete from bookings where ref='${r1}'`);
+  });
+
   await check("staff account: only the sections it was given, in the menu and on the server", async () => {
     await a.goto(`${BASE}/admin/users`, { waitUntil: "networkidle" });
     const f = a.locator("form").filter({ has: a.getByRole("button", { name: "إضافة الحساب" }) });
@@ -2515,12 +2647,14 @@ if (!ONLY || ONLY === "join") {
     await j.fill('input[name="password"]', o.password ?? "Driver-Join-1");
     await j.selectOption('select[name="vehicleId"]', { label: "تويوتا كامري" });
     await j.selectOption('select[name="carModel"]', "2022");
-    await j.fill('input[name="carColor"]', "أبيض");
-    await j.fill('input[name="plateNumber"]', "ك ل م ٤٤٤٤");
+    await j.selectOption('select[name="carColor"]', "أبيض");
+    for (const [i, l] of ["ك", "ل", "م"].entries()) await j.selectOption(`select[name="plateL${i + 1}"]`, l);
+    await j.fill('input[name="plateDigits"]', "٤٤٤٤");
+    await j.fill('textarea[name="bankAccount"]', "بنك الراجحي SA0380000000608010167519 بندر السائق");
     for (const k of ["photo", "id_card", "license", "registration", "car_inside", "car_outside"]) {
       await j.setInputFiles(`input[name="${k}"]`, img(k));
-      // the licence and registration are cropped to the card size first
-      if (k === "license" || k === "registration") {
+      // the personal photo (4 x 4 cm) and the ID, licence and registration (card size) are cropped first
+      if (k !== "car_inside" && k !== "car_outside") {
         await j.getByTestId("card-cropper").getByRole("button", { name: "اعتماد" }).click();
         await j.getByTestId("card-cropper").waitFor({ state: "detached" });
       }
@@ -2562,6 +2696,14 @@ if (!ONLY || ONLY === "join") {
       return { type: f.type, size: f.size, w: bm.width, h: bm.height };
     });
     eq(`${out.type} ${out.w}x${out.h}`, "image/jpeg 1129x756", "cropped file");
+    // the ID is cropped like the licence; the personal photo to 4 x 4 cm (472 x 472 px)
+    for (const [k, size] of [["id_card", "1129x756"], ["photo", "472x472"]]) {
+      await j.setInputFiles(`input[name="${k}"]`, file);
+      await cr.getByRole("button", { name: "اعتماد" }).click();
+      await cr.waitFor({ state: "detached" });
+      const o = await j.locator(`input[name="${k}"]`).evaluate(async (i) => { const bm = await createImageBitmap(i.files[0]); return `${bm.width}x${bm.height}`; });
+      eq(o, size, k + " size");
+    }
     assert(out.size < 1024 * 1024, "under 1 MB");
     assert(await j.locator('[data-photo="registration"]').getByText("٩٫٥٦ × ٦٫٤ سم").count(), "size shown");
   });
@@ -2589,6 +2731,8 @@ if (!ONLY || ONLY === "join") {
     eq(sql("select status, active, car_type, car_model, vehicle_id is not null from drivers where phone='+966559990001'"), "pending|f|تويوتا كامري|2022|t", "pending driver");
     eq(sql("select count(*) from driver_documents d join drivers r on r.id=d.driver_id where r.phone='+966559990001'"), "5", "5 documents");
     eq(sql("select mime from driver_documents d join drivers r on r.id=d.driver_id where r.phone='+966559990001' and d.kind='license'"), "image/jpeg", "licence saved as the cropped JPEG");
+    eq(sql("select plate_number, car_color, photo_mime from drivers where phone='+966559990001'"), "ك ل م 4444|أبيض|image/jpeg", "plate letters + numbers, colour from the list, cropped photo");
+    assert(sql("select bank_account from drivers where phone='+966559990001'").includes("SA0380000000608010167519"), "bank account saved");
     eq(sql("select role, active from admin_users where email='+966559990001'"), "driver|f", "account off");
     await adminLogin(j, "0559990001", "Driver-Join-1");
     await j.getByText("طلب انضمامك قيد المراجعة").waitFor();

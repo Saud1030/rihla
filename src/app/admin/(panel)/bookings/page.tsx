@@ -4,6 +4,7 @@ import { requireSection } from "@/lib/auth";
 import {
   bookingCountsByStatus,
   listBookings,
+  parseBookingFilters,
   type BookingFilters,
 } from "@/lib/admin-data";
 import { asc } from "drizzle-orm";
@@ -37,28 +38,7 @@ async function Bookings({
 }) {
   await requireSection("bookings");
   const sp = await searchParams;
-  const one = (k: string) =>
-    typeof sp[k] === "string" ? (sp[k] as string).trim() : "";
-  const date = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
-
-  const time = (v: string) =>
-    /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : undefined;
-  const id = (v: string) => (/^\d{1,9}$/.test(v) ? Number(v) : undefined);
-  const filters: BookingFilters = {
-    status: STATUSES.find((x) => x === one("status")),
-    q: one("q").slice(0, 60) || undefined,
-    from: date(one("from")),
-    to: date(one("to")),
-    timeFrom: time(one("timeFrom")),
-    timeTo: time(one("timeTo")),
-    customer: one("customer").slice(0, 60) || undefined,
-    phone: one("phone").slice(0, 20) || undefined,
-    city: /^[a-z0-9-]{1,60}$/.test(one("city")) ? one("city") : undefined,
-    place: id(one("place")),
-    driver: one("driver") === "none" ? "none" : id(one("driver")),
-    vehicle: id(one("vehicle")),
-    page: Number(one("page")) || 1,
-  };
+  const filters: BookingFilters = parseBookingFilters(sp);
   const [
     { rows, total, page, pages },
     counts,
@@ -109,10 +89,26 @@ async function Bookings({
     return `/admin/bookings${str ? `?${str}` : ""}`;
   };
   const active = Object.entries(kept).some(([k, v]) => k !== "status" && v);
+  // the same filters, for the PDF / Excel download
+  const exportHref = (format: "pdf" | "xlsx") => {
+    const p = new URLSearchParams({ format });
+    for (const [k, v] of Object.entries(kept)) if (v) p.set(k, String(v));
+    return `/api/admin/bookings/export?${p}`;
+  };
   const label = "block text-sm font-medium mb-1";
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-end gap-2" data-testid="bookings-export">
+        <span className="text-sm text-muted">تحميل القائمة{active || filters.status ? " (حسب الفلاتر)" : ""}:</span>
+        <a href={exportHref("xlsx")} className="btn btn-ghost border border-line !min-h-9 !py-1 text-sm" download>
+          Excel
+        </a>
+        <a href={exportHref("pdf")} className="btn btn-ghost border border-line !min-h-9 !py-1 text-sm" download>
+          PDF
+        </a>
+      </div>
+
       {/* Status tabs */}
       <nav className="flex flex-wrap gap-1.5" aria-label="تصفية حسب الحالة">
         <Link

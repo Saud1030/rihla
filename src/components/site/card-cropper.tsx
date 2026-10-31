@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CARD_CM, CARD_PX, DRIVER_PHOTO_MAX } from "@/lib/driver-docs";
+import { createPortal } from "react-dom";
+import { CARD_SHAPE, DRIVER_PHOTO_MAX, type CropShape } from "@/lib/driver-docs";
 
 export type CropLabels = {
   cropTitle: string;
@@ -13,10 +14,28 @@ export type CropLabels = {
 };
 
 /**
- * Shows the chosen photo under a card-shaped frame (9.56 x 6.4 cm). The driver drags and zooms until the
+ * Shows the chosen photo under a frame of the document's real shape (card 9.56 x 6.4 cm, photo 4 x 4 cm). The driver drags and zooms until the
  * card fills the frame, then the frame's content is saved as a JPEG of exactly CARD_PX, under 1 MB.
  */
-export function CardCropper({ file, labels: L, onDone, onCancel }: { file: File; labels: CropLabels; onDone: (f: File) => void; onCancel: () => void }) {
+export function CardCropper({
+  file,
+  labels: L,
+  onDone,
+  onCancel,
+  onFail,
+  shape = CARD_SHAPE,
+}: {
+  file: File;
+  labels: CropLabels;
+  onDone: (f: File) => void;
+  onCancel: () => void;
+  /** the file isn't an image the browser can read */
+  onFail?: () => void;
+  /** the printed size (cm) and the saved size (px); a card by default, 4 x 4 cm for the personal photo */
+  shape?: CropShape;
+}) {
+  const CARD_CM = shape.cm;
+  const CARD_PX = shape.px;
   const frameRef = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState<HTMLImageElement | HTMLCanvasElement | null>(null);
   const [src, setSrc] = useState<string>("");
@@ -36,10 +55,10 @@ export function CardCropper({ file, labels: L, onDone, onCancel }: { file: File;
       setImg(im);
       setSrc(url);
     };
-    im.onerror = () => onCancel();
+    im.onerror = () => (onFail ?? onCancel)();
     im.src = url;
     return () => URL.revokeObjectURL(url);
-  }, [file, onCancel]);
+  }, [file, onCancel, onFail]);
 
   // frame size follows the screen
   useEffect(() => {
@@ -109,10 +128,11 @@ export function CardCropper({ file, labels: L, onDone, onCancel }: { file: File;
     }
     setBusy(false);
     if (!blob) return onCancel();
-    onDone(new File([blob], file.name.replace(/\.[^.]+$/, "") + "-card.jpg", { type: "image/jpeg" }));
+    onDone(new File([blob], file.name.replace(/\.[^.]+$/, "") + "-cropped.jpg", { type: "image/jpeg" }));
   }
 
-  return (
+  // drawn on top of the whole page, so a card with overflow-hidden around the field can't clip it
+  return createPortal(
     <div role="dialog" aria-modal="true" aria-label={L.cropTitle} className="fixed inset-0 z-50 grid place-items-center bg-ink/70 p-4" data-testid="card-cropper">
       <div className="w-full max-w-lg rounded-xl bg-paper p-4 space-y-3 shadow-xl">
         <h3 className="font-semibold text-lg">{L.cropTitle}</h3>
@@ -166,6 +186,7 @@ export function CardCropper({ file, labels: L, onDone, onCancel }: { file: File;
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

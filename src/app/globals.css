@@ -83,6 +83,14 @@ h3 {
     inset 0 0 0 8px #fff;
 }
 
+/* the home page booking box: a plain rectangle in the brand green */
+.booking-box {
+  background: var(--color-sign);
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.35);
+}
+
 .field {
   display: block;
   width: 100%;

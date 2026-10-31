@@ -10,6 +10,7 @@ import { maxBookingDate, newBookingRef, todayInRiyadh } from "@/lib/booking";
 import { distancePrice, driveMinutes, parseVatConfig, roadKm, withVat } from "@/lib/pricing";
 import { hourlyPrice, isHourPackage } from "@/lib/policy";
 import { normalizePhone } from "@/lib/phone";
+import { multiTitle, parseStops, quoteMultiTrip } from "@/lib/multi";
 
 export type BookingFormState = {
   errors?: Partial<Record<FieldName, true>>;
@@ -35,8 +36,9 @@ const fields = [
 type FieldName = (typeof fields)[number];
 
 const schema = z.object({
-  // "12" = fixed route trip id, "d:5" = distance-priced trip with vehicle 5, "h:5" = hourly with vehicle 5
-  tripId: z.string().regex(/^(\d{1,9}|[dh]:\d{1,9})$/),
+  // "12" = fixed route trip id, "d:5" = distance-priced trip with vehicle 5, "h:5" = hourly with vehicle 5,
+  // "m:5" = multi-destination trip with vehicle 5
+  tripId: z.string().regex(/^(\d{1,9}|[dhm]:\d{1,9})$/),
   reversed: z.enum(["0", "1"]).default("0"),
   name: z.string().trim().min(3).max(100),
   // WhatsApp number (required): driver details are sent to it. Stored as +<country><number>
@@ -63,6 +65,7 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
   const hourlyFrom = String(formData.get("hourlyFrom") ?? "").slice(0, 80);
   const hourlyTo = String(formData.get("hourlyTo") ?? "").slice(0, 80);
   const hours = Number(formData.get("hours") ?? 0);
+  const stops = parseStops(String(formData.get("stops") ?? ""));
 
   const parsed = schema.safeParse(values);
   if (!parsed.success) {
@@ -77,7 +80,9 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
     ? await resolveDistanceTrip(Number(d.tripId.slice(2)), fromSlug, toSlug, locale)
     : d.tripId.startsWith("h:")
       ? await resolveHourlyTrip(Number(d.tripId.slice(2)), hourlyFrom, hourlyTo, hours, locale)
-      : await resolveFixedTrip(Number(d.tripId), d.reversed === "1", locale);
+      : d.tripId.startsWith("m:")
+        ? await resolveMultiTrip(Number(d.tripId.slice(2)), stops, locale)
+        : await resolveFixedTrip(Number(d.tripId), d.reversed === "1", locale);
   if (!resolved) return { formError: "trip", values };
 
   const errors: BookingFormState["errors"] = {};
@@ -104,6 +109,7 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
         vehicleId: resolved.vehicle.id,
         distanceKm: resolved.km,
         hours: resolved.hours,
+        stops: resolved.stops ?? null,
         durationMin: resolved.durationMin,
         routeTitle: resolved.title,
         vehicleName: locale === "ar" ? resolved.vehicle.nameAr : resolved.vehicle.nameEn,
@@ -139,7 +145,8 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
 }
 
 type Resolved = {
-  mode: "fixed" | "distance" | "hourly";
+  mode: "fixed" | "distance" | "hourly" | "multi";
+  stops?: string[] | null;
   hours?: number | null;
   tripId: number | null;
   vehicle: typeof s.vehicles.$inferSelect;
@@ -219,7 +226,7 @@ async function resolveHourlyTrip(vehicleId: number, placeSlug: string, toSlug: s
   const destName = dest ? (locale === "ar" ? dest.nameAr : dest.nameEn) : "";
   const title =
     locale === "ar"
-      ? `سيارة مع سائق ${hours === 6 ? "٦ ساعات" : hours === 12 ? "١٢ ساعة" : "٢٤ ساعة"} – من ${name}${dest ? ` إلى ${destName}` : ""}`
+      ? `سيارة مع سائق ${hours === 10 ? "١٠ ساعات" : hours === 12 ? "١٢ ساعة" : "٢٤ ساعة"} – من ${name}${dest ? ` إلى ${destName}` : ""}`
       : `Car with driver, ${hours} hours – from ${name}${dest ? ` to ${destName}` : ""}`;
   return {
     mode: "hourly",
@@ -233,5 +240,25 @@ async function resolveHourlyTrip(vehicleId: number, placeSlug: string, toSlug: s
     toId: dest?.id ?? null,
     km: null,
     durationMin: hours * 60,
+  };
+}
+
+async function resolveMultiTrip(vehicleId: number, stops: string[] | null, locale: Locale): Promise<Resolved | null> {
+  if (!stops) return null;
+  const q = await quoteMultiTrip(stops);
+  const opt = q?.options.find((o) => o.vehicle.id === vehicleId);
+  if (!q || !opt) return null;
+  return {
+    mode: "multi",
+    stops: q.places.map((p) => (locale === "ar" ? p.nameAr : p.nameEn)),
+    tripId: null,
+    vehicle: opt.vehicle,
+    price: opt.price,
+    title: multiTitle(q.places, locale),
+    reversed: false,
+    fromId: q.places[0].id,
+    toId: q.places[q.places.length - 1].id,
+    km: q.km || null,
+    durationMin: q.minutes || null,
   };
 }

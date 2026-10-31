@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { asc, desc, sql } from "drizzle-orm";
+import { asc, desc, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { driverRatings } from "@/lib/ratings";
-import { formatNumber } from "@/lib/format";
+import { formatDate, formatNumber, formatSAR } from "@/lib/format";
+import { driverMoney, type DriverMoney } from "@/lib/driver-money";
+import type { DriverPayout } from "@/db/schema";
 import {
+  addDriverPayout,
+  deleteDriverPayout,
   approveDriver,
   blockDriver,
   deleteDriver,
@@ -17,6 +21,8 @@ import {
   saveDriver,
 } from "../../driver-actions";
 import { CARD_CM, CARD_DOCS, DOC_KINDS, DOC_LABELS, modelYears } from "@/lib/driver-docs";
+import { ColorSelect, PlateFields } from "@/components/plate-fields";
+import { PhotoField } from "@/components/site/photo-field";
 import { formatDateTime } from "@/lib/format";
 import { daysLabel, driverHold, SUSPEND_DAYS, upcomingTrips } from "@/lib/driver-hold";
 import { todayInRiyadh } from "@/lib/booking";
@@ -43,6 +49,7 @@ type Row = {
   vehicleId: number | null;
   status: "pending" | "approved" | "rejected";
   rejectReason: string | null;
+  bankAccount: string;
   blockedAt: Date | null;
   blockReason: string | null;
   suspendedUntil: Date | null;
@@ -88,6 +95,7 @@ async function Drivers({
         vehicleId: s.drivers.vehicleId,
         status: s.drivers.status,
         rejectReason: s.drivers.rejectReason,
+        bankAccount: s.drivers.bankAccount,
         blockedAt: s.drivers.blockedAt,
         blockReason: s.drivers.blockReason,
         suspendedUntil: s.drivers.suspendedUntil,
@@ -128,6 +136,12 @@ async function Drivers({
   const team = rows.filter((d) => d.status === "approved");
   const heldCount = team.filter((d) => driverHold(d)).length;
   // the result of a block / suspend / lift, shown after the page reloads
+  // money: what each driver earned, was paid and is still owed
+  const [money, payoutRows] = await Promise.all([
+    driverMoney(team.map((d) => d.id)),
+    team.length ? db.select().from(s.driverPayouts).where(inArray(s.driverPayouts.driverId, team.map((d) => d.id))).orderBy(desc(s.driverPayouts.paidOn), desc(s.driverPayouts.id)) : Promise.resolve([]),
+  ]);
+  const paidKey = typeof sp.paid === "string" ? sp.paid : typeof sp.unpaid === "string" ? sp.unpaid : "";
   const holdKey = (["suspended", "resumed", "blocked", "unblocked"] as const).find((k) => typeof sp[k] === "string");
   const holdDriver = holdKey ? rows.find((d) => String(d.id) === sp[holdKey]) : undefined;
   const holdTrips = holdDriver && (holdKey === "suspended" || holdKey === "blocked") ? await upcomingTrips(holdDriver.id) : [];
@@ -378,6 +392,7 @@ async function Drivers({
                       </ActionForm>
                     </div>
                   </div>
+                  <MoneyPanel d={d} m={money.get(d.id)!} payouts={payoutRows.filter((p) => p.driverId === d.id)} open={paidKey === String(d.id)} notice={paidKey === String(d.id) ? (typeof sp.paid === "string" ? "تم تسجيل الدفعة." : "تم حذف الدفعة.") : null} />
                   <HoldControls d={d} hold={hold} />
                   <details className="border-t border-line">
                     <summary className="cursor-pointer px-4 py-3 text-sm text-sign">
@@ -447,6 +462,75 @@ async function Drivers({
         </details>
       )}
     </div>
+  );
+}
+
+/** Earned / paid / remaining, the payouts, and a form to record a new one */
+function MoneyPanel({ d, m, payouts, open, notice }: { d: Row; m: DriverMoney; payouts: DriverPayout[]; open: boolean; notice: string | null }) {
+  return (
+    <details className="border-t border-line" open={open} data-testid="driver-money-admin">
+      <summary className="cursor-pointer px-4 py-3 text-sm text-sign flex flex-wrap gap-x-4 gap-y-1">
+        <span>المستحقات</span>
+        <span className="text-muted tabular">
+          المستحق {formatSAR(m.earned, "ar")} · المدفوع {formatSAR(m.paid, "ar")} · <span className={m.remaining > 0 ? "text-amber-deep font-medium" : ""}>الباقي {formatSAR(m.remaining, "ar")}</span>
+        </span>
+      </summary>
+      <div className="px-4 pb-5 space-y-4">
+        {notice && (
+          <p role="status" className="text-sm text-sign">
+            {notice}
+          </p>
+        )}
+        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          {[
+            ["المستحق (رحلات منتهية)", m.earned],
+            ["المدفوع له", m.paid],
+            ["الباقي له", m.remaining],
+            ["في رحلات قادمة", m.coming],
+          ].map(([k, v]) => (
+            <div key={k as string} className="rounded-lg bg-stone px-3 py-2">
+              <dt className="text-xs text-muted">{k}</dt>
+              <dd className="font-semibold tabular">{formatSAR(v as number, "ar")}</dd>
+            </div>
+          ))}
+        </dl>
+        {m.unpriced > 0 && <p className="text-xs text-amber-deep">عنده {formatNumber(m.unpriced, "ar")} رحلة بدون أجرة محددة. حدّدها من صفحة الحجز.</p>}
+        <div className="text-sm">
+          <p className="text-muted mb-1">الحساب البنكي</p>
+          <p className="whitespace-pre-line rounded-lg border border-line px-3 py-2 min-h-10">{d.bankAccount || "لم يضف حسابًا بنكيًا بعد."}</p>
+        </div>
+        <ActionForm action={addDriverPayout} submitLabel="تسجيل الدفعة" submitClassName="btn btn-primary !min-h-10 text-sm" className="grid gap-3 sm:grid-cols-[1fr_1fr_2fr] items-end">
+          <input type="hidden" name="driverId" value={d.id} />
+          <Field label="المبلغ المدفوع (ر.س)">
+            <input name="amount" inputMode="decimal" required dir="ltr" className="field text-start tabular" placeholder="500" />
+          </Field>
+          <Field label="تاريخ الدفع">
+            <input name="paidOn" type="date" required defaultValue={todayInRiyadh()} className="field" />
+          </Field>
+          <Field label="ملاحظة (اختياري)">
+            <input name="note" maxLength={200} className="field" placeholder="تحويل بنكي، نقدًا…" />
+          </Field>
+        </ActionForm>
+        {payouts.length > 0 && (
+          <ul className="divide-y divide-line border border-line rounded-lg text-sm" data-testid="payout-list">
+            {payouts.map((p) => (
+              <li key={p.id} className="px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {formatDate(p.paidOn, "ar")}
+                  {p.note && <span className="text-muted"> · {p.note}</span>}
+                </span>
+                <span className="flex items-center gap-3">
+                  <span className="font-medium tabular">{formatSAR(p.amount, "ar")}</span>
+                  <ActionForm action={deleteDriverPayout} submitLabel="حذف" submitClassName="text-xs text-danger hover:underline" className="">
+                    <input type="hidden" name="id" value={p.id} />
+                  </ActionForm>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -562,6 +646,16 @@ function DocGallery({ id, kinds }: { id: number; kinds: string[] }) {
   );
 }
 
+const PHOTO_LABELS = {
+  pick: "اختر صورة",
+  change: "تغيير",
+  tooBig: "الصورة كبيرة جدًا.",
+  unreadable: "هذا الملف ليس صورة صالحة. اختر صورة PNG أو JPG أو WEBP.",
+  cardSize: "تُقص بمقاس البطاقة: ٩٫٥٦ × ٦٫٤ سم",
+  photoSize: "تُقص بمقاس صورة شخصية: ٤ × ٤ سم",
+  crop: { cropTitle: "قص الصورة", cropHint: "اسحب الصورة وكبّرها حتى يملأ الوجه الإطار.", zoom: "تكبير", rotate: "تدوير", cropOk: "اعتماد", cancel: "إلغاء" },
+};
+
 function DriverFields({ d, vehicles }: { d?: Row; vehicles: VehicleOption[] }) {
   return (
     <ActionForm action={saveDriver} submitLabel={d ? "حفظ" : "إضافة السائق"}>
@@ -592,15 +686,9 @@ function DriverFields({ d, vehicles }: { d?: Row; vehicles: VehicleOption[] }) {
             inputMode="tel"
           />
         </Field>
-        <Field label="رقم اللوحة" hint="مثل: أ ب ج ١٢٣٤">
-          <input
-            name="plateNumber"
-            required
-            maxLength={30}
-            defaultValue={d?.plateNumber}
-            className="field"
-          />
-        </Field>
+        <div className="sm:col-span-2">
+          <PlateFields value={d?.plateNumber} label="رقم اللوحة" lettersLabel="الحروف" digitsLabel="الأرقام" />
+        </div>
         <Field label="نوع السيارة" hint="من قائمة السيارات في لوحة التحكم">
           <select
             name="vehicleId"
@@ -634,23 +722,14 @@ function DriverFields({ d, vehicles }: { d?: Row; vehicles: VehicleOption[] }) {
           </select>
         </Field>
         <Field label="اللون">
-          <input
-            name="carColor"
-            maxLength={30}
-            defaultValue={d?.carColor}
-            className="field"
-          />
+          <ColorSelect value={d?.carColor} lang="ar" required={false} />
         </Field>
-        <Field
-          label={d?.hasPhoto ? "صورة شخصية جديدة (اختياري)" : "الصورة الشخصية"}
-          hint="PNG أو JPG أو WEBP، أقل من ١ ميجابايت. تظهر للعميل في صفحة حجزه"
-        >
-          <input
-            type="file"
-            name="photo"
-            accept="image/png,image/jpeg,image/webp"
-            className="field"
-          />
+        <div>
+          <PhotoField name="photo" label={d?.hasPhoto ? "صورة شخصية جديدة (اختياري)" : "الصورة الشخصية"} t={PHOTO_LABELS} required={false} />
+          <p className="text-xs text-muted mt-1">تظهر للعميل في صفحة حجزه.</p>
+        </div>
+        <Field label="الحساب البنكي للسائق" hint="اسم البنك والآيبان واسم صاحب الحساب. السائق يقدر يعدّله من حسابه" className="sm:col-span-2">
+          <textarea name="bankAccount" rows={2} maxLength={300} defaultValue={d?.bankAccount ?? ""} className="field" />
         </Field>
         <Field label="ملاحظات داخلية (اختياري)">
           <input

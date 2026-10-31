@@ -4,11 +4,13 @@ import { isLocale } from "@/i18n/dictionaries";
 import { findRoute, getCatalog, getLocations, getSettings } from "@/lib/catalog";
 import { isHourPackage } from "@/lib/policy";
 import { isClock, isDay } from "@/lib/timespan";
+import { parseStops } from "@/lib/multi";
 
 /**
  * Search from the green sign (home page and routes page):
  *  transfer: a fixed-price route between the two places -> that route's page,
  *            otherwise the distance-priced trip page
+ *  multi:    a trip through several stops -> the multi-stop page
  *  hourly:   the hourly booking page for the pickup point, destination and package
  * Date and time are carried along so the booking form opens already filled in.
  * Anything incomplete goes back to the chooser.
@@ -29,6 +31,13 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/[lang]/search">)
     if (isClock(time)) out.set("time", time);
     return seeOther(path, out);
   };
+
+  // several stops: start + 2..5 destinations, priced leg by leg
+  if (q.get("mode") === "multi") {
+    const stops = parseStops([from, ...(q.get("stops") ?? "").split(",")].filter(Boolean).join(","));
+    if (!stops) return back();
+    return go(`/${locale}/multi`, { stops: stops.join(",") });
+  }
 
   const locations = await getLocations();
   const fromLoc = locations.find((l) => l.slug === from);

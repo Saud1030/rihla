@@ -22,11 +22,19 @@ export function modelYears(now = new Date()) {
 }
 
 /**
- * Saudi driving licence and car registration are 9.56 x 6.4 cm cards. Their photos are cropped in the
+ * The ID / iqama, driving licence and car registration are cropped as 9.56 x 6.4 cm cards. Their photos are cropped in the
  * browser to exactly that shape and saved at 300 dpi (1129 x 756 px), so every one looks the same.
  */
-export const CARD_DOCS: readonly string[] = ["license", "registration"];
+export const CARD_DOCS: readonly string[] = ["id_card", "license", "registration"];
 export const CARD_CM = { w: 9.56, h: 6.4 } as const;
 export const CARD_PX = { w: Math.round((CARD_CM.w / 2.54) * 300), h: Math.round((CARD_CM.h / 2.54) * 300) } as const;
+
+/** a crop frame: the printed size in cm and the saved image size in px (300 dpi) */
+export type CropShape = { cm: { w: number; h: number }; px: { w: number; h: number } };
+export const CARD_SHAPE: CropShape = { cm: CARD_CM, px: CARD_PX };
+/** the driver's personal photo: 4 x 4 cm */
+export const PHOTO_SHAPE: CropShape = { cm: { w: 4, h: 4 }, px: { w: 472, h: 472 } };
+/** which shape each upload is cropped to (car photos are not cropped) */
+export const cropShapeFor = (kind: string): CropShape | null => (kind === "photo" ? PHOTO_SHAPE : CARD_DOCS.includes(kind) ? CARD_SHAPE : null);
 /** a phone photo of a card may be big; it is cropped and made small before sending */
 export const CARD_SOURCE_MAX = 25 * 1024 * 1024;

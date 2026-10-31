@@ -29,7 +29,7 @@ import { waLink } from "@/components/site/whatsapp-fab";
 import { WhatsAppIcon, PhoneIcon } from "@/components/icons";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { db, schema as sc } from "@/db";
-import { assignDriver, completeTrip } from "../../../driver-actions";
+import { assignDriver, completeTrip, setDriverFare } from "../../../driver-actions";
 import { notHeld } from "@/lib/driver-hold";
 import { invoiceNo, receiptNo } from "@/lib/documents";
 import { NotificationList } from "@/components/admin/notification-list";
@@ -354,6 +354,16 @@ async function Detail({
                     : "—"}
               </p>
             )}
+            {driver && (
+              <div data-testid="driver-fare-form">
+              <ActionForm action={setDriverFare} submitLabel="حفظ الأجرة" submitClassName="btn btn-ghost border border-line !min-h-9 !py-1 text-sm" className="mt-4 flex flex-wrap items-end gap-2">
+                <input type="hidden" name="bookingId" value={b.id} />
+                <Field label="أجرة السائق (ر.س)" hint={b.driverFare != null ? `الحالية: ${formatSAR(b.driverFare, "ar")}` : "لم تُحدَّد بعد"} className="grow">
+                  <input name="fare" inputMode="decimal" defaultValue={b.driverFare != null ? b.driverFare / 100 : ""} dir="ltr" className="field text-start tabular" placeholder="150" />
+                </Field>
+              </ActionForm>
+              </div>
+            )}
             {b.startedAt && (
               <p className="text-xs text-muted mt-2">
                 بدأت الرحلة: {formatDateTime(b.startedAt, "ar")}
@@ -398,6 +408,9 @@ async function Detail({
                             </option>
                           ))}
                       </select>
+                    </Field>
+                    <Field label="أجرة السائق لهذه الرحلة (ر.س)" hint="اختياري. تظهر للسائق في صفحته وفي رسالة الرحلة">
+                      <input name="fare" inputMode="decimal" defaultValue={b.driverFare != null ? b.driverFare / 100 : ""} dir="ltr" className="field text-start tabular" placeholder="150" />
                     </Field>
                   </ActionForm>
                 ) : (

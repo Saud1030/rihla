@@ -186,7 +186,7 @@ const vehicleSchema = z.object({
   baseFare: z.coerce.number().min(0).max(100000),
   perKm: z.coerce.number().min(0).max(1000),
   minFare: z.coerce.number().min(0).max(100000),
-  hourly6: z.coerce.number().min(0).max(100000),
+  hourly10: z.coerce.number().min(0).max(100000),
   hourly12: z.coerce.number().min(0).max(100000),
   hourly24: z.coerce.number().min(0).max(100000),
 });
@@ -227,7 +227,7 @@ export async function saveVehicle(_prev: ActionState, formData: FormData): Promi
     baseFare: Math.round(d.baseFare * 100),
     perKm: Math.round(d.perKm * 100),
     minFare: Math.round(d.minFare * 100),
-    hourly6: Math.round(d.hourly6 * 100),
+    hourly10: Math.round(d.hourly10 * 100),
     hourly12: Math.round(d.hourly12 * 100),
     hourly24: Math.round(d.hourly24 * 100),
   };
@@ -755,6 +755,7 @@ export async function markRefundManual(_prev: ActionState, formData: FormData): 
 
 const policySchema = z.object({
   hourly_enabled: z.enum(["0", "1"]),
+  multi_enabled: z.enum(["0", "1"]),
   cancel_enabled: z.enum(["0", "1"]),
   cancel_full_hours: z.coerce.number().int().min(0).max(720),
   cancel_partial_percent: z.coerce.number().int().min(0).max(100),
@@ -767,6 +768,7 @@ export async function savePolicySettings(_prev: ActionState, formData: FormData)
   const digits = (v: FormDataEntryValue | undefined) => String(v ?? "").replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)));
   const parsed = policySchema.safeParse({
     hourly_enabled: raw.hourly_enabled === "on" ? "1" : "0",
+    multi_enabled: raw.multi_enabled === "on" ? "1" : "0",
     cancel_enabled: raw.cancel_enabled === "on" ? "1" : "0",
     refund_auto: raw.refund_auto === "on" ? "1" : "0",
     cancel_full_hours: digits(raw.cancel_full_hours),

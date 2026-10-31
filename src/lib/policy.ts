@@ -3,13 +3,13 @@
  * Money is in halalas.
  */
 
-export const HOUR_PACKAGES = [6, 12, 24] as const;
+export const HOUR_PACKAGES = [10, 12, 24] as const;
 export type HourPackage = (typeof HOUR_PACKAGES)[number];
 
 export const isHourPackage = (n: number): n is HourPackage => (HOUR_PACKAGES as readonly number[]).includes(n);
 
-export function hourlyPrice(v: { hourly6: number; hourly12: number; hourly24: number }, hours: HourPackage) {
-  return hours === 6 ? v.hourly6 : hours === 12 ? v.hourly12 : v.hourly24;
+export function hourlyPrice(v: { hourly10: number; hourly12: number; hourly24: number }, hours: HourPackage) {
+  return hours === 10 ? v.hourly10 : hours === 12 ? v.hourly12 : v.hourly24;
 }
 
 /* ---------------- Cancellation ---------------- */

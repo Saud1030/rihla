@@ -1,95 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useCallback, useRef, useState } from "react";
+import { useActionState } from "react";
 import { applyAsDriver, type JoinState } from "@/app/actions/driver-apply";
-import { CARD_CM, CARD_DOCS, CARD_SOURCE_MAX, DOC_KINDS, DOC_LABELS, DRIVER_PHOTO_MAX } from "@/lib/driver-docs";
-import { CardCropper } from "./card-cropper";
+import { DOC_KINDS, DOC_LABELS } from "@/lib/driver-docs";
+import { PhotoField } from "./photo-field";
+import { ColorSelect, PlateFields } from "@/components/plate-fields";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
 
 type Vehicle = { id: number; name: string };
-
-/**
- * One photo slot: picks an image, refuses anything over 1 MB right away, shows a preview.
- * The licence and registration are cropped to their card size (9.56 x 6.4 cm) first.
- */
-function PhotoField({ name, label, t, invalid }: { name: string; label: string; t: Dictionary["join"]; invalid: boolean }) {
-  const card = CARD_DOCS.includes(name);
-  const input = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [tooBig, setTooBig] = useState(false);
-  const [cropping, setCropping] = useState<File | null>(null);
-
-  const show = (f: File | null) => {
-    if (preview) URL.revokeObjectURL(preview);
-    setPreview(f ? URL.createObjectURL(f) : null);
-  };
-  const cancelCrop = useCallback(() => {
-    if (input.current) input.current.value = "";
-    setCropping(null);
-  }, []);
-  const doneCrop = useCallback(
-    (f: File) => {
-      const dt = new DataTransfer();
-      dt.items.add(f);
-      if (input.current) input.current.files = dt.files;
-      setCropping(null);
-      setTooBig(false);
-      show(f);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- show only swaps the preview
-    [preview],
-  );
-
-  return (
-    <div className={`rounded-xl border-2 border-dashed p-3 ${invalid || tooBig ? "border-danger" : preview ? "border-sign/40" : "border-line"}`} data-photo={name}>
-      <p className="text-sm font-medium mb-2">{label}</p>
-      <label className="flex items-center gap-3 cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-sign rounded-lg">
-        {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element -- local preview of the chosen file
-          <img src={preview} alt="" className={`rounded-lg bg-stone ${card ? "w-24 h-auto object-contain" : "size-16 object-cover"}`} style={card ? { aspectRatio: `${CARD_CM.w} / ${CARD_CM.h}` } : undefined} />
-        ) : (
-          <span
-            className={`grid place-items-center rounded-lg bg-stone text-muted text-2xl ${card ? "w-24" : "size-16"}`}
-            style={card ? { aspectRatio: `${CARD_CM.w} / ${CARD_CM.h}` } : undefined}
-            aria-hidden
-          >
-            +
-          </span>
-        )}
-        <span className="text-sm text-sign font-medium">{preview ? t.change : t.pick}</span>
-        <input
-          ref={input}
-          type="file"
-          name={name}
-          accept="image/png,image/jpeg,image/webp"
-          required
-          className="sr-only"
-          aria-label={label}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f && f.size > (card ? CARD_SOURCE_MAX : DRIVER_PHOTO_MAX)) {
-              e.target.value = ""; // never sent
-              setTooBig(true);
-              show(null);
-              return;
-            }
-            setTooBig(false);
-            if (f && card) return setCropping(f); // the cropped file replaces it
-            show(f ?? null);
-          }}
-        />
-      </label>
-      {card && <p className="mt-2 text-xs text-muted">{t.cardSize}</p>}
-      {tooBig && (
-        <p role="alert" className="mt-2 text-xs text-danger">
-          {t.tooBig}
-        </p>
-      )}
-      {cropping && <CardCropper file={cropping} labels={t.crop} onDone={doneCrop} onCancel={cancelCrop} />}
-    </div>
-  );
-}
 
 export function DriverJoinForm({ lang, t, vehicles, years }: { lang: Locale; t: Dictionary["join"]; vehicles: Vehicle[]; years: string[] }) {
   const [state, action, pending] = useActionState<JoinState, FormData>(applyAsDriver, {});
@@ -175,14 +94,18 @@ export function DriverJoinForm({ lang, t, vehicles, years }: { lang: Locale; t: 
           </label>
           <label className="block">
             <span className="block text-sm font-medium mb-1">{t.color}</span>
-            <input name="carColor" required minLength={2} maxLength={30} defaultValue={v.carColor} className="field" aria-invalid={E.color || undefined} />
+            <ColorSelect value={v.carColor} lang={lang} invalid={E.color} />
             {err("color")}
           </label>
-          <label className="block">
-            <span className="block text-sm font-medium mb-1">{t.plate}</span>
-            <input name="plateNumber" required minLength={2} maxLength={30} defaultValue={v.plateNumber} className="field" aria-invalid={E.plate || undefined} />
+          <div className="sm:col-span-2">
+            <PlateFields value={v.plateNumber} label={t.plate} lettersLabel={t.plateLetters} digitsLabel={t.plateDigits} invalid={E.plate} />
             <span className="block text-xs text-muted mt-1">{t.plateHint}</span>
             {err("plate")}
+          </div>
+          <label className="block sm:col-span-2">
+            <span className="block text-sm font-medium mb-1">{t.bank}</span>
+            <textarea name="bankAccount" rows={3} maxLength={300} defaultValue={v.bankAccount} className="field" placeholder={t.bankPlaceholder} />
+            <span className="block text-xs text-muted mt-1">{t.bankHint}</span>
           </label>
         </div>
       </section>

@@ -43,7 +43,7 @@ export const locationKind = pgEnum("location_kind", [
   "other",
 ]);
 
-export const pricingMode = pgEnum("pricing_mode", ["fixed", "distance", "hourly"]);
+export const pricingMode = pgEnum("pricing_mode", ["fixed", "distance", "hourly", "multi"]);
 
 export const refundStatus = pgEnum("refund_status", [
   "none", // nothing to refund
@@ -99,7 +99,7 @@ export const vehicles = pgTable("vehicles", {
   perKm: integer("per_km").notNull().default(120),
   minFare: integer("min_fare").notNull().default(10000),
   /* Hourly packages with a driver (halalas, before VAT) */
-  hourly6: integer("hourly_6").notNull().default(35000),
+  hourly10: integer("hourly_10").notNull().default(55000),
   hourly12: integer("hourly_12").notNull().default(60000),
   hourly24: integer("hourly_24").notNull().default(100000),
 });
@@ -197,8 +197,10 @@ export const bookings = pgTable(
     toLocationId: integer("to_location_id").references(() => locations.id, { onDelete: "set null" }),
     vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
     distanceKm: integer("distance_km"),
-    /** hourly bookings: 6, 12 or 24 */
+    /** hourly bookings: 10, 12 or 24 */
     hours: integer("hours"),
+    /** multi-destination trip: every place in order (start, stops...), names in the booking's language */
+    stops: jsonb("stops").$type<string[]>(),
     /** how long the booking lasts in minutes (hourly package, or estimated drive), for the end time */
     durationMin: integer("duration_min"),
     /** null until the customer picks a payment method on the checkout page */
@@ -251,6 +253,8 @@ export const bookings = pgTable(
     /** sha256 of the secret in the customer's rating link */
     ratingTokenHash: text("rating_token_hash").unique(),
     ratingRequestedAt: timestamp("rating_requested_at", { withTimezone: true }),
+    /** what the driver is paid for this trip (halalas), set by the admin; shown to the driver */
+    driverFare: integer("driver_fare"),
     /* Payment voucher (sent when paid) and tax invoice (sent when the trip ends); numbered in order */
     receiptNo: integer("receipt_no").unique(),
     receiptAt: timestamp("receipt_at", { withTimezone: true }),
@@ -324,6 +328,8 @@ export const drivers = pgTable("drivers", {
   vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
   status: driverStatus("status").notNull().default("approved"),
   rejectReason: text("reject_reason"),
+  /** where the driver wants his money (bank name, IBAN, account name), as he wrote it */
+  bankAccount: text("bank_account").notNull().default(""),
   /** blocked by the admin: can't sign in, get trips or apply again, until unblocked */
   blockedAt: timestamp("blocked_at", { withTimezone: true }),
   blockReason: text("block_reason"),
@@ -411,6 +417,25 @@ export const assets = pgTable("assets", {
   data: bytea("data").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Money paid to a driver (cash, transfer...). His balance = fares of finished trips - these. */
+export const driverPayouts = pgTable(
+  "driver_payouts",
+  {
+    id: serial("id").primaryKey(),
+    driverId: integer("driver_id")
+      .notNull()
+      .references(() => drivers.id, { onDelete: "cascade" }),
+    /** halalas */
+    amount: integer("amount").notNull(),
+    paidOn: date("paid_on").notNull(),
+    note: text("note").notNull().default(""),
+    createdBy: text("created_by").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("driver_payouts_driver_idx").on(t.driverId)],
+);
+export type DriverPayout = typeof driverPayouts.$inferSelect;
 
 /** Simple key/value store for editable site settings */
 export const settings = pgTable("settings", {

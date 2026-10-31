@@ -80,8 +80,37 @@ const touches = (placeCond: ReturnType<typeof sql>) => sql`(
 )`;
 
 export const PAGE_SIZE = 25;
+/** the most rows a PDF / Excel export holds */
+export const EXPORT_MAX = 5000;
 
-export async function listBookings(f: BookingFilters) {
+/** Booking filters from the page's query string (also used by the PDF / Excel export) */
+export function parseBookingFilters(sp: Record<string, string | string[] | undefined> | URLSearchParams): BookingFilters {
+  const get = (k: string) => (sp instanceof URLSearchParams ? sp.get(k) : sp[k]);
+  const one = (k: string) => {
+    const v = get(k);
+    return typeof v === "string" ? v.trim() : "";
+  };
+  const date = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  const time = (v: string) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : undefined);
+  const id = (v: string) => (/^\d{1,9}$/.test(v) ? Number(v) : undefined);
+  return {
+    status: s.bookingStatus.enumValues.find((x) => x === one("status")),
+    q: one("q").slice(0, 60) || undefined,
+    from: date(one("from")),
+    to: date(one("to")),
+    timeFrom: time(one("timeFrom")),
+    timeTo: time(one("timeTo")),
+    customer: one("customer").slice(0, 60) || undefined,
+    phone: one("phone").slice(0, 20) || undefined,
+    city: /^[a-z0-9-]{1,60}$/.test(one("city")) ? one("city") : undefined,
+    place: id(one("place")),
+    driver: one("driver") === "none" ? "none" : id(one("driver")),
+    vehicle: id(one("vehicle")),
+    page: Number(one("page")) || 1,
+  };
+}
+
+export async function listBookings(f: BookingFilters, opts: { all?: boolean } = {}) {
   const where = [];
   if (f.status) where.push(eq(s.bookings.status, f.status));
   if (f.from) where.push(gte(s.bookings.pickupDate, f.from));
@@ -117,8 +146,8 @@ export async function listBookings(f: BookingFilters) {
       .from(s.bookings)
       .where(cond)
       .orderBy(desc(s.bookings.createdAt))
-      .limit(PAGE_SIZE)
-      .offset((page - 1) * PAGE_SIZE),
+      .limit(opts.all ? EXPORT_MAX : PAGE_SIZE)
+      .offset(opts.all ? 0 : (page - 1) * PAGE_SIZE),
     db.select({ n: count() }).from(s.bookings).where(cond),
   ]);
   // which of these bookings have a transfer receipt uploaded

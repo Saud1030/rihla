@@ -12,22 +12,6 @@ import { PersonIcon, BagIcon, WhatsAppIcon, PhoneIcon } from "@/components/icons
 import { waLink } from "@/components/site/whatsapp-fab";
 import { ReviewsSection } from "@/components/site/reviews-section";
 
-/* Real road distances from Jeddah Airport, shown bilingual like real Saudi signs. */
-const SIGN_LINES = [
-  { ar: "مكة المكرمة", en: "Makkah", km: 95, arrow: "up" },
-  { ar: "المدينة المنورة", en: "Madinah", km: 420, arrow: "right" },
-  { ar: "الطائف", en: "Taif", km: 170, arrow: "left" },
-] as const;
-
-function SignArrow({ dir }: { dir: "up" | "left" | "right" }) {
-  const rot = dir === "up" ? 0 : dir === "right" ? 90 : -90;
-  return (
-    <svg viewBox="0 0 24 24" className="size-7 shrink-0" style={{ transform: `rotate(${rot}deg)` }} aria-hidden="true">
-      <path d="M12 3 5 11h4.5v10h5V11H19z" fill="#fff" />
-    </svg>
-  );
-}
-
 export default async function HomePage() {
   const lang = await getLocale();
   const t = getDictionary(lang);
@@ -39,7 +23,8 @@ export default async function HomePage() {
         <Suspense fallback={null}>
           <HeroBackground />
         </Suspense>
-        <div className="relative mx-auto max-w-6xl px-4 py-12 md:py-16 grid gap-10 lg:grid-cols-[1fr_minmax(0,500px)] items-center">
+        {/* the text, then the booking box as a wide rectangle under it */}
+        <div className="relative mx-auto max-w-6xl px-4 py-10 md:py-14 grid gap-8">
           <Suspense
             fallback={
               <div>
@@ -51,30 +36,10 @@ export default async function HomePage() {
             <HeroText lang={lang} t={t} />
           </Suspense>
 
-          <div className="sign sign-reveal p-6 md:p-7">
-            <p className="sr-only">{t.hero.signLines}</p>
-            <ul className="space-y-3 pb-5 border-b border-white/25" aria-hidden="true">
-              {SIGN_LINES.map((l) => (
-                <li key={l.en} className="flex items-center gap-3">
-                  <SignArrow dir={l.arrow} />
-                  <span className="flex-1 leading-tight">
-                    <span className="block font-display text-xl font-semibold" lang="ar">{l.ar}</span>
-                    <span className="block text-sm text-white/80 font-display" lang="en" dir="ltr" style={{ textAlign: lang === "ar" ? "right" : "left" }}>
-                      {l.en}
-                    </span>
-                  </span>
-                  <span className="font-display text-xl font-semibold tabular" dir="ltr">
-                    {l.km}
-                    <span className="text-sm font-normal text-white/80"> km</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div className="pt-5">
-              <Suspense fallback={<SearchFormSkeleton />}>
-                <TripSearch lang={lang} t={t} id="search" />
-              </Suspense>
-            </div>
+          <div className="booking-box sign-reveal p-5 md:p-6" data-testid="booking-box">
+            <Suspense fallback={<SearchFormSkeleton />}>
+              <TripSearch lang={lang} t={t} id="search" />
+            </Suspense>
           </div>
         </div>
       </section>

@@ -4,9 +4,10 @@ import { Suspense } from "react";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireDriver } from "@/lib/auth";
-import { bookingNo, formatDate, formatNumber, formatTime } from "@/lib/format";
+import { bookingNo, formatDate, formatNumber, formatSAR, formatTime } from "@/lib/format";
+import { driverMoney, driverPayoutList } from "@/lib/driver-money";
 import { bookingEnd } from "@/lib/timespan";
-import { driverCompleteTrip, driverStartTrip } from "../../driver-actions";
+import { driverCompleteTrip, driverStartTrip, saveMyBankAccount } from "../../driver-actions";
 import { ActionForm } from "@/components/admin/action-form";
 import { AutoRefresh } from "@/components/admin/auto-refresh";
 import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
@@ -31,7 +32,10 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
   const me = await requireDriver();
   after(maybeSweep);
   const done = String((await searchParams).done ?? "");
-  const [upcoming, finished] = await Promise.all([
+  const [money, payouts, mine, upcoming, finished] = await Promise.all([
+    driverMoney([me.driverId]).then((m) => m.get(me.driverId)!),
+    driverPayoutList(me.driverId, 20),
+    db.query.drivers.findFirst({ where: eq(s.drivers.id, me.driverId), columns: { bankAccount: true } }),
     db
       .select()
       .from(s.bookings)
@@ -54,6 +58,54 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
           انتهت الرحلة {bookingNo(finished.find(({ b }) => b.ref === done)?.b.number)}. شكرًا لك! طلبنا من العميل تقييم الرحلة.
         </p>
       )}
+      {/* what he earned, what he was paid, what is left */}
+      <section aria-labelledby="money-title" className="space-y-3" data-testid="driver-money">
+        <h2 id="money-title" className="text-lg font-semibold">
+          مستحقاتي
+        </h2>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            ["المستحق لي", money.earned, "text-ink"],
+            ["المدفوع لي", money.paid, "text-sign"],
+            ["الباقي لي", money.remaining, money.remaining > 0 ? "text-amber-deep" : "text-ink"],
+          ].map(([label, v, tone]) => (
+            <Card key={label as string} className="p-4">
+              <p className="text-xs text-muted">{label}</p>
+              <p className={`mt-1 text-lg font-semibold tabular ${tone}`} data-money={label}>
+                {formatSAR(v as number, "ar")}
+              </p>
+            </Card>
+          ))}
+        </div>
+        <p className="text-xs text-muted">
+          المستحق = أجرة رحلاتك المنتهية.{money.coming > 0 ? ` وعندك ${formatSAR(money.coming, "ar")} في رحلات قادمة تُضاف بعد انتهائها.` : ""}
+        </p>
+        {payouts.length > 0 && (
+          <details className="rounded-lg border border-line bg-paper">
+            <summary className="cursor-pointer px-4 py-3 text-sm text-sign">الدفعات التي استلمتها ({formatNumber(payouts.length, "ar")})</summary>
+            <ul className="divide-y divide-line text-sm" data-testid="my-payouts">
+              {payouts.map((p) => (
+                <li key={p.id} className="px-4 py-2 flex flex-wrap justify-between gap-2">
+                  <span>
+                    {formatDate(p.paidOn, "ar")}
+                    {p.note ? <span className="text-muted"> · {p.note}</span> : null}
+                  </span>
+                  <span className="font-medium tabular">{formatSAR(p.amount, "ar")}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        <details className="rounded-lg border border-line bg-paper" data-testid="my-bank">
+          <summary className="cursor-pointer px-4 py-3 text-sm text-sign">{mine?.bankAccount ? "حسابي البنكي" : "أضف حسابك البنكي لاستلام مستحقاتك"}</summary>
+          <div className="px-4 pb-4">
+            <ActionForm action={saveMyBankAccount} submitLabel="حفظ الحساب البنكي">
+              <textarea name="bankAccount" rows={3} maxLength={300} defaultValue={mine?.bankAccount ?? ""} className="field" placeholder="اسم البنك، رقم الآيبان SA…، اسم صاحب الحساب" aria-label="الحساب البنكي" />
+            </ActionForm>
+          </div>
+        </details>
+      </section>
+
       <section>
         <h2 className="text-lg font-semibold mb-3">الرحلات القادمة ({formatNumber(upcoming.length, "ar")})</h2>
         {upcoming.length === 0 ? (
@@ -75,6 +127,10 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
                       </p>
                     </div>
                     <p>{b.routeTitle}</p>
+                    <p className="text-[15px]" data-testid="trip-fare">
+                      <span className="text-muted">أجرتك: </span>
+                      {b.driverFare != null ? <span className="font-semibold tabular">{formatSAR(b.driverFare, "ar")}</span> : <span className="text-muted">تحددها الإدارة</span>}
+                    </p>
                     <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-[15px]">
                       <dt className="text-muted">الاستلام</dt>
                       <dd>{b.pickupAddress}</dd>
@@ -156,7 +212,10 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
                     <span className="block font-medium">{formatDate(b.pickupDate, "ar")}</span>
                     <bdi className="text-muted">{b.routeTitle}</bdi>
                   </span>
-                  {r ? <Stars value={r.driverStars} size="sm" /> : <span className="text-muted">لم يقيّم بعد</span>}
+                  <span className="flex items-center gap-3">
+                    {b.driverFare != null && <span className="font-medium tabular">{formatSAR(b.driverFare, "ar")}</span>}
+                    {r ? <Stars value={r.driverStars} size="sm" /> : <span className="text-muted">لم يقيّم بعد</span>}
+                  </span>
                 </li>
               ))}
             </ul>

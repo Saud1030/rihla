@@ -15,8 +15,11 @@ const nextConfig: NextConfig = {
   // Self-contained server build, used by the Dockerfile
   output: "standalone",
   // the payment voucher PDF: pdfkit reads its own data files and our Arabic fonts from disk
-  serverExternalPackages: ["pdfkit"],
-  outputFileTracingIncludes: { "/api/booking/[ref]/receipt": ["./assets/fonts/*.ttf"] },
+  serverExternalPackages: ["pdfkit", "exceljs"],
+  outputFileTracingIncludes: {
+    "/api/booking/[ref]/receipt": ["./assets/fonts/*.ttf"],
+    "/api/admin/bookings/export": ["./assets/fonts/*.ttf"],
+  },
   // uploads go through server actions: receipts up to 5 MB, banners and logo up to 2 MB
   // SERVER_ACTIONS_ALLOWED_ORIGINS: extra public hosts in front of the app (e.g. "*.app.github.dev" in Codespaces)
   experimental: {

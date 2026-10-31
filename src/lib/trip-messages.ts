@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Booking, Driver, Rating } from "@/db/schema";
 import { publicBaseUrl } from "./public-url";
-import { bookingNo, formatDate, formatTime } from "./format";
+import { bookingNo, formatDate, formatSAR, formatTime } from "./format";
 import { companyName, notify, readSettings } from "./notify";
 import { invoiceLink, invoiceNo, issueInvoice } from "./documents";
 
@@ -31,6 +31,7 @@ export async function sendDriverAssigned(b: Booking, d: Driver) {
     `الركاب والحقائب: ${people}`,
     b.flightNumber ? `رحلة الطيران: ${b.flightNumber}` : "",
     b.notes ? `ملاحظات العميل: ${b.notes}` : "",
+    b.driverFare != null ? `أجرتك لهذه الرحلة: ${formatSAR(b.driverFare, "ar")}` : "",
   ]
     .filter(Boolean)
     .join("\n");

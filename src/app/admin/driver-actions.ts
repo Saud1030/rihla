@@ -14,14 +14,16 @@ import { normalizePhone } from "@/lib/phone";
 import { requestRating, sendDriverAssigned } from "@/lib/trip-messages";
 import { driverHold, SUSPEND_DAYS } from "@/lib/driver-hold";
 import { formatDateTime } from "@/lib/format";
+import { plateFromForm } from "@/lib/plate";
 import type { ActionState } from "./actions";
 
 const driverSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  plateNumber: z.string().trim().min(2).max(30),
+  plateNumber: z.string().min(5),
   vehicleId: z.coerce.number().int().positive(),
   carModel: z.string().refine((y) => y === "" || modelYears().includes(y)),
   carColor: z.string().trim().max(30),
+  bankAccount: z.string().trim().max(300),
   notes: z.string().trim().max(500),
   active: z.boolean(),
 });
@@ -32,16 +34,17 @@ export async function saveDriver(_prev: ActionState, formData: FormData): Promis
   const id = Number(formData.get("id") ?? 0);
   const parsed = driverSchema.safeParse({
     name: formData.get("name") ?? "",
-    plateNumber: formData.get("plateNumber") ?? "",
+    plateNumber: plateFromForm(formData) ?? "",
     vehicleId: formData.get("vehicleId") ?? "",
     carModel: formData.get("carModel") ?? "",
     carColor: formData.get("carColor") ?? "",
+    bankAccount: formData.get("bankAccount") ?? "",
     notes: formData.get("notes") ?? "",
     active: formData.get("active") === "on",
   });
   if (!parsed.success) {
     const f = parsed.error.issues[0]?.path[0];
-    return { error: f === "plateNumber" ? "اكتب رقم اللوحة." : f === "vehicleId" ? "اختر نوع السيارة." : f === "carModel" ? "اختر الموديل." : "اكتب اسم السائق." };
+    return { error: f === "plateNumber" ? "اختر حروف اللوحة الثلاثة واكتب أرقامها (١ إلى ٤ أرقام)." : f === "vehicleId" ? "اختر نوع السيارة." : f === "carModel" ? "اختر الموديل." : "اكتب اسم السائق." };
   }
   const phone = normalizePhone(String(formData.get("phone") ?? ""));
   if (!phone) return { error: "رقم جوال السائق غير صحيح. اكتبه مثل 0501234567 أو مع رمز الدولة." };
@@ -230,10 +233,13 @@ export async function assignDriver(_prev: ActionState, formData: FormData): Prom
   if (hold) return { error: hold.kind === "blocked" ? `${d.name} محظور. اختر سائقًا آخر.` : `${d.name} موقوف مؤقتًا حتى ${formatDateTime(hold.until, "ar")}. اختر سائقًا آخر.` };
   if (b.status === "pending_payment") return { error: "لم يُدفع الحجز بعد. أكّد الدفع أولًا ثم أسند السائق." };
   if (b.status === "cancelled" || b.status === "completed") return { error: "لا يمكن إسناد سائق لحجز ملغي أو منتهٍ." };
+  // the driver's fare can be set in the same step (empty keeps the one already set)
+  const fare = formData.has("fare") ? sarToHalalas(formData.get("fare")) : null;
+  if (fare === undefined) return { error: "أجرة السائق: اكتب المبلغ بالريال، مثل 150 أو 150.50" };
   // choosing the same driver again sends both messages again
   const [updated] = await db
     .update(s.bookings)
-    .set({ driverId: d.id, driverAssignedAt: new Date(), status: "confirmed", updatedAt: new Date() })
+    .set({ driverId: d.id, driverAssignedAt: new Date(), status: "confirmed", updatedAt: new Date(), ...(fare != null ? { driverFare: fare } : {}) })
     .where(eq(s.bookings.id, b.id))
     .returning();
   const { toDriver, toCustomer } = await sendDriverAssigned(updated, d);
@@ -298,4 +304,60 @@ async function finishTrip(id: string, driverId: number | null): Promise<ActionSt
   revalidatePath("/admin/my-trips");
   revalidatePath(`/admin/bookings/${done[0].ref}`);
   return { ok: true, ref: done[0].ref, rating: !msg ? "none" : msg.status === "sent" ? "sent" : "ready" };
+}
+
+/* ---------- Driver money: fare per trip, payouts ---------- */
+
+/** "150", "150.5", "١٥٠" -> halalas; "" -> null (no fare); invalid -> undefined */
+function sarToHalalas(raw: FormDataEntryValue | null): number | null | undefined {
+  const v = String(raw ?? "").trim().replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace("٫", ".");
+  if (v === "") return null;
+  if (!/^\d{1,6}(\.\d{1,2})?$/.test(v)) return undefined;
+  return Math.round(Number(v) * 100);
+}
+
+/** What the driver gets for this trip. He sees it on his page at once. */
+export async function setDriverFare(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("bookings");
+  const id = String(formData.get("bookingId") ?? "");
+  if (!z.uuid().safeParse(id).success) return { error: "حجز غير صحيح." };
+  const fare = sarToHalalas(formData.get("fare"));
+  if (fare === undefined) return { error: "اكتب المبلغ بالريال، مثل 150 أو 150.50" };
+  const [b] = await db.update(s.bookings).set({ driverFare: fare, updatedAt: new Date() }).where(eq(s.bookings.id, id)).returning({ ref: s.bookings.ref });
+  if (!b) return { error: "الحجز غير موجود." };
+  revalidatePath(`/admin/bookings/${b.ref}`);
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/my-trips");
+  return { ok: true, message: fare == null ? "تم حذف أجرة السائق." : "تم حفظ أجرة السائق، وتظهر له في صفحته." };
+}
+
+/** Money handed to a driver (cash or transfer): lowers what we still owe him */
+export async function addDriverPayout(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const admin = await requireSection("drivers");
+  const driverId = Number(formData.get("driverId") ?? 0);
+  const amount = sarToHalalas(formData.get("amount"));
+  const paidOn = String(formData.get("paidOn") ?? "");
+  const note = String(formData.get("note") ?? "").trim().slice(0, 200);
+  if (!amount) return { error: "اكتب المبلغ المدفوع بالريال، مثل 500" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paidOn)) return { error: "اختر تاريخ الدفع." };
+  const d = await db.query.drivers.findFirst({ where: eq(s.drivers.id, driverId) });
+  if (!d) return { error: "السائق غير موجود." };
+  await db.insert(s.driverPayouts).values({ driverId, amount, paidOn, note, createdBy: admin.email });
+  redirect(`/admin/drivers?paid=${driverId}#driver-${driverId}`);
+}
+
+export async function deleteDriverPayout(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("drivers");
+  const [p] = await db.delete(s.driverPayouts).where(eq(s.driverPayouts.id, Number(formData.get("id") ?? 0))).returning();
+  if (!p) return { error: "الدفعة غير موجودة." };
+  redirect(`/admin/drivers?unpaid=${p.driverId}#driver-${p.driverId}`);
+}
+
+/** The driver updates where he wants his money */
+export async function saveMyBankAccount(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const me = await requireDriver();
+  const bankAccount = String(formData.get("bankAccount") ?? "").trim().slice(0, 300);
+  await db.update(s.drivers).set({ bankAccount, updatedAt: new Date() }).where(eq(s.drivers.id, me.driverId));
+  revalidatePath("/admin/my-trips");
+  return { ok: true, message: "تم حفظ حسابك البنكي." };
 }

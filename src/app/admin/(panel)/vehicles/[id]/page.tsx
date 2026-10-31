@@ -189,8 +189,8 @@ async function Editor({ params }: { params: Promise<{ id: string }> }) {
             <fieldset className="sm:col-span-2 rounded-lg border border-line p-4 space-y-3">
               <legend className="px-1 text-sm font-medium">الحجز بالساعة مع سائق (بالريال، قبل الضريبة)</legend>
               <div className="grid sm:grid-cols-3 gap-4">
-                <Field label="٦ ساعات">
-                  <input name="hourly6" type="number" min={0} step="0.01" required defaultValue={(v?.hourly6 ?? 35000) / 100} className="field tabular" />
+                <Field label="١٠ ساعات">
+                  <input name="hourly10" type="number" min={0} step="0.01" required defaultValue={(v?.hourly10 ?? 55000) / 100} className="field tabular" />
                 </Field>
                 <Field label="١٢ ساعة">
                   <input name="hourly12" type="number" min={0} step="0.01" required defaultValue={(v?.hourly12 ?? 60000) / 100} className="field tabular" />

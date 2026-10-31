@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: getDictionary(lang).hourly.title };
 }
 
-/** Car with a driver for 6, 12 or 24 hours, from any destination. /ar/hourly?from=makkah&hours=12 */
+/** Car with a driver for 10, 12 or 24 hours, from any destination. /ar/hourly?from=makkah&hours=12 */
 export default async function HourlyPage({ searchParams }: PageProps<"/[lang]/hourly">) {
   const lang = await getLocale();
   const t = getDictionary(lang);

@@ -9,6 +9,7 @@ import { detectFile, IMAGE_TYPES } from "@/lib/files";
 import { normalizePhone } from "@/lib/phone";
 import { allow, clientIp } from "@/lib/rate-limit";
 import { DOC_KINDS, DRIVER_PHOTO_MAX, modelYears } from "@/lib/driver-docs";
+import { isCarColor, plateFromForm } from "@/lib/plate";
 
 export type JoinField = "name" | "phone" | "password" | "vehicle" | "model" | "plate" | "color" | "photo" | "agree";
 export type JoinState = {
@@ -25,13 +26,23 @@ const schema = z.object({
   vehicleId: z.coerce.number().int().positive(),
   carModel: z.string().refine((y) => modelYears().includes(y)),
   plateNumber: z.string().trim().min(2).max(30),
-  carColor: z.string().trim().min(2).max(30),
+  carColor: z.string().refine(isCarColor),
 });
 
 /** A driver applies from the website. The application waits in Admin -> Drivers until approved. */
 export async function applyAsDriver(_prev: JoinState, formData: FormData): Promise<JoinState> {
   const text = (k: string) => String(formData.get(k) ?? "");
-  const values = { name: text("name"), phone: text("phone"), vehicleId: text("vehicleId"), carModel: text("carModel"), plateNumber: text("plateNumber"), carColor: text("carColor") };
+  // the plate comes as three letters + numbers; it is kept as "ا ب ح 1234"
+  const plate = plateFromForm(formData);
+  const values = {
+    name: text("name"),
+    phone: text("phone"),
+    vehicleId: text("vehicleId"),
+    carModel: text("carModel"),
+    plateNumber: plate ?? "",
+    carColor: text("carColor"),
+    bankAccount: text("bankAccount").trim().slice(0, 300),
+  };
 
   const errors: JoinState["errors"] = {};
   const parsed = schema.safeParse({ ...values, password: text("password") });
@@ -81,6 +92,7 @@ export async function applyAsDriver(_prev: JoinState, formData: FormData): Promi
         carType: vehicle.nameAr,
         carModel: d.carModel,
         carColor: d.carColor,
+        bankAccount: values.bankAccount,
         vehicleId: vehicle.id,
         photo: files.photo.data,
         photoMime: files.photo.mime,

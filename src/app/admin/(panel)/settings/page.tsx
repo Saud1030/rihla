@@ -114,10 +114,17 @@ async function Content() {
                   className="size-4 mt-1 accent-sign"
                 />
                 <span>
-                  تفعيل الحجز بالساعة (٦ / ١٢ / ٢٤ ساعة)
+                  تفعيل الحجز بالساعة (١٠ / ١٢ / ٢٤ ساعة)
                   <span className="block text-xs text-muted">
                     أسعار الباقات لكل سيارة تُضبط من صفحة السيارات.
                   </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 sm:col-span-2">
+                <input type="checkbox" name="multi_enabled" defaultChecked={values.multi_enabled !== "0"} className="size-4 mt-1 accent-sign" />
+                <span>
+                  تفعيل الرحلات متعددة الوجهات (من ٢ إلى ٥ وجهات في حجز واحد)
+                  <span className="block text-xs text-muted">السعر مجموع أسعار المراحل: السعر الثابت إن وُجد، وإلا حسب المسافة.</span>
                 </span>
               </label>
               <label className="flex items-start gap-2 sm:col-span-2">

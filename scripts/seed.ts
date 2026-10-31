@@ -97,7 +97,7 @@ function distanceRates(mult: number) {
 
 /** Hourly packages with a driver, scaled from a sedan: 6h 350, 12h 600, 24h 1000 SAR */
 function hourlyRates(mult: number) {
-  return { hourly6: SAR(r5(350 * mult)), hourly12: SAR(r5(600 * mult)), hourly24: SAR(r5(1000 * mult)) };
+  return { hourly10: SAR(r5(550 * mult)), hourly12: SAR(r5(600 * mult)), hourly24: SAR(r5(1000 * mult)) };
 }
 
 async function main() {
@@ -159,7 +159,7 @@ async function main() {
     await db
       .update(s.vehicles)
       .set(hourlyRates(v.mult))
-      .where(and(eq(s.vehicles.slug, v.slug), eq(s.vehicles.hourly6, 35000), eq(s.vehicles.hourly12, 60000), eq(s.vehicles.hourly24, 100000)));
+      .where(and(eq(s.vehicles.slug, v.slug), eq(s.vehicles.hourly10, 55000), eq(s.vehicles.hourly12, 60000), eq(s.vehicles.hourly24, 100000)));
   }
   const vehRows = await db.select().from(s.vehicles);
   const veh = Object.fromEntries(vehRows.map((v) => [v.slug, v.id]));

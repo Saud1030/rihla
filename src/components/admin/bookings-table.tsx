@@ -35,7 +35,9 @@ export function BookingsTable({ rows, empty = "لا توجد حجوزات." }: {
             <th className={th}>جوال العميل</th>
             <th className={th}>السائق</th>
             <th className={th}>جوال السائق</th>
-            <th className={th}>المبلغ</th>
+            <th className={th}>قبل الضريبة</th>
+            <th className={th}>بعد الضريبة</th>
+            <th className={th}>أجرة السائق</th>
             <th className={th}>الحالة</th>
           </tr>
         </thead>
@@ -60,7 +62,11 @@ export function BookingsTable({ rows, empty = "لا توجد حجوزات." }: {
               <td className={`${td} whitespace-nowrap`}>
                 <Phone n={b.driverPhone} />
               </td>
-              <td className={`${td} whitespace-nowrap tabular`}>{formatSAR(b.amount, "ar")}</td>
+              <td className={`${td} whitespace-nowrap tabular`} data-col="subtotal">{formatSAR(b.subtotal, "ar")}</td>
+              <td className={`${td} whitespace-nowrap tabular font-medium`} data-col="amount">{formatSAR(b.amount, "ar")}</td>
+              <td className={`${td} whitespace-nowrap tabular`} data-col="driver-fare">
+                {b.driverFare != null ? formatSAR(b.driverFare, "ar") : <span className="text-muted">—</span>}
+              </td>
               <td className={td}>
                 <StatusBadge status={b.status} t={t} />
                 {b.status === "pending_payment" && b.paymentMethod === "bank_transfer" && (

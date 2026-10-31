@@ -34,8 +34,8 @@ export const CHAT_FAQS = [
   {
     questionAr: "كيف يعمل الحجز بالساعة؟",
     questionEn: "How does hourly booking work?",
-    answerAr: "تحجز سيارة مع سائق ٦ أو ١٢ أو ٢٤ ساعة. تبدأ المدة من وقت الاستلام، والسائق معك طوال المدة ويتنقل بك بين الأماكن التي تريدها.",
-    answerEn: "Book a car with a driver for 6, 12 or 24 hours. Time starts at pickup and the driver stays with you, taking you wherever you need.",
+    answerAr: "تحجز سيارة مع سائق ١٠ أو ١٢ أو ٢٤ ساعة. تبدأ المدة من وقت الاستلام، والسائق معك طوال المدة ويتنقل بك بين الأماكن التي تريدها.",
+    answerEn: "Book a car with a driver for 10, 12 or 24 hours. Time starts at pickup and the driver stays with you, taking you wherever you need.",
     keywords: "ساعه, ساعات, بالساعه, سائق خاص, hourly, hours, driver",
   },
   {

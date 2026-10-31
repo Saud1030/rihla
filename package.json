@@ -28,6 +28,7 @@
     "bcryptjs": "^3.0.3",
     "bidi-js": "^1.0.3",
     "drizzle-orm": "^0.45.4",
+    "exceljs": "^4.4.0",
     "jose": "^6.2.13",
     "next": "16.4.3",
     "nodemailer": "^7.0.13",
