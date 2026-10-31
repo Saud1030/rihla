@@ -1,0 +1,1 @@
+ALTER TYPE "public"."driver_doc_kind" ADD VALUE 'license' BEFORE 'registration';

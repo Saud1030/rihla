@@ -319,7 +319,7 @@ export const drivers = pgTable("drivers", {
 });
 
 /** Documents a driver uploads when applying: ID, car registration (istimara), car inside and outside */
-export const driverDocKind = pgEnum("driver_doc_kind", ["id_card", "registration", "car_inside", "car_outside"]);
+export const driverDocKind = pgEnum("driver_doc_kind", ["id_card", "license", "registration", "car_inside", "car_outside"]);
 export const driverDocuments = pgTable(
   "driver_documents",
   {

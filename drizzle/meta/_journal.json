@@ -71,6 +71,13 @@
       "when": 1793274249018,
       "tag": "0009_booking_number",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793445506492,
+      "tag": "0010_driving_license",
+      "breakpoints": true
     }
   ]
 }

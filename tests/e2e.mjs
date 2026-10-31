@@ -2364,7 +2364,14 @@ if (!ONLY || ONLY === "join") {
     await j.selectOption('select[name="carModel"]', "2022");
     await j.fill('input[name="carColor"]', "أبيض");
     await j.fill('input[name="plateNumber"]', "ك ل م ٤٤٤٤");
-    for (const k of ["photo", "id_card", "registration", "car_inside", "car_outside"]) await j.setInputFiles(`input[name="${k}"]`, img(k));
+    for (const k of ["photo", "id_card", "license", "registration", "car_inside", "car_outside"]) {
+      await j.setInputFiles(`input[name="${k}"]`, img(k));
+      // the licence and registration are cropped to the card size first
+      if (k === "license" || k === "registration") {
+        await j.getByTestId("card-cropper").getByRole("button", { name: "اعتماد" }).click();
+        await j.getByTestId("card-cropper").waitFor({ state: "detached" });
+      }
+    }
     await j.check('input[name="agree"]');
   };
   await check("join page: linked in the footer; car types come from the fleet list; model years to choose", async () => {
@@ -2375,6 +2382,35 @@ if (!ONLY || ONLY === "join") {
     eq(opts.length, Number(sql("select count(*) from vehicles where active")), "every active car");
     assert(opts.includes("تويوتا كامري"), "car names");
     assert((await j.locator('select[name="carModel"] option').allInnerTexts()).includes("2022"), "years");
+  });
+  await check("licence and registration: cropped to the card size 9.56 x 6.4 cm (1129 x 756 px JPEG); cancel clears the choice", async () => {
+    await j.goto(`${BASE}/ar/drivers/join`, { waitUntil: "networkidle" });
+    // a wide phone photo, bigger than 1 MB is fine here: it is cropped and made small
+    const wide = await j.evaluate(async () => {
+      const c = document.createElement("canvas"); c.width = 3000; c.height = 1400;
+      const x = c.getContext("2d"); for (let i = 0; i < 3000; i += 7) { x.fillStyle = `hsl(${i % 360} 70% 50%)`; x.fillRect(i, 0, 7, 1400); }
+      const b = await new Promise((r) => c.toBlob(r, "image/png"));
+      return Array.from(new Uint8Array(await b.arrayBuffer()));
+    });
+    const file = { name: "istimara.png", mimeType: "image/png", buffer: Buffer.from(wide) };
+    await j.setInputFiles('input[name="registration"]', file);
+    const cr = j.getByTestId("card-cropper");
+    await cr.waitFor();
+    const box = await cr.locator(".touch-none").boundingBox();
+    assert(Math.abs(box.width / box.height - 9.56 / 6.4) < 0.02, "frame has the card shape " + box.width / box.height);
+    await cr.getByRole("button", { name: "إلغاء" }).click();
+    eq(await j.locator('input[name="registration"]').evaluate((i) => i.files.length), 0, "cancel clears");
+    await j.setInputFiles('input[name="registration"]', file);
+    await cr.locator('input[type="range"]').fill("2");
+    await cr.getByRole("button", { name: "اعتماد" }).click();
+    await cr.waitFor({ state: "detached" });
+    const out = await j.locator('input[name="registration"]').evaluate(async (i) => {
+      const f = i.files[0]; const bm = await createImageBitmap(f);
+      return { type: f.type, size: f.size, w: bm.width, h: bm.height };
+    });
+    eq(`${out.type} ${out.w}x${out.h}`, "image/jpeg 1129x756", "cropped file");
+    assert(out.size < 1024 * 1024, "under 1 MB");
+    assert(await j.locator('[data-photo="registration"]').getByText("٩٫٥٦ × ٦٫٤ سم").count(), "size shown");
   });
   await check("a photo over 1 MB is refused in the browser, and on the server if the browser check is skipped", async () => {
     await fill({ phone: "0559990001" });
@@ -2398,7 +2434,8 @@ if (!ONLY || ONLY === "join") {
     await j.getByRole("button", { name: "إرسال الطلب" }).click();
     await j.getByTestId("join-done").waitFor();
     eq(sql("select status, active, car_type, car_model, vehicle_id is not null from drivers where phone='+966559990001'"), "pending|f|تويوتا كامري|2022|t", "pending driver");
-    eq(sql("select count(*) from driver_documents d join drivers r on r.id=d.driver_id where r.phone='+966559990001'"), "4", "4 documents");
+    eq(sql("select count(*) from driver_documents d join drivers r on r.id=d.driver_id where r.phone='+966559990001'"), "5", "5 documents");
+    eq(sql("select mime from driver_documents d join drivers r on r.id=d.driver_id where r.phone='+966559990001' and d.kind='license'"), "image/jpeg", "licence saved as the cropped JPEG");
     eq(sql("select role, active from admin_users where email='+966559990001'"), "driver|f", "account off");
     await adminLogin(j, "0559990001", "Driver-Join-1");
     await j.getByText("طلب انضمامك قيد المراجعة").waitFor();
@@ -2412,7 +2449,7 @@ if (!ONLY || ONLY === "join") {
     await a.getByText("طلبات انضمام سائقين").waitFor();
     await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
     const app = a.getByTestId("application").filter({ hasText: "+966559990001" });
-    eq(await app.locator("img").count(), 5, "photo + 4 documents");
+    eq(await app.locator("img").count(), 6, "photo + 5 documents");
     const id = sql("select id from drivers where phone='+966559990001'");
     eq((await a.request.get(`${BASE}/api/admin/drivers/${id}/doc/id_card`)).status(), 200, "staff sees the ID");
     eq((await fetch(`${BASE}/api/admin/drivers/${id}/doc/id_card`)).status, 404, "public can't");

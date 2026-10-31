@@ -12,7 +12,7 @@ import {
   removeDriverPhoto,
   saveDriver,
 } from "../../driver-actions";
-import { DOC_KINDS, DOC_LABELS, modelYears } from "@/lib/driver-docs";
+import { CARD_CM, CARD_DOCS, DOC_KINDS, DOC_LABELS, modelYears } from "@/lib/driver-docs";
 import { formatDateTime } from "@/lib/format";
 import { ActionForm } from "@/components/admin/action-form";
 import { Card, Field, PageHeader, Skeleton } from "@/components/admin/ui";
@@ -388,7 +388,7 @@ async function Drivers({
 /** The application photos; each opens full size in a new tab */
 function DocGallery({ id, kinds }: { id: number; kinds: string[] }) {
   return (
-    <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+    <div className="grid gap-3 grid-cols-2 sm:grid-cols-5 items-start">
       {DOC_KINDS.map((k) => (
         <figure key={k} className="text-xs">
           {kinds.includes(k) ? (
@@ -402,7 +402,8 @@ function DocGallery({ id, kinds }: { id: number; kinds: string[] }) {
               <img
                 src={`/api/admin/drivers/${id}/doc/${k}`}
                 alt={DOC_LABELS[k].ar}
-                className="w-full h-28 object-cover"
+                className={`w-full ${CARD_DOCS.includes(k) ? "object-contain" : "h-28 object-cover"}`}
+                style={CARD_DOCS.includes(k) ? { aspectRatio: `${CARD_CM.w} / ${CARD_CM.h}` } : undefined}
               />
             </a>
           ) : (
