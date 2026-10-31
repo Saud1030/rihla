@@ -13,6 +13,7 @@ import {
   date,
   uniqueIndex,
   index,
+  pgSequence,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
@@ -54,6 +55,10 @@ export const refundStatus = pgEnum("refund_status", [
 
 /** how the customer chose to pay */
 export const paymentMethod = pgEnum("payment_method", ["myfatoorah", "bank_transfer"]);
+
+/** running numbers of payment vouchers and invoices (never reused, even if a number is skipped) */
+export const receiptSeq = pgSequence("receipt_no_seq", { startWith: 1 });
+export const invoiceSeq = pgSequence("invoice_no_seq", { startWith: 1 });
 
 export const bookingStatus = pgEnum("booking_status", [
   "pending_payment", // created, waiting for payment
@@ -246,6 +251,11 @@ export const bookings = pgTable(
     /** sha256 of the secret in the customer's rating link */
     ratingTokenHash: text("rating_token_hash").unique(),
     ratingRequestedAt: timestamp("rating_requested_at", { withTimezone: true }),
+    /* Payment voucher (sent when paid) and tax invoice (sent when the trip ends); numbered in order */
+    receiptNo: integer("receipt_no").unique(),
+    receiptAt: timestamp("receipt_at", { withTimezone: true }),
+    invoiceNo: integer("invoice_no").unique(),
+    invoiceAt: timestamp("invoice_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

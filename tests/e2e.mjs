@@ -1233,6 +1233,58 @@ if (!ONLY || ONLY === "features") {
   };
   const soon = (h) => (`update bookings set pickup_date=(now() at time zone 'Asia/Riyadh' + interval '${h} hours')::date, pickup_time=to_char(now() at time zone 'Asia/Riyadh' + interval '${h} hours','HH24:MI') where ref='%REF%'`);
 
+  await check("payment voucher on WhatsApp as soon as it's paid (not an invoice); the tax invoice comes with the rating when the trip ends", async () => {
+    const setSetting = (k, v) => sql(`insert into settings(key,value) values('${k}','${v}') on conflict (key) do update set value=excluded.value`);
+    setSetting("rating_enabled", "1");
+    await a.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+    await a.fill('input[name="vat_number"]', "310123456700003");
+    await saveTax();
+    await mf("/__wa_reset");
+    const ref = await paidBooking();
+    const rno = Number(sql(`select receipt_no from bookings where ref='${ref}'`));
+    assert(rno > 0, "voucher numbered");
+    eq(sql(`select coalesce(invoice_no::text,'') from bookings where ref='${ref}'`), "", "no invoice yet");
+    const voucherMsg = (await mf("/__wa")).find((m) => m.text?.body?.includes(`/booking/${ref}/receipt`));
+    assert(voucherMsg, "voucher sent on WhatsApp");
+    assert(voucherMsg.text.body.includes(`REC-${String(rno).padStart(4, "0")}`) && voucherMsg.text.body.includes("تصلك الفاتورة الضريبية بعد انتهاء الرحلة"), "voucher message: " + voucherMsg.text.body);
+    // the voucher page
+    await cp.goto(`${BASE}/ar/booking/${ref}/receipt`, { waitUntil: "networkidle" });
+    const r = cp.getByTestId("receipt");
+    await r.getByRole("heading", { name: "سند دفع" }).waitFor();
+    await r.getByText("ليس فاتورة ضريبية", { exact: false }).waitFor();
+    await r.getByText("دفع إلكتروني (ماي فاتورة)").waitFor();
+    await cp.goto(`${BASE}/ar/booking/${ref}/invoice`, { waitUntil: "networkidle" });
+    eq(await cp.getByTestId("invoice").count(), 0, "no invoice before the trip ends");
+    await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
+    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "سند الدفع", "only the voucher link");
+    // trip ends -> invoice + rating in one message
+    await mf("/__wa_reset");
+    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
+    await a.locator('select[name="status"]').selectOption("completed");
+    await submit(a, "حفظ");
+    const ino = Number(sql(`select invoice_no from bookings where ref='${ref}'`));
+    assert(ino > 0, "invoice numbered");
+    const msgs = await mf("/__wa");
+    eq(msgs.length, 1, "one message");
+    const body = msgs[0].text.body;
+    assert(body.includes(`/booking/${ref}/invoice`) && /\/ar\/rate\/[a-f0-9]{48}/.test(body) && body.includes(`INV-${String(ino).padStart(4, "0")}`), "invoice and rating together: " + body);
+    await cp.goto(`${BASE}/ar/booking/${ref}/invoice`, { waitUntil: "networkidle" });
+    const inv = cp.getByTestId("invoice");
+    await inv.getByRole("heading", { name: "فاتورة ضريبية مبسطة" }).waitFor();
+    await inv.getByText("310123456700003").waitFor();
+    eq(await inv.getByTestId("zatca-qr").locator("svg").count(), 1, "ZATCA QR");
+    const [sub, vat, amt] = sql(`select subtotal, vat_amount, amount from bookings where ref='${ref}'`).split("|").map(Number);
+    eq(sub + vat, amt, "totals add up");
+    await inv.getByText(`REC-${String(rno).padStart(4, "0")}`, { exact: false }).waitFor();
+    await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
+    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "سند الدفع|الفاتورة", "both links");
+    await a.reload({ waitUntil: "networkidle" });
+    assert((await a.getByTestId("booking-documents").innerText()).includes(`INV-${String(ino).padStart(4, "0")}`), "admin sees both");
+    // the next paid booking gets the next voucher number
+    const ref2 = await paidBooking();
+    eq(Number(sql(`select receipt_no from bookings where ref='${ref2}'`)), rno + 1, "numbers in order");
+  });
+
   let fullRef;
   await check("cancel > 24h before pickup: full refund, waits for admin approval (auto refund off)", async () => {
     fullRef = await paidBooking();

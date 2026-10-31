@@ -85,6 +85,13 @@
       "when": 1793446908336,
       "tag": "0011_driver_block_suspend",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793450718868,
+      "tag": "0012_receipts_invoices",
+      "breakpoints": true
     }
   ]
 }

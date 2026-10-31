@@ -153,6 +153,20 @@ async function BookingView({
       {(b.status === "confirmed" || b.status === "completed") && b.driverId && <DriverCard bookingRef={b.ref} driverId={b.driverId} t={t} />}
 
       <BookingSummary b={b} lang={lang} t={t} vatNumber={settings.vat_number} />
+      {(b.receiptNo || b.invoiceNo) && (
+        <div className="mt-4 flex flex-wrap gap-3" data-testid="customer-documents">
+          {b.receiptNo && (
+            <Link href={`/${lang}/booking/${b.ref}/receipt`} className="btn btn-ghost border border-line">
+              {t.booking.receiptLink}
+            </Link>
+          )}
+          {b.invoiceNo && (
+            <Link href={`/${lang}/booking/${b.ref}/invoice`} className="btn btn-ghost border border-line">
+              {t.booking.invoiceLink}
+            </Link>
+          )}
+        </div>
+      )}
 
       {(b.status === "paid" || b.status === "confirmed") && policy.enabled && (
         <section className="mt-8 rounded-xl border border-line bg-paper p-5" aria-labelledby="cancel-title">

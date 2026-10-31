@@ -40,11 +40,16 @@ async function BrandShell({ lang, children }: { lang: Locale; children: React.Re
   return (
     <>
       <style>{brand.css}</style>
-      <NoticeBar lang={lang} />
-      <SiteHeader lang={lang} t={t} brand={brand} />
+      {/* printing a voucher or an invoice prints the page content only */}
+      <div className="contents print:hidden">
+        <NoticeBar lang={lang} />
+        <SiteHeader lang={lang} t={t} brand={brand} />
+      </div>
       <main className="flex-1">{children}</main>
-      <SiteFooter lang={lang} t={t} brand={brand} />
-      <ChatLauncher lang={lang} t={t} />
+      <div className="contents print:hidden">
+        <SiteFooter lang={lang} t={t} brand={brand} />
+        <ChatLauncher lang={lang} t={t} />
+      </div>
     </>
   );
 }

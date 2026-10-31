@@ -31,6 +31,7 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import { db, schema as sc } from "@/db";
 import { assignDriver, completeTrip } from "../../../driver-actions";
 import { notHeld } from "@/lib/driver-hold";
+import { invoiceNo, receiptNo } from "@/lib/documents";
 import { NotificationList } from "@/components/admin/notification-list";
 import { DriverPhoto } from "@/components/admin/driver-photo";
 import { Stars } from "@/components/site/stars";
@@ -257,6 +258,22 @@ async function Detail({
                   ? "ماي فاتورة"
                   : "لم يختر العميل بعد"}
             </p>
+            {(b.receiptNo || b.invoiceNo) && (
+              <p className="px-5 py-3 text-sm border-t border-line flex flex-wrap gap-x-6 gap-y-1" data-testid="booking-documents">
+                {b.receiptNo && (
+                  <a href={`/${b.locale === "en" ? "en" : "ar"}/booking/${b.ref}/receipt`} target="_blank" rel="noopener noreferrer" className="text-sign hover:underline">
+                    سند الدفع <span dir="ltr">{receiptNo(b.receiptNo)}</span>
+                  </a>
+                )}
+                {b.invoiceNo ? (
+                  <a href={`/${b.locale === "en" ? "en" : "ar"}/booking/${b.ref}/invoice`} target="_blank" rel="noopener noreferrer" className="text-sign hover:underline">
+                    الفاتورة <span dir="ltr">{invoiceNo(b.invoiceNo)}</span>
+                  </a>
+                ) : (
+                  <span className="text-muted">الفاتورة تصدر عند انتهاء الرحلة</span>
+                )}
+              </p>
+            )}
           </Card>
 
           <Card>

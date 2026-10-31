@@ -311,6 +311,8 @@ const ar = {
     lookup: "بحث",
     notFound: "لم نجد حجزًا بهذا الرقم.",
     paidAt: "وقت الدفع",
+    receiptLink: "سند الدفع",
+    invoiceLink: "الفاتورة",
   },
   hourly: {
     title: "سيارة مع سائق بالساعة",
@@ -748,6 +750,8 @@ const en: Dictionary = {
     lookup: "Find booking",
     notFound: "No booking found with this number.",
     paidAt: "Paid at",
+    receiptLink: "Payment voucher",
+    invoiceLink: "Invoice",
   },
   hourly: {
     title: "Car with driver by the hour",

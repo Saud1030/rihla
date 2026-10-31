@@ -23,6 +23,7 @@ import { invalidateCatalogCache } from "@/lib/catalog";
 import { cancelPaidBooking, requestRefund } from "@/lib/cancellation";
 import { driveMinutes, roadKm } from "@/lib/pricing";
 import { detectFile, IMAGE_TYPES, MB } from "@/lib/files";
+import { issueReceipt } from "@/lib/documents";
 import { driverHold } from "@/lib/driver-hold";
 import { formatDateTime } from "@/lib/format";
 import { CORNERS, FONTS, parseTheme, themeWarnings, type CornerKey, type FontKey } from "@/lib/theme";
@@ -858,6 +859,8 @@ export async function confirmBankTransfer(_prev: ActionState, formData: FormData
     return row;
   });
   if (!done) return { error: "لا يمكن تأكيد التحويل: الحجز ليس بانتظار الدفع (ربما دُفع أو أُلغي)." };
+  // the customer gets the payment voucher on WhatsApp
+  await issueReceipt(done.id);
   revalidatePath(`/admin/bookings/${b.ref}`);
   revalidatePath("/admin");
   return { ok: true, message: "تم تأكيد استلام التحويل. الحجز الآن مدفوع." };

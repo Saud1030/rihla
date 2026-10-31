@@ -6,6 +6,7 @@ import type { Booking, Driver, Rating } from "@/db/schema";
 import { publicBaseUrl } from "./public-url";
 import { bookingNo, formatDate, formatTime } from "./format";
 import { companyName, notify, readSettings } from "./notify";
+import { invoiceLink, invoiceNo, issueInvoice } from "./documents";
 
 /** The messages sent around a trip: driver assigned (to both sides), rating request, new rating (to the company email). */
 
@@ -68,27 +69,41 @@ export async function sendDriverAssigned(b: Booking, d: Driver) {
 export const ratingHash = (token: string) => createHash("sha256").update(token).digest("hex");
 
 /**
- * Sends the customer a WhatsApp message with a private rating link (once per booking).
- * The link's secret is stored only as a hash.
+ * The trip ended: the invoice is issued and the customer gets ONE WhatsApp message with the invoice
+ * and a private rating link (once per booking; the link's secret is stored only as a hash).
+ * With ratings switched off, the message carries the invoice only.
  */
 export async function requestRating(bookingId: string) {
   const st = await readSettings();
-  if (st.rating_enabled === "0") return null;
+  const done = await issueInvoice(bookingId);
+  if (!done) return null; // not completed
+  const ar = done.locale !== "en";
+  const invoice = await invoiceLink(done);
+
+  if (st.rating_enabled === "0") {
+    // invoice only, once
+    const sent = await db.query.notifications.findFirst({ where: and(eq(s.notifications.bookingId, done.id), eq(s.notifications.kind, "trip_invoice")) });
+    if (sent) return null;
+    const body = ar
+      ? `شكرًا ${done.customerName} لاختيارك ${companyName(st, "ar")}.\nفاتورة رحلتك رقم ${done.ref} (${invoiceNo(done.invoiceNo)}):\n${invoice}`
+      : `Thank you ${done.customerName} for riding with ${companyName(st, "en")}.\nYour invoice for booking ${done.ref} (${invoiceNo(done.invoiceNo)}):\n${invoice}`;
+    return notify({ bookingId: done.id, channel: "whatsapp", kind: "trip_invoice", recipient: done.customerPhone, recipientName: done.customerName, body, params: [done.customerName, done.ref, invoice] });
+  }
+
   const token = randomBytes(24).toString("hex");
   const [b] = await db
     .update(s.bookings)
     .set({ ratingTokenHash: ratingHash(token), ratingRequestedAt: new Date() })
     .where(and(eq(s.bookings.id, bookingId), eq(s.bookings.status, "completed"), isNull(s.bookings.ratingRequestedAt)))
     .returning();
-  if (!b) return null; // not completed, or already asked
+  if (!b) return null; // already asked
   const driver = b.driverId ? await db.query.drivers.findFirst({ where: eq(s.drivers.id, b.driverId) }) : null;
-  const ar = b.locale !== "en";
   const link = `${await publicBaseUrl()}/${ar ? "ar" : "en"}/rate/${token}`;
   const driverName = driver?.name ?? (ar ? "السائق" : "your driver");
   const body = ar
-    ? `شكرًا ${b.customerName} لاختيارك ${companyName(st, "ar")}.\nنسعد بتقييمك للسائق ${driverName} ولخدمتنا في رحلتك رقم ${b.ref}، يستغرق أقل من دقيقة:\n${link}`
-    : `Thank you ${b.customerName} for riding with ${companyName(st, "en")}.\nPlease rate ${driverName} and our service for booking ${b.ref}. It takes less than a minute:\n${link}`;
-  return notify({ bookingId: b.id, channel: "whatsapp", kind: "rating_request", recipient: b.customerPhone, recipientName: b.customerName, body, params: [b.customerName, driverName, link] });
+    ? `شكرًا ${b.customerName} لاختيارك ${companyName(st, "ar")}.\nفاتورة رحلتك رقم ${b.ref} (${invoiceNo(done.invoiceNo)}):\n${invoice}\n\nنسعد بتقييمك للسائق ${driverName} ولخدمتنا، يستغرق أقل من دقيقة:\n${link}`
+    : `Thank you ${b.customerName} for riding with ${companyName(st, "en")}.\nYour invoice for booking ${b.ref} (${invoiceNo(done.invoiceNo)}):\n${invoice}\n\nPlease rate ${driverName} and our service. It takes less than a minute:\n${link}`;
+  return notify({ bookingId: b.id, channel: "whatsapp", kind: "rating_request", recipient: b.customerPhone, recipientName: b.customerName, body, params: [b.customerName, driverName, link, invoice] });
 }
 
 /** The new rating goes to the company email (settings: rating email, or the contact email) */

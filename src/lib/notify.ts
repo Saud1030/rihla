@@ -18,7 +18,7 @@ import { waNumber } from "./phone";
  * (or the mail app) ready to send by hand. Nothing here ever throws into the booking flow.
  */
 
-export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked";
+export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked" | "payment_receipt" | "trip_invoice";
 
 export const KIND_LABELS: Record<NotifyKind, string> = {
   driver_trip: "بيانات العميل للسائق",
@@ -29,6 +29,8 @@ export const KIND_LABELS: Record<NotifyKind, string> = {
   driver_rejected: "رفض طلب سائق",
   driver_suspended: "إيقاف سائق مؤقتًا",
   driver_blocked: "حظر سائق",
+  payment_receipt: "سند الدفع للعميل",
+  trip_invoice: "الفاتورة للعميل",
 };
 
 /** Template parameters in order ({{1}}, {{2}} ...) and a suggested Arabic template text to create in Meta */
@@ -47,8 +49,18 @@ export const TEMPLATES: Record<Exclude<NotifyKind, "rating_received" | "driver_a
   },
   rating_request: {
     setting: "wa_tpl_rating_request",
-    params: ["اسم العميل", "اسم السائق", "رابط التقييم"],
-    suggested: "شكرًا {{1}} لاختيارك خدماتنا. نسعد بتقييمك للسائق {{2}} ولخدمتنا من هنا: {{3}}",
+    params: ["اسم العميل", "اسم السائق", "رابط التقييم", "رابط الفاتورة"],
+    suggested: "شكرًا {{1}} لاختيارك خدماتنا. نسعد بتقييمك للسائق {{2}} ولخدمتنا من هنا: {{3}} وفاتورة رحلتك: {{4}}",
+  },
+  payment_receipt: {
+    setting: "wa_tpl_payment_receipt",
+    params: ["اسم العميل", "رقم الحجز", "المبلغ", "رابط سند الدفع"],
+    suggested: "مرحبًا {{1}}، استلمنا دفعتك لحجز رقم {{2}} بمبلغ {{3}}. سند الدفع: {{4}} وتصلك الفاتورة بعد انتهاء الرحلة.",
+  },
+  trip_invoice: {
+    setting: "wa_tpl_trip_invoice",
+    params: ["اسم العميل", "رقم الحجز", "رابط الفاتورة"],
+    suggested: "شكرًا {{1}} لاختيارك خدماتنا. فاتورة رحلتك رقم {{2}}: {{3}}",
   },
 };
 

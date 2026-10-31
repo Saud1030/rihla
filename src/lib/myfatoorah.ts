@@ -1,4 +1,5 @@
 import "server-only";
+import { issueReceipt } from "./documents";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -184,7 +185,11 @@ export async function settlePayment(st: MfPaymentStatus): Promise<SettleResult> 
       .set({ status: "paid", paymentMethod: "myfatoorah", paymentId: String(success.PaymentId), invoiceId, paidAt: new Date(), updatedAt: new Date() })
       .where(and(eq(s.bookings.id, booking.id), eq(s.bookings.status, "pending_payment"), isNull(s.bookings.paymentId)))
       .returning({ ref: s.bookings.ref });
-    if (updated.length) return { ok: true, bookingRef: booking.ref };
+    if (updated.length) {
+      // the customer gets the payment voucher on WhatsApp (the invoice comes when the trip ends)
+      await issueReceipt(booking.id);
+      return { ok: true, bookingRef: booking.ref };
+    }
   } catch (e) {
     const code = (e as { cause?: { code?: string }; code?: string }).cause?.code ?? (e as { code?: string }).code;
     if (code === "23505") return { ok: false, bookingRef: booking.ref, reason: "already_settled_elsewhere" };

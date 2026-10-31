@@ -108,7 +108,7 @@ async function Messages({ searchParams }: { searchParams: Promise<Record<string,
                 const t = TEMPLATES[k];
                 return (
                   <div key={k} className="space-y-2">
-                    <Field label={{ driver_trip: "قالب رسالة السائق", customer_driver: "قالب رسالة العميل ببيانات السائق", rating_request: "قالب طلب التقييم" }[k]}>
+                    <Field label={{ driver_trip: "قالب رسالة السائق", customer_driver: "قالب رسالة العميل ببيانات السائق", rating_request: "قالب الفاتورة وطلب التقييم بعد الرحلة", payment_receipt: "قالب سند الدفع", trip_invoice: "قالب الفاتورة (إذا كان التقييم مقفلًا)" }[k]}>
                       <input name={t.setting} defaultValue={st[t.setting] ?? ""} placeholder={k} dir="ltr" className="field text-start" />
                     </Field>
                     <p className="text-xs text-muted">نص مقترح للقالب:</p>
