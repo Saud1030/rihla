@@ -1,0 +1,84 @@
+time: 2026-10-31T19:26:38+00:00
+commit: eec68e6
+user: runner  node: v22.23.4  codespace: ci-check
+----- .env (secrets hidden)
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/rihla
+NEXT_PUBLIC_SITE_URL=https://ci-check-3000.app.github.dev
+AUTH_SECRET=(hidden)
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=(hidden)
+# mock MyFatoorah (tests/mock-myfatoorah.mjs): no real money, Pay / Decline buttons
+MYFATOORAH_API_KEY=(hidden)
+MYFATOORAH_API_BASE=http://localhost:4010
+MYFATOORAH_WEBHOOK_SECRET=(hidden)
+MOCK_PUBLIC_URL=https://ci-check-4010.app.github.dev
+# the public Codespaces domain in front of the app
+SERVER_ACTIONS_ALLOWED_ORIGINS=*.app.github.dev,*.githubpreview.dev
+----- setup state
+-rw-r--r-- 1 runner runner      0 Oct 31 19:26 .devcontainer/.setup-done
+-rw-r--r-- 1 runner runner     21 Oct 31 19:26 .next/BUILD_ID
+-rw-r--r-- 1 runner runner 283245 Oct 31 19:26 node_modules/.package-lock.json
+----- processes
+   3691 runner         00:01 node tests/mock-myfatoorah.mjs
+   3692 runner         00:01 npm exec next start -p 3000
+   3714 runner         00:01 sh -c next start -p 3000
+   3715 runner         00:01 next-server (v16.4.3)
+----- database
+tables: admin_users, assets, banners, bookings, chat_conversations, chat_faqs, chat_messages, cities, driver_documents, driver_payouts, drivers, locations, notifications, payments, ratings, receipts, routes, settings, trips, vehicles
+settings 34
+locations 26
+vehicles 8
+routes 46
+trips 368
+bookings 12
+chat_faqs 7
+admin_users 2
+----- http (inside the codespace)
+307 plain /
+307 forwarded /
+200 plain /ar
+200 forwarded /ar
+200 plain /en
+200 forwarded /en
+200 plain /ar/routes
+200 forwarded /ar/routes
+200 plain /admin/login
+200 forwarded /admin/login
+200 mock
+----- /tmp/site.log
+▲ Next.js 16.4.3
+- Local:         http://localhost:3000
+- Network:       http://10.1.0.41:3000
+✓ Ready in 103ms
+✓ Running next.config.ts took 31ms
+⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+----- /tmp/migrate.log
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/home/runner/work/rihla/rihla/drizzle.config.ts'
+Using 'postgres' driver for database querying
+[⣷] applying migrations...{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '132',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '207',
+  routine: 'transformCreateStmt'
+}
+[2K[1G[✓] migrations applied successfully!----- /tmp/seed.log
+Seed done: 7 cities, 26 destinations, 8 vehicles, 46 routes, 368 trips
+----- /tmp/build.log
+tail: cannot open '/tmp/build.log' for reading: No such file or directory
+----- /tmp/mock.log
+mock myfatoorah on 4010
+----- codespace creation log
+tail: cannot open '/workspaces/.codespaces/.persistedshare/creation.log' for reading: No such file or directory
