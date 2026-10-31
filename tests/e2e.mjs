@@ -2236,6 +2236,94 @@ if (!ONLY || ONLY === "drivers") {
     setSetting("reviews_enabled", "1");
   });
 
+  await check("suspend a driver for a while: signed out, can't sign in or get trips, told on WhatsApp; lifting it lets him back", async () => {
+    const id = sql("select id from drivers where phone='+966551234321'");
+    const card = () => a.locator(`[data-driver="${id}"]`);
+    await mf("/__wa_reset");
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await card().getByText("إيقاف مؤقت أو حظر").click();
+    const f = card().locator("form").filter({ has: a.getByRole("button", { name: "إيقاف مؤقت" }) });
+    await f.locator('select[name="period"]').selectOption("3");
+    await f.locator('input[name="reason"]').fill("تأخر عن موعدين");
+    await f.getByRole("button", { name: "إيقاف مؤقت" }).click();
+    await a.getByText("تم إيقاف فهد الحربي مؤقتًا حتى").waitFor();
+    await card().getByTestId("driver-hold").getByText("موقوف مؤقتًا حتى").waitFor();
+    const left = Number(sql(`select round(extract(epoch from suspended_until - now()) / 86400) from drivers where id=${id}`));
+    eq(left, 3, "three days");
+    const msgs = await wa();
+    eq(msgs.length, 1, "driver told");
+    assert(msgs[0].to === "966551234321" && msgs[0].text.body.includes("تأخر عن موعدين"), "message with the reason");
+    // the signed-in driver is out at once
+    await drv.goto(`${BASE}/admin/my-trips`, { waitUntil: "networkidle" });
+    assert(drv.url().includes("/admin/login"), "signed out");
+    await adminLogin(drv, "0551234321", "Driver-Pass-123");
+    await drv.getByText("حسابك موقوف مؤقتًا حتى").waitFor();
+    // not offered for a booking, and refused if sent anyway
+    const ref = paidBooking({ name: "عميل الإيقاف" });
+    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
+    eq(await a.locator(`select[name="driverId"] option[value="${id}"]`).count(), 0, "not in the list");
+    // ends by itself: a suspension that is already over counts as none
+    sql(`update drivers set suspended_until = now() - interval '1 minute' where id=${id}`);
+    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
+    eq(await a.locator(`select[name="driverId"] option[value="${id}"]`).count(), 1, "back in the list when over");
+    // suspend again with a date, then lift it early
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await card().getByText("إيقاف مؤقت أو حظر").click();
+    await f.locator('select[name="period"]').selectOption("date");
+    await f.locator('input[name="until"]').fill(inDaysUTC(5));
+    await f.locator('input[name="tell"]').uncheck();
+    await f.getByRole("button", { name: "إيقاف مؤقت" }).click();
+    await a.getByText("تم إيقاف فهد الحربي مؤقتًا حتى").waitFor();
+    eq(sql(`select to_char(suspended_until at time zone 'Asia/Riyadh', 'YYYY-MM-DD HH24:MI') from drivers where id=${id}`), `${inDaysUTC(5)} 23:59`, "end of that day, Riyadh time");
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await card().getByText("إنهاء الإيقاف أو الحظر").click();
+    await card().getByRole("button", { name: "إنهاء الإيقاف الآن" }).click();
+    await a.getByText("انتهى إيقاف فهد الحربي").waitFor();
+    await adminLogin(drv, "0551234321", "Driver-Pass-123");
+    await drv.waitForURL(/\/admin\/my-trips$/);
+    sql(`delete from bookings where ref='${ref}'`);
+  });
+
+  await check("block a driver: needs confirming; can't sign in, get trips or apply again; upcoming trips flagged; unblock", async () => {
+    const id = sql("select id from drivers where phone='+966551234321'");
+    const ref = paidBooking({ name: "رحلة قادمة", status: "confirmed" });
+    sql(`update bookings set driver_id=${id} where ref='${ref}'`);
+    const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
+    const card = () => a.locator(`[data-driver="${id}"]`);
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await card().getByText("إيقاف مؤقت أو حظر").click();
+    const f = card().locator("form").filter({ has: a.getByRole("button", { name: "حظر السائق" }) });
+    await f.locator('input[name="reason"]').fill("سلوك غير لائق");
+    await f.locator('input[name="tell"]').uncheck();
+    await f.getByRole("button", { name: "حظر السائق" }).click();
+    await a.getByText("أكّد الحظر").waitFor();
+    eq(sql(`select blocked_at is null from drivers where id=${id}`), "t", "not without confirming");
+    await f.locator('input[name="confirm"]').check();
+    await f.getByRole("button", { name: "حظر السائق" }).click();
+    await a.getByText("تم حظر فهد الحربي").waitFor();
+    await a.getByText(no, { exact: false }).first().waitFor(); // his upcoming trip is named
+    await card().getByTestId("driver-hold").getByText("محظور").waitFor();
+    await drv.goto(`${BASE}/admin/my-trips`, { waitUntil: "networkidle" });
+    assert(drv.url().includes("/admin/login"), "signed out");
+    await adminLogin(drv, "0551234321", "Driver-Pass-123");
+    await drv.getByText("حسابك محظور (سلوك غير لائق)").waitFor();
+    // can't be given a trip even by a hand-made request
+    const other = paidBooking({ name: "عميل آخر" });
+    sql("insert into drivers (name, phone, plate_number, car_type) values ('سائق احتياط', '+966550000777', 'ح ح ح ٧٧٧', 'كامري')"); // so the list shows
+    await a.goto(`${BASE}/admin/bookings/${other}`, { waitUntil: "networkidle" });
+    eq(await a.locator(`select[name="driverId"] option[value="${id}"]`).count(), 0, "not offered");
+    await a.locator('select[name="driverId"]').evaluate((el, v) => { const o = document.createElement("option"); o.value = v; el.append(o); el.value = v; }, id);
+    await a.getByRole("button", { name: "إسناد وإرسال الرسائل" }).click();
+    await a.getByText("فهد الحربي محظور").waitFor();
+    eq(sql(`select coalesce(driver_id::text,'') from bookings where ref='${other}'`), "", "not assigned");
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await card().getByRole("button", { name: "إلغاء الحظر" }).click();
+    await a.getByText("تم إلغاء حظر فهد الحربي").waitFor();
+    await adminLogin(drv, "0551234321", "Driver-Pass-123");
+    await drv.waitForURL(/\/admin\/my-trips$/);
+    sql(`delete from bookings where ref in ('${ref}','${other}'); delete from drivers where phone='+966550000777'`);
+  });
+
   await check("staff account: only the sections it was given, in the menu and on the server", async () => {
     await a.goto(`${BASE}/admin/users`, { waitUntil: "networkidle" });
     const f = a.locator("form").filter({ has: a.getByRole("button", { name: "إضافة الحساب" }) });

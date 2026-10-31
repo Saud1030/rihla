@@ -7,13 +7,19 @@ import { driverRatings } from "@/lib/ratings";
 import { formatNumber } from "@/lib/format";
 import {
   approveDriver,
+  blockDriver,
   deleteDriver,
+  endSuspension,
+  suspendDriver,
+  unblockDriver,
   rejectDriver,
   removeDriverPhoto,
   saveDriver,
 } from "../../driver-actions";
 import { CARD_CM, CARD_DOCS, DOC_KINDS, DOC_LABELS, modelYears } from "@/lib/driver-docs";
 import { formatDateTime } from "@/lib/format";
+import { daysLabel, driverHold, SUSPEND_DAYS, upcomingTrips } from "@/lib/driver-hold";
+import { todayInRiyadh } from "@/lib/booking";
 import { ActionForm } from "@/components/admin/action-form";
 import { Card, Field, PageHeader, Skeleton } from "@/components/admin/ui";
 import { Stars } from "@/components/site/stars";
@@ -37,6 +43,10 @@ type Row = {
   vehicleId: number | null;
   status: "pending" | "approved" | "rejected";
   rejectReason: string | null;
+  blockedAt: Date | null;
+  blockReason: string | null;
+  suspendedUntil: Date | null;
+  suspendReason: string | null;
 };
 type VehicleOption = { id: number; name: string };
 
@@ -78,6 +88,10 @@ async function Drivers({
         vehicleId: s.drivers.vehicleId,
         status: s.drivers.status,
         rejectReason: s.drivers.rejectReason,
+        blockedAt: s.drivers.blockedAt,
+        blockReason: s.drivers.blockReason,
+        suspendedUntil: s.drivers.suspendedUntil,
+        suspendReason: s.drivers.suspendReason,
       })
       .from(s.drivers)
       .orderBy(desc(s.drivers.active), asc(s.drivers.name)),
@@ -112,6 +126,11 @@ async function Drivers({
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   const rejected = rows.filter((d) => d.status === "rejected");
   const team = rows.filter((d) => d.status === "approved");
+  const heldCount = team.filter((d) => driverHold(d)).length;
+  // the result of a block / suspend / lift, shown after the page reloads
+  const holdKey = (["suspended", "resumed", "blocked", "unblocked"] as const).find((k) => typeof sp[k] === "string");
+  const holdDriver = holdKey ? rows.find((d) => String(d.id) === sp[holdKey]) : undefined;
+  const holdTrips = holdDriver && (holdKey === "suspended" || holdKey === "blocked") ? await upcomingTrips(holdDriver.id) : [];
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -239,7 +258,14 @@ async function Drivers({
         <DriverFields key={`new-${rows.length}`} vehicles={vehicleRows} />
       </Card>
 
-      <h2 className="text-xl font-semibold pt-2">فريق السائقين</h2>
+      <h2 className="text-xl font-semibold pt-2">
+        فريق السائقين
+        {heldCount > 0 && (
+          <span className="ms-2 text-sm font-normal text-muted">
+            ({formatNumber(heldCount, "ar")} محظور أو موقوف)
+          </span>
+        )}
+      </h2>
       {team.length === 0 ? (
         <p className="text-muted">لا يوجد سائقون بعد.</p>
       ) : (
@@ -247,20 +273,58 @@ async function Drivers({
           {team.map((d) => {
             const r = ratings.get(d.id);
             const t = tripCount.get(d.id);
+            const hold = driverHold(d);
             return (
-              <li key={d.id}>
-                <Card className="overflow-hidden">
+              <li key={d.id} data-driver={d.id} id={`driver-${d.id}`} className="scroll-mt-4 space-y-2">
+                {holdDriver?.id === d.id && (
+        <div role="status" data-testid="hold-notice" className={`rounded-lg border px-4 py-3 space-y-1 ${holdKey === "blocked" || holdKey === "suspended" ? "bg-amber/15 border-amber/40" : "bg-sign-soft border-sign/20 text-sign"}`}>
+          <p>
+            {holdKey === "suspended"
+              ? `تم إيقاف ${holdDriver.name} مؤقتًا حتى ${holdDriver.suspendedUntil ? formatDateTime(holdDriver.suspendedUntil, "ar") : ""}.`
+              : holdKey === "blocked"
+                ? `تم حظر ${holdDriver.name}.`
+                : holdKey === "resumed"
+                  ? `انتهى إيقاف ${holdDriver.name}، ويقدر يدخل ويستقبل الرحلات الآن.`
+                  : `تم إلغاء حظر ${holdDriver.name}.`}
+          </p>
+          {holdTrips.length > 0 && (
+            <p className="text-sm">
+              تنبيه: عنده {holdTrips.length === 1 ? "رحلة قادمة" : `${formatNumber(holdTrips.length, "ar")} رحلات قادمة`}، أسندها لسائق آخر:{" "}
+              {holdTrips.map((t, i) => (
+                <span key={t.ref}>
+                  {i > 0 && "، "}
+                  <Link href={`/admin/bookings/${t.ref}`} className="underline font-medium">
+                    {t.no}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          )}
+        </div>
+                )}
+                <Card className={`overflow-hidden ${hold ? "opacity-90 border-danger/30" : ""}`}>
                   <div className="flex flex-wrap gap-4 p-4">
                     <DriverPhoto d={d} className="size-20 rounded-xl" />
                     <div className="min-w-0 flex-1 space-y-1 text-sm">
                       <p className="font-semibold text-[16px]">
                         {d.name}{" "}
-                        {!d.active && (
+                        {!d.active && !hold && (
                           <span className="text-danger text-sm font-normal">
-                            · موقوف
+                            · غير متاح للرحلات
                           </span>
                         )}
                       </p>
+                      {hold && (
+                        <p
+                          data-testid="driver-hold"
+                          className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${hold.kind === "blocked" ? "bg-danger-soft text-danger" : "bg-amber/20 text-amber-deep"}`}
+                        >
+                          {hold.kind === "blocked"
+                            ? "محظور"
+                            : `موقوف مؤقتًا حتى ${formatDateTime(hold.until, "ar")}`}
+                          {hold.reason ? ` · ${hold.reason}` : ""}
+                        </p>
+                      )}
                       <p
                         dir="ltr"
                         className="text-muted"
@@ -314,6 +378,7 @@ async function Drivers({
                       </ActionForm>
                     </div>
                   </div>
+                  <HoldControls d={d} hold={hold} />
                   <details className="border-t border-line">
                     <summary className="cursor-pointer px-4 py-3 text-sm text-sign">
                       تعديل بيانات السائق
@@ -382,6 +447,83 @@ async function Drivers({
         </details>
       )}
     </div>
+  );
+}
+
+/** Block, or suspend for a while; or lift either */
+function HoldControls({ d, hold }: { d: Row; hold: ReturnType<typeof driverHold> }) {
+  if (hold?.kind === "blocked")
+    return (
+      <div className="border-t border-line px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+        <span className="text-muted">
+          محظور منذ {formatDateTime(d.blockedAt!, "ar")}. لا يقدر يدخل ولا تُسند له رحلات ولا يقدر يقدّم طلبًا جديدًا برقمه.
+        </span>
+        <ActionForm action={unblockDriver} submitLabel="إلغاء الحظر" submitClassName="btn btn-ghost !min-h-9 !py-1 text-sm" className="">
+          <input type="hidden" name="id" value={d.id} />
+        </ActionForm>
+      </div>
+    );
+  return (
+    <details className="border-t border-line" data-testid="hold-controls">
+      <summary className="cursor-pointer px-4 py-3 text-sm text-danger">
+        {hold ? "إنهاء الإيقاف أو الحظر" : "إيقاف مؤقت أو حظر"}
+      </summary>
+      <div className="px-4 pb-5 grid gap-4 md:grid-cols-2">
+        {hold?.kind === "suspended" ? (
+          <div className="rounded-lg border border-line p-4 space-y-3">
+            <h3 className="font-medium">الإيقاف المؤقت</h3>
+            <p className="text-sm text-muted">
+              ينتهي تلقائيًا في {formatDateTime(hold.until, "ar")}. تقدر تنهيه الآن.
+            </p>
+            <ActionForm action={endSuspension} submitLabel="إنهاء الإيقاف الآن" submitClassName="btn btn-ghost border border-line text-sm" className="space-y-2">
+              <input type="hidden" name="id" value={d.id} />
+            </ActionForm>
+          </div>
+        ) : (
+          <ActionForm action={suspendDriver} submitLabel="إيقاف مؤقت" submitClassName="btn btn-ghost border border-line text-sm" className="rounded-lg border border-line p-4 space-y-3">
+            <h3 className="font-medium">إيقاف مؤقت</h3>
+            <p className="text-xs text-muted">ما يقدر يدخل ولا تُسند له رحلات حتى تنتهي المدة، وبعدها يرجع تلقائيًا.</p>
+            <input type="hidden" name="id" value={d.id} />
+            <Field label="المدة">
+              <select name="period" defaultValue="1" className="field">
+                {SUSPEND_DAYS.map((n) => (
+                  <option key={n} value={n}>
+                    {daysLabel(n)}
+                  </option>
+                ))}
+                <option value="date">حتى تاريخ معيّن…</option>
+              </select>
+            </Field>
+            <Field label="حتى تاريخ" hint="يُستخدم إذا اخترت «حتى تاريخ معيّن». ينتهي الإيقاف آخر ذلك اليوم.">
+              <input type="date" name="until" min={todayInRiyadh()} className="field" />
+            </Field>
+            <Field label="السبب (اختياري)">
+              <input name="reason" maxLength={300} className="field" placeholder="مثال: تأخر متكرر عن المواعيد" />
+            </Field>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="tell" defaultChecked className="size-4 accent-sign" />
+              أبلغ السائق على واتساب
+            </label>
+          </ActionForm>
+        )}
+        <ActionForm action={blockDriver} submitLabel="حظر السائق" submitClassName="btn btn-ghost border border-danger/40 !text-danger text-sm" className="rounded-lg border border-danger/30 p-4 space-y-3">
+          <h3 className="font-medium text-danger">حظر</h3>
+          <p className="text-xs text-muted">إيقاف دائم: ما يقدر يدخل ولا تُسند له رحلات ولا يقدر يسجّل من جديد برقمه، لين تلغي الحظر بنفسك.</p>
+          <input type="hidden" name="id" value={d.id} />
+          <Field label="السبب (اختياري)">
+            <input name="reason" maxLength={300} className="field" />
+          </Field>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="tell" defaultChecked className="size-4 accent-sign" />
+            أبلغ السائق على واتساب
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="confirm" className="size-4 accent-sign" />
+            متأكد من حظر هذا السائق
+          </label>
+        </ActionForm>
+      </div>
+    </details>
   );
 }
 

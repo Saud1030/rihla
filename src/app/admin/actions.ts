@@ -23,6 +23,8 @@ import { invalidateCatalogCache } from "@/lib/catalog";
 import { cancelPaidBooking, requestRefund } from "@/lib/cancellation";
 import { driveMinutes, roadKm } from "@/lib/pricing";
 import { detectFile, IMAGE_TYPES, MB } from "@/lib/files";
+import { driverHold } from "@/lib/driver-hold";
+import { formatDateTime } from "@/lib/format";
 import { CORNERS, FONTS, parseTheme, themeWarnings, type CornerKey, type FontKey } from "@/lib/theme";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
@@ -56,6 +58,12 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
     if (d?.status === "pending") return { error: "طلب انضمامك قيد المراجعة. سنرد عليك على واتساب بعد مراجعته." };
     if (d?.status === "rejected") return { error: `لم يُقبل طلب انضمامك.${d.rejectReason ? ` السبب: ${d.rejectReason}` : ""} تقدر تقدّم طلبًا جديدًا بعد التعديل.` };
     return { error: "هذا الحساب موقوف. تواصل مع الإدارة." };
+  }
+  if (user.role === "driver" && user.driverId) {
+    const d = await db.query.drivers.findFirst({ where: eq(s.drivers.id, user.driverId) });
+    const hold = d ? driverHold(d) : null;
+    if (hold?.kind === "blocked") return { error: `حسابك محظور${hold.reason ? ` (${hold.reason})` : ""}. تواصل مع الإدارة.` };
+    if (hold?.kind === "suspended") return { error: `حسابك موقوف مؤقتًا حتى ${formatDateTime(hold.until, "ar")}${hold.reason ? ` (${hold.reason})` : ""}.` };
   }
   clearLoginFailures(key);
   await createSession({ uid: user.id, email: user.email, name: user.name });

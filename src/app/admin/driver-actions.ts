@@ -12,6 +12,8 @@ import { notify } from "@/lib/notify";
 import { publicBaseUrl } from "@/lib/public-url";
 import { normalizePhone } from "@/lib/phone";
 import { requestRating, sendDriverAssigned } from "@/lib/trip-messages";
+import { driverHold, SUSPEND_DAYS } from "@/lib/driver-hold";
+import { formatDateTime } from "@/lib/format";
 import type { ActionState } from "./actions";
 
 const driverSchema = z.object({
@@ -136,6 +138,79 @@ export async function rejectDriver(_prev: ActionState, formData: FormData): Prom
   redirect(`/admin/drivers?rejected=${d.id}`);
 }
 
+/* ---------- Block and temporary suspension ---------- */
+
+async function tellDriver(d: { name: string; phone: string }, kind: "driver_suspended" | "driver_blocked", body: string, params: string[]) {
+  await notify({ channel: "whatsapp", kind, recipient: d.phone, recipientName: d.name, body, params });
+}
+
+/** Suspend for a number of days or until a date (end of that day, Riyadh time). Lifts by itself. */
+export async function suspendDriver(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("drivers");
+  const id = Number(formData.get("id") ?? 0);
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 300);
+  const period = String(formData.get("period") ?? "");
+  const untilDate = String(formData.get("until") ?? "");
+  let until: Date | null = null;
+  if (period === "date") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(untilDate)) return { error: "اختر تاريخ نهاية الإيقاف." };
+    until = new Date(`${untilDate}T23:59:59+03:00`);
+  } else if ((SUSPEND_DAYS as readonly number[]).includes(Number(period))) {
+    until = new Date(Date.now() + Number(period) * 24 * 60 * 60 * 1000);
+  }
+  if (!until || Number.isNaN(until.getTime())) return { error: "اختر مدة الإيقاف." };
+  if (until <= new Date()) return { error: "تاريخ نهاية الإيقاف لازم يكون بعد اليوم." };
+  if (until.getTime() - Date.now() > 366 * 24 * 60 * 60 * 1000) return { error: "أقصى مدة للإيقاف المؤقت سنة. للإيقاف الدائم استخدم الحظر." };
+  const [d] = await db
+    .update(s.drivers)
+    .set({ suspendedUntil: until, suspendReason: reason || null, updatedAt: new Date() })
+    .where(and(eq(s.drivers.id, id), eq(s.drivers.status, "approved")))
+    .returning();
+  if (!d) return { error: "السائق غير موجود." };
+  const when = formatDateTime(until, "ar");
+  if (formData.get("tell") === "on")
+    await tellDriver(d, "driver_suspended", `مرحبًا ${d.name}، تم إيقاف حسابك كسائق مؤقتًا حتى ${when}${reason ? ` (${reason})` : ""}. لن تصلك رحلات جديدة خلال هذه المدة.`, [d.name, when, reason || "-"]);
+  redirect(`/admin/drivers?suspended=${d.id}#driver-${d.id}`);
+}
+
+export async function endSuspension(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("drivers");
+  const [d] = await db
+    .update(s.drivers)
+    .set({ suspendedUntil: null, suspendReason: null, updatedAt: new Date() })
+    .where(eq(s.drivers.id, Number(formData.get("id") ?? 0)))
+    .returning();
+  if (!d) return { error: "السائق غير موجود." };
+  redirect(`/admin/drivers?resumed=${d.id}#driver-${d.id}`);
+}
+
+/** Block: no sign-in, no trips, can't apply again with the same number, until unblocked */
+export async function blockDriver(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("drivers");
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 300);
+  if (formData.get("confirm") !== "on") return { error: "أكّد الحظر بوضع علامة على «متأكد من حظر هذا السائق»." };
+  const [d] = await db
+    .update(s.drivers)
+    .set({ blockedAt: new Date(), blockReason: reason || null, suspendedUntil: null, suspendReason: null, updatedAt: new Date() })
+    .where(eq(s.drivers.id, Number(formData.get("id") ?? 0)))
+    .returning();
+  if (!d) return { error: "السائق غير موجود." };
+  if (formData.get("tell") === "on")
+    await tellDriver(d, "driver_blocked", `مرحبًا ${d.name}، تم إيقاف حسابك كسائق لدينا${reason ? ` (${reason})` : ""}. للاستفسار تواصل مع الإدارة.`, [d.name, reason || "-"]);
+  redirect(`/admin/drivers?blocked=${d.id}#driver-${d.id}`);
+}
+
+export async function unblockDriver(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("drivers");
+  const [d] = await db
+    .update(s.drivers)
+    .set({ blockedAt: null, blockReason: null, updatedAt: new Date() })
+    .where(eq(s.drivers.id, Number(formData.get("id") ?? 0)))
+    .returning();
+  if (!d) return { error: "السائق غير موجود." };
+  redirect(`/admin/drivers?unblocked=${d.id}#driver-${d.id}`);
+}
+
 /**
  * Assign (or change) the booking's driver. The driver gets the customer's details and the
  * customer gets the driver's on WhatsApp, automatically.
@@ -151,6 +226,8 @@ export async function assignDriver(_prev: ActionState, formData: FormData): Prom
   ]);
   if (!b) return { error: "الحجز غير موجود." };
   if (!d || !d.active || d.status !== "approved") return { error: "السائق غير موجود أو موقوف أو لم يُقبل طلبه بعد." };
+  const hold = driverHold(d);
+  if (hold) return { error: hold.kind === "blocked" ? `${d.name} محظور. اختر سائقًا آخر.` : `${d.name} موقوف مؤقتًا حتى ${formatDateTime(hold.until, "ar")}. اختر سائقًا آخر.` };
   if (b.status === "pending_payment") return { error: "لم يُدفع الحجز بعد. أكّد الدفع أولًا ثم أسند السائق." };
   if (b.status === "cancelled" || b.status === "completed") return { error: "لا يمكن إسناد سائق لحجز ملغي أو منتهٍ." };
   // choosing the same driver again sends both messages again

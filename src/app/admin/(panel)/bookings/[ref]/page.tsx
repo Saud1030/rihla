@@ -30,6 +30,7 @@ import { WhatsAppIcon, PhoneIcon } from "@/components/icons";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { db, schema as sc } from "@/db";
 import { assignDriver, completeTrip } from "../../../driver-actions";
+import { notHeld } from "@/lib/driver-hold";
 import { NotificationList } from "@/components/admin/notification-list";
 import { DriverPhoto } from "@/components/admin/driver-photo";
 import { Stars } from "@/components/site/stars";
@@ -85,7 +86,8 @@ async function Detail({
         carType: sc.drivers.carType,
         carModel: sc.drivers.carModel,
         carColor: sc.drivers.carColor,
-        active: sc.drivers.active,
+        // blocked or suspended drivers can't be chosen
+        active: sql<boolean>`${sc.drivers.active} and ${sc.drivers.status} = 'approved' and ${notHeld}`,
         hasPhoto: sql<boolean>`${sc.drivers.photo} is not null`,
         updatedAt: sc.drivers.updatedAt,
       })

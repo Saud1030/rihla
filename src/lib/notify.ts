@@ -18,7 +18,7 @@ import { waNumber } from "./phone";
  * (or the mail app) ready to send by hand. Nothing here ever throws into the booking flow.
  */
 
-export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected";
+export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked";
 
 export const KIND_LABELS: Record<NotifyKind, string> = {
   driver_trip: "بيانات العميل للسائق",
@@ -27,10 +27,12 @@ export const KIND_LABELS: Record<NotifyKind, string> = {
   rating_received: "تقييم جديد (بريد الشركة)",
   driver_approved: "قبول طلب سائق",
   driver_rejected: "رفض طلب سائق",
+  driver_suspended: "إيقاف سائق مؤقتًا",
+  driver_blocked: "حظر سائق",
 };
 
 /** Template parameters in order ({{1}}, {{2}} ...) and a suggested Arabic template text to create in Meta */
-export const TEMPLATES: Record<Exclude<NotifyKind, "rating_received" | "driver_approved" | "driver_rejected">, { setting: string; params: string[]; suggested: string }> = {
+export const TEMPLATES: Record<Exclude<NotifyKind, "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked">, { setting: string; params: string[]; suggested: string }> = {
   driver_trip: {
     setting: "wa_tpl_driver_trip",
     params: ["اسم السائق", "رقم الحجز", "اسم العميل", "جوال العميل", "الموعد", "مكان الاستلام", "الوجهة", "الركاب والحقائب", "ملاحظات"],

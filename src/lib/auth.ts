@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { driverHold } from "./driver-hold";
 import { can, type Role, type Section } from "./permissions";
 
 export const ADMIN_COOKIE = "admin_session";
@@ -47,6 +48,14 @@ export async function getSession(): Promise<AdminSession | null> {
     const user = await db.query.adminUsers.findFirst({ where: eq(s.adminUsers.id, uid) });
     // checked on every request, so disabling an account or changing its permissions applies at once
     if (!user || !user.active) return null;
+    // a blocked or suspended driver is signed out at once
+    if (user.role === "driver" && user.driverId) {
+      const d = await db.query.drivers.findFirst({
+        where: eq(s.drivers.id, user.driverId),
+        columns: { blockedAt: true, blockReason: true, suspendedUntil: true, suspendReason: true },
+      });
+      if (d && driverHold(d)) return null;
+    }
     return { uid: user.id, email: user.email, name: user.name, role: user.role, permissions: user.permissions ?? [], driverId: user.driverId };
   } catch {
     return null;

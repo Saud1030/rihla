@@ -314,6 +314,12 @@ export const drivers = pgTable("drivers", {
   vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
   status: driverStatus("status").notNull().default("approved"),
   rejectReason: text("reject_reason"),
+  /** blocked by the admin: can't sign in, get trips or apply again, until unblocked */
+  blockedAt: timestamp("blocked_at", { withTimezone: true }),
+  blockReason: text("block_reason"),
+  /** suspended for a while: can't sign in or get trips until this time; lifts by itself */
+  suspendedUntil: timestamp("suspended_until", { withTimezone: true }),
+  suspendReason: text("suspend_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
