@@ -10,6 +10,7 @@ import { PersonIcon, BagIcon, CheckIcon, LockIcon } from "@/components/icons";
 import { addToClock, formatEnd, isClock } from "@/lib/timespan";
 import { farEnough } from "@/lib/lead-time";
 import { useEarliest } from "./use-earliest";
+import { PhoneCountryField, type CountryOption } from "./phone-country-field";
 
 export type FormTrip = {
   /** trip id for fixed routes, "d:<vehicleId>" for distance-priced trips */
@@ -46,9 +47,11 @@ type Props = {
   schedule?: { index: number; label: string; date: string; time: string }[];
   /** book at least this many hours before the pickup (admin setting) */
   leadHours?: number;
+  /** every country with its calling code, for the WhatsApp number */
+  countries: CountryOption[];
 };
 
-export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action, schedule = [], leadHours = 0 }: Props) {
+export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action, schedule = [], leadHours = 0, countries }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const v = state.values ?? {};
   const [tripId, setTripId] = useState<string>(v.tripId || initialTripId);
@@ -228,13 +231,16 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
 
           <div className="grid sm:grid-cols-2 gap-4">
             {field("name", t.form.name, <input type="text" autoComplete="name" maxLength={100} defaultValue={v.name ?? ""} required className="field" {...a11y("name")} />, E.name)}
-            {field(
-              "phone",
-              t.form.phone,
-              <input type="tel" maxLength={20} autoComplete="tel" inputMode="tel" dir="ltr" defaultValue={v.phone ?? ""} required className="field text-start" placeholder="05XXXXXXXX" {...a11y("phone")} />,
-              E.phone,
-              t.form.phoneHint,
-            )}
+            <PhoneCountryField
+              key={v.phoneCountry || "SA"}
+              countries={countries}
+              defaultCountry={v.phoneCountry || "SA"}
+              defaultValue={v.phone ?? ""}
+              label={t.form.phone}
+              countryLabel={t.form.phoneCountry}
+              hint={t.form.phoneHint}
+              error={err("phone") ? E.phone : undefined}
+            />
           </div>
           {field("email", t.form.email, <input type="email" maxLength={200} autoComplete="email" dir="ltr" defaultValue={v.email ?? ""} className="field text-start" {...a11y("email")} />, E.email)}
           {field("notes", t.form.notes, <textarea rows={3} maxLength={1000} defaultValue={v.notes ?? ""} className="field" {...a11y("notes")} />)}

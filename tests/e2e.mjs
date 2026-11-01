@@ -2269,6 +2269,31 @@ if (!ONLY || ONLY === "drivers") {
     eq(sql(`select customer_phone from bookings where ref='${r}'`), "+966551234567", "normalized (Arabic digits too)");
   });
 
+  await check("booking form: country code list with every country (Saudi Arabia first); the number is stored with the chosen country's code", async () => {
+    await c.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
+    const sel = c.locator('select[name="phoneCountry"]');
+    eq(await sel.inputValue(), "SA", "Saudi Arabia by default");
+    assert((await sel.locator("option").count()) >= 220, "every country");
+    const first = await sel.locator("option").first().innerText();
+    assert(first.includes("السعودية") && first.includes("+966"), "Saudi first, in Arabic: " + first);
+    assert((await sel.locator('option[value="EG"]').innerText()).includes("مصر"), "names in Arabic");
+    assert((await c.getByTestId("phone-country").locator("span[aria-hidden]").first().innerText()).includes("+966"), "shows +966");
+    // Egypt: 010... becomes +2010...
+    const r1 = await makeBooking(c, { phone: "01012345678", before: async (p) => { await p.selectOption('select[name="phoneCountry"]', "EG"); } });
+    eq(sql(`select customer_phone from bookings where ref='${r1}'`), "+201012345678", "Egypt");
+    // UAE, typed with its code already
+    const r2 = await makeBooking(c, { phone: "971501234567", before: async (p) => { await p.selectOption('select[name="phoneCountry"]', "AE"); } });
+    eq(sql(`select customer_phone from bookings where ref='${r2}'`), "+971501234567", "code typed twice isn't doubled");
+    // a number typed with + keeps its own code
+    const r3 = await makeBooking(c, { phone: "+44 7911 123456", before: async (p) => { await p.selectOption('select[name="phoneCountry"]', "EG"); } });
+    eq(sql(`select customer_phone from bookings where ref='${r3}'`), "+447911123456", "own + code wins");
+    // the chosen country is kept when the form comes back with an error
+    await fillBooking(c, { phone: "12", before: async (p) => { await p.selectOption('select[name="phoneCountry"]', "KW"); } });
+    await c.getByText("اكتب رقم واتساب صحيحًا").waitFor({ timeout: 8000 });
+    eq(await c.locator('select[name="phoneCountry"]').inputValue(), "KW", "kept");
+    sql(`delete from bookings where ref in ('${r1}','${r2}','${r3}')`);
+  });
+
   await check("assign a driver: driver gets the customer's details, customer gets the driver's — both on WhatsApp automatically", async () => {
     ref = paidBooking();
     await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
@@ -2853,6 +2878,8 @@ if (!ONLY || ONLY === "drivers") {
     await adminLogin(sp, "staff@example.com", "Staff-Pass-123");
     await sp.waitForURL(/\/admin$/);
     await sp.getByText("الأقسام المتاحة لحسابك").waitFor();
+    // the menu streams in after the page (a placeholder shows first)
+    await sp.locator("nav[aria-label='لوحة التحكم'] a", { hasText: "حسابي" }).waitFor();
     const nav = (await sp.locator("nav[aria-label='لوحة التحكم'] a").allInnerTexts()).join("|");
     eq(nav, "الرئيسية|السائقين|التقييمات|حسابي", "staff menu");
     await sp.goto(`${BASE}/admin/bookings`, { waitUntil: "networkidle" });

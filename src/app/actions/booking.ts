@@ -10,7 +10,8 @@ import { maxBookingDate, newBookingRef, todayInRiyadh } from "@/lib/booking";
 import { earliestPickup, farEnough, parseLeadHours } from "@/lib/lead-time";
 import { distancePrice, driveMinutes, parseVatConfig, roadKm, withVat } from "@/lib/pricing";
 import { hourlyPrice, isHourPackage } from "@/lib/policy";
-import { normalizePhone } from "@/lib/phone";
+import { phoneWithCountry } from "@/lib/phone";
+import { DEFAULT_COUNTRY, dialCode } from "@/lib/countries";
 import { multiTitle, parseLegs, quoteMultiTrip } from "@/lib/multi";
 import { cityHourlyPrices } from "@/lib/hourly";
 
@@ -46,10 +47,8 @@ const schema = z.object({
   reversed: z.enum(["0", "1"]).default("0"),
   name: z.string().trim().min(3).max(100),
   // WhatsApp number (required): driver details are sent to it. Stored as +<country><number>
-  phone: z
-    .string()
-    .transform((v) => normalizePhone(v) ?? "")
-    .pipe(z.string().min(9)),
+  // typed next to the country-code list (phoneCountry); combined before checking
+  phone: z.string().min(9),
   email: z.union([z.literal(""), z.email().max(200)]),
   date: z.iso.date(),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
@@ -72,7 +71,11 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
   const hourlyCity = String(formData.get("hourlyCity") ?? "").slice(0, 80);
   const legSlugs = parseLegs(String(formData.get("legs") ?? ""));
 
-  const parsed = schema.safeParse(values);
+  // the WhatsApp number: country chosen from the list + the number typed
+  const country = String(formData.get("phoneCountry") ?? "");
+  values.phoneCountry = dialCode(country) ? country : DEFAULT_COUNTRY;
+  const phone = phoneWithCountry(dialCode(values.phoneCountry), values.phone) ?? "";
+  const parsed = schema.safeParse({ ...values, phone });
   if (!parsed.success) {
     const errors: BookingFormState["errors"] = {};
     for (const issue of parsed.error.issues) errors[issue.path[0] as FieldName] = true;

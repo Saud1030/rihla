@@ -21,3 +21,19 @@ export function normalizePhone(input: string): string | null {
 
 /** Digits only, for wa.me links and the WhatsApp API */
 export const waNumber = (phone: string) => phone.replace(/\D/g, "");
+
+/**
+ * A number typed next to a country-code list: "0501234567" with Saudi Arabia -> +966501234567.
+ * A number typed with its own + or 00 code keeps it; a leading 0 (dialled inside the country) is dropped.
+ */
+export function phoneWithCountry(dial: string | null, input: string): string | null {
+  const typed = String(input ?? "")
+    .replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)))
+    .replace(/[۰-۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)))
+    .replace(/[\s\-().‎‏]/g, "");
+  if (!dial || typed.startsWith("+") || typed.startsWith("00")) return normalizePhone(typed);
+  if (!/^\d+$/.test(typed)) return null;
+  // already has the country code in front (e.g. 9665xxxxxxxx)
+  if (typed.startsWith(dial) && typed.length - dial.length >= 8) return normalizePhone("+" + typed);
+  return normalizePhone("+" + dial + typed.replace(/^0+/, ""));
+}

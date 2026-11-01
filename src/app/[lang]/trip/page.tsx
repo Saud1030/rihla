@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { countryOptions } from "@/lib/countries";
 import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
@@ -109,6 +110,7 @@ async function TripContent({
       </header>
       <BookingForm
         leadHours={await getLeadHours()}
+        countries={countryOptions(lang)}
         lang={lang}
         t={{ route: t.route, form: t.form }}
         trips={trips}

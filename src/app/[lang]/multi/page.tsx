@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { countryOptions } from "@/lib/countries";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getLocale } from "@/i18n/server";
@@ -99,6 +100,7 @@ async function Content({ lang, t, searchParams }: { lang: Locale; t: Dictionary;
 
       <BookingForm
         leadHours={await getLeadHours()}
+        countries={countryOptions(lang)}
         lang={lang}
         t={{ route: t.route, form: t.form }}
         trips={trips}
