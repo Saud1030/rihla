@@ -42,7 +42,7 @@ async function Bookings({
   const filters: BookingFilters = parseBookingFilters(sp);
   const amounts: AmountsView = sp.amounts === "net" || sp.amounts === "gross" ? sp.amounts : "both";
   const [
-    { rows, total, page, pages, revenue },
+    { rows, total, page, pages, revenue, daily },
     counts,
     cities,
     locations,
@@ -368,6 +368,66 @@ async function Bookings({
               </div>
             ))}
         </dl>
+
+        {/* the same revenue day by day, 7 days a page; a date shows only that day */}
+        <div className="border-t border-line pt-3 space-y-2" data-testid="daily-revenue">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-medium text-sm">الإيرادات اليومية</h3>
+            {daily.pages > 1 && (
+              <nav className="flex items-center gap-2 text-sm" aria-label="صفحات الأيام" data-testid="daily-pager">
+                {daily.page < daily.pages ? (
+                  <Link href={qs({ dpage: daily.page + 1, page: undefined })} className="btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm">
+                    أيام أقدم
+                  </Link>
+                ) : null}
+                <span className="text-muted tabular">
+                  {formatNumber(daily.page, "ar")} / {formatNumber(daily.pages, "ar")}
+                </span>
+                {daily.page > 1 ? (
+                  <Link href={qs({ dpage: daily.page > 2 ? daily.page - 1 : undefined, page: undefined })} className="btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm">
+                    أيام أحدث
+                  </Link>
+                ) : null}
+              </nav>
+            )}
+          </div>
+          {daily.rows.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm tabular">
+                <thead className="text-muted text-xs">
+                  <tr className="border-b border-line">
+                    <th className="text-start font-medium py-2 px-2">اليوم</th>
+                    <th className="text-start font-medium py-2 px-2">الحجوزات</th>
+                    {amounts !== "gross" && <th className="text-start font-medium py-2 px-2">قبل الضريبة</th>}
+                    {amounts === "both" && <th className="text-start font-medium py-2 px-2">الضريبة</th>}
+                    {amounts !== "net" && <th className="text-start font-medium py-2 px-2">بعد الضريبة</th>}
+                    <th className="text-start font-medium py-2 px-2">أجور السائقين</th>
+                    <th className="text-start font-medium py-2 px-2">الصافي بعد أجور السائقين</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {daily.rows.map((d) => (
+                    <tr key={d.day} className="border-b border-line last:border-0" data-day={d.day}>
+                      <td className="py-2 px-2">
+                        <Link href={qs({ from: d.day, to: d.day, page: undefined })} className="text-sign hover:underline">
+                          {formatDate(d.day, "ar")}
+                        </Link>
+                      </td>
+                      <td className="py-2 px-2">{formatNumber(d.count, "ar")}</td>
+                      {amounts !== "gross" && <td className="py-2 px-2">{formatSAR(d.subtotal, "ar")}</td>}
+                      {amounts === "both" && <td className="py-2 px-2">{formatSAR(d.vat, "ar")}</td>}
+                      {amounts !== "net" && <td className="py-2 px-2 font-medium">{formatSAR(d.amount, "ar")}</td>}
+                      <td className="py-2 px-2">{formatSAR(d.driverFares, "ar")}</td>
+                      <td className="py-2 px-2">{formatSAR(d.subtotal - d.driverFares, "ar")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">لا توجد إيرادات في هذه الفترة.</p>
+          )}
+        </div>
       </section>
 
       <p className="text-sm text-muted tabular">

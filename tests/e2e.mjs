@@ -2793,13 +2793,14 @@ if (!ONLY || ONLY === "drivers") {
     sql(`delete from bookings where ref='${r1}'`);
   });
 
-  await check("bookings revenue: pick a period from one date to another; totals only (no table of days)", async () => {
+  await check("bookings revenue: pick a period from one date to another; totals and a table of 7 days a page", async () => {
     const d1 = inDaysUTC(5), d2 = inDaysUTC(6), d3 = inDaysUTC(9);
     sql("delete from bookings where customer_name='إيراد الفترة'");
     const refs = [paidBooking({ name: "إيراد الفترة", date: d1 }), paidBooking({ name: "إيراد الفترة", date: d2, status: "confirmed" }), paidBooking({ name: "إيراد الفترة", date: d3 }), paidBooking({ name: "إيراد الفترة", date: d2, status: "pending_payment" })];
     sql(`update bookings set driver_fare=5000 where ref='${refs[0]}'`);
     await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد الفترة")}`, { waitUntil: "networkidle" });
-    eq(await a.getByTestId("daily-revenue").count(), 0, "no table of days");
+    eq(await a.getByTestId("daily-revenue").locator("tbody tr").count(), 3, "one row per day");
+    eq(await a.getByTestId("daily-revenue").locator("tbody tr").first().getAttribute("data-day"), d3, "newest first");
     const rev = a.getByTestId("bookings-revenue");
     assert((await rev.locator('[data-revenue="count"]').innerText()).includes("٣"), "3 paid in all");
     await rev.getByTestId("revenue-range-form").locator('input[name="from"]').fill(d1);
@@ -2817,7 +2818,21 @@ if (!ONLY || ONLY === "drivers") {
     await a.waitForURL((u) => !u.search.includes("from="), { waitUntil: "commit" });
     await a.getByTestId("revenue-range").waitFor({ state: "detached" });
     assert((await a.getByTestId("bookings-revenue").locator('[data-revenue="count"]').innerText()).includes("٣"), "back to all dates");
-    sql(`delete from bookings where ref in (${refs.map((x) => `'${x}'`).join(",")})`);
+    // 10 days of revenue: 7 days a page
+    const more = Array.from({ length: 7 }, (_, i) => paidBooking({ name: "إيراد الفترة", date: inDaysUTC(20 + i) }));
+    await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد الفترة")}`, { waitUntil: "networkidle" });
+    const daily = a.getByTestId("daily-revenue");
+    eq(await daily.locator("tbody tr").count(), 7, "7 days on the first page");
+    await daily.getByRole("link", { name: "أيام أقدم" }).click();
+    await a.waitForURL(/dpage=2/, { waitUntil: "commit" });
+    await a.getByTestId("daily-revenue").locator(`tr[data-day="${d1}"]`).waitFor();
+    eq(await a.getByTestId("daily-revenue").locator("tbody tr").count(), 3, "the other 3 days");
+    // a date in the table shows only that day
+    await a.getByTestId("daily-revenue").locator(`tr[data-day="${d2}"] a`).click();
+    await a.waitForURL(new RegExp(`from=${d2}&to=${d2}`), { waitUntil: "commit" });
+    await a.getByTestId("revenue-range").waitFor();
+    eq(await a.getByTestId("daily-revenue").locator("tbody tr").count(), 1, "that day only");
+    sql(`delete from bookings where ref in (${[...refs, ...more].map((x) => `'${x}'`).join(",")})`);
   });
 
   await check("staff account: only the sections it was given, in the menu and on the server", async () => {
