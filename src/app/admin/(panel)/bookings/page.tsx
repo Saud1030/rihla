@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { requireSection } from "@/lib/auth";
+import { todayInRiyadh } from "@/lib/booking";
 import {
   bookingCountsByStatus,
   listBookings,
@@ -41,7 +42,7 @@ async function Bookings({
   const filters: BookingFilters = parseBookingFilters(sp);
   const amounts: AmountsView = sp.amounts === "net" || sp.amounts === "gross" ? sp.amounts : "both";
   const [
-    { rows, total, page, pages, revenue, daily },
+    { rows, total, page, pages, revenue },
     counts,
     cities,
     locations,
@@ -98,6 +99,8 @@ async function Bookings({
     return `/api/admin/bookings/export?${p}`;
   };
   const label = "block text-sm font-medium mb-1";
+  const today = todayInRiyadh();
+  const monthStart = `${today.slice(0, 8)}01`;
 
   return (
     <div className="space-y-4">
@@ -285,7 +288,21 @@ async function Bookings({
       {/* revenue of the bookings that match the filters (paid ones), before and after VAT */}
       <section className="rounded-xl border border-line bg-paper p-4 space-y-3" data-testid="bookings-revenue" aria-label="الإيرادات">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-semibold">الإيرادات {active || filters.status ? "(حسب الفلاتر)" : ""}</h2>
+          <div>
+            <h2 className="font-semibold">
+              الإيرادات{" "}
+              {filters.from || filters.to ? (
+                <span className="font-normal text-muted text-sm" data-testid="revenue-range">
+                  {filters.from && filters.from === filters.to
+                    ? `يوم ${formatDate(filters.from, "ar")}`
+                    : `${filters.from ? `من ${formatDate(filters.from, "ar", { weekday: false })}` : ""} ${filters.to ? `إلى ${formatDate(filters.to, "ar", { weekday: false })}` : ""}`}
+                </span>
+              ) : (
+                <span className="font-normal text-muted text-sm">كل التواريخ</span>
+              )}
+            </h2>
+            <p className="text-xs text-muted">للحجوزات المدفوعة، حسب تاريخ الرحلة{active || filters.status ? " والفلاتر" : ""}.</p>
+          </div>
           <nav className="flex flex-wrap gap-1.5" aria-label="عرض المبالغ">
             {(
               [
@@ -305,6 +322,34 @@ async function Bookings({
             ))}
           </nav>
         </div>
+        {/* pick a period: from one date to another */}
+        <form method="get" className="flex flex-wrap items-end gap-2" data-testid="revenue-range-form">
+          {Object.entries(kept)
+            .filter(([k, v]) => v && k !== "from" && k !== "to")
+            .map(([k, v]) => (
+              <input key={k} type="hidden" name={k} value={String(v)} />
+            ))}
+          <label className="block">
+            <span className="block text-xs text-muted mb-1">من تاريخ</span>
+            <input type="date" name="from" defaultValue={filters.from} className="field !min-h-9 !py-1" />
+          </label>
+          <label className="block">
+            <span className="block text-xs text-muted mb-1">إلى تاريخ</span>
+            <input type="date" name="to" defaultValue={filters.to} className="field !min-h-9 !py-1" />
+          </label>
+          <button className="btn btn-primary !min-h-9 !py-1 text-sm">عرض الإيرادات</button>
+          <Link href={qs({ from: today, to: today, page: undefined })} className="btn btn-ghost border border-line !min-h-9 !py-1 text-sm">
+            اليوم
+          </Link>
+          <Link href={qs({ from: monthStart, to: today, page: undefined })} className="btn btn-ghost border border-line !min-h-9 !py-1 text-sm">
+            هذا الشهر
+          </Link>
+          {(filters.from || filters.to) && (
+            <Link href={qs({ from: undefined, to: undefined, page: undefined })} className="btn btn-ghost border border-line !min-h-9 !py-1 text-sm">
+              كل التواريخ
+            </Link>
+          )}
+        </form>
         <dl className="grid gap-3 grid-cols-2 md:grid-cols-5 text-sm">
           {(
             [
@@ -323,69 +368,6 @@ async function Bookings({
               </div>
             ))}
         </dl>
-      </section>
-
-      {/* the same revenue day by day; pick a day to see only its bookings */}
-      <section className="rounded-xl border border-line bg-paper p-4 space-y-3" data-testid="daily-revenue" aria-label="الإيرادات اليومية">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-semibold">الإيرادات اليومية</h2>
-            <p className="text-xs text-muted">حسب تاريخ الرحلة، للحجوزات المدفوعة{active || filters.status ? " وحسب الفلاتر" : ""}.</p>
-          </div>
-          <form method="get" className="flex flex-wrap items-end gap-2" data-testid="day-filter">
-            {Object.entries(kept)
-              .filter(([k, v]) => v && k !== "from" && k !== "to")
-              .map(([k, v]) => (
-                <input key={k} type="hidden" name={k} value={String(v)} />
-              ))}
-            <label className="block">
-              <span className="block text-xs text-muted mb-1">يوم محدد</span>
-              <input type="date" name="day" required defaultValue={filters.from && filters.from === filters.to ? filters.from : ""} className="field !min-h-9 !py-1" />
-            </label>
-            <button className="btn btn-primary !min-h-9 !py-1 text-sm">عرض اليوم</button>
-            {filters.from && filters.from === filters.to && (
-              <Link href={qs({ from: undefined, to: undefined, page: undefined })} className="btn btn-ghost border border-line !min-h-9 !py-1 text-sm">
-                كل الأيام
-              </Link>
-            )}
-          </form>
-        </div>
-        {daily.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm tabular">
-              <thead className="text-muted text-xs">
-                <tr className="border-b border-line">
-                  <th className="text-start font-medium py-2 px-2">اليوم</th>
-                  <th className="text-start font-medium py-2 px-2">الحجوزات</th>
-                  {amounts !== "gross" && <th className="text-start font-medium py-2 px-2">قبل الضريبة</th>}
-                  {amounts === "both" && <th className="text-start font-medium py-2 px-2">الضريبة</th>}
-                  {amounts !== "net" && <th className="text-start font-medium py-2 px-2">بعد الضريبة</th>}
-                  <th className="text-start font-medium py-2 px-2">أجور السائقين</th>
-                  <th className="text-start font-medium py-2 px-2">الصافي بعد أجور السائقين</th>
-                </tr>
-              </thead>
-              <tbody>
-                {daily.map((d) => (
-                  <tr key={d.day} className="border-b border-line last:border-0" data-day={d.day}>
-                    <td className="py-2 px-2">
-                      <Link href={qs({ from: d.day, to: d.day, page: undefined })} className="text-sign hover:underline">
-                        {formatDate(d.day, "ar")}
-                      </Link>
-                    </td>
-                    <td className="py-2 px-2">{formatNumber(d.count, "ar")}</td>
-                    {amounts !== "gross" && <td className="py-2 px-2" data-col="net">{formatSAR(d.subtotal, "ar")}</td>}
-                    {amounts === "both" && <td className="py-2 px-2">{formatSAR(d.vat, "ar")}</td>}
-                    {amounts !== "net" && <td className="py-2 px-2 font-medium" data-col="gross">{formatSAR(d.amount, "ar")}</td>}
-                    <td className="py-2 px-2">{formatSAR(d.driverFares, "ar")}</td>
-                    <td className="py-2 px-2">{formatSAR(d.subtotal - d.driverFares, "ar")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm text-muted">لا توجد إيرادات {filters.from && filters.from === filters.to ? "في هذا اليوم" : "حسب هذه الفلاتر"}.</p>
-        )}
       </section>
 
       <p className="text-sm text-muted tabular">

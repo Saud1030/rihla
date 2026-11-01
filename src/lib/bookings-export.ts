@@ -4,10 +4,13 @@ import PDFDocument from "pdfkit";
 import { getDictionary } from "@/i18n/dictionaries";
 import type { TableBooking } from "./admin-data";
 import type { Booking } from "@/db/schema";
-import { bookingNo, formatDate, formatSAR, formatTime } from "./format";
+import { bookingNo, formatDate, formatDateTime, formatSAR, formatTime } from "./format";
 import { isolate, pdfWriter, registerFonts } from "./pdf-text";
 
-/** The bookings list (as filtered on the page) as an Excel sheet or a PDF table */
+/** The bookings list (as filtered on the page) as an Excel sheet or a PDF table, headed by the company logo and name and when it was downloaded */
+
+export type ExportHead = { company: string; logo: { data: Buffer; ext: "png" | "jpeg"; w: number; h: number } | null; at: Date };
+const madeAt = (h: ExportHead) => `تاريخ ووقت التحميل: ${formatDateTime(h.at, "ar")}`;
 
 type Row = Booking & TableBooking;
 const t = getDictionary("ar");
@@ -33,17 +36,34 @@ const COLUMNS: { head: string; width: number; value: (b: Row) => string | number
   { head: "الحالة", width: 14, value: (b) => t.booking.status[b.status] },
 ];
 
-export async function bookingsXlsx(rows: Row[], title: string): Promise<Buffer> {
+export async function bookingsXlsx(rows: Row[], title: string, h: ExportHead): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Rihla";
-  wb.created = new Date();
-  const ws = wb.addWorksheet("الحجوزات", { views: [{ rightToLeft: true, state: "frozen", ySplit: 2 }] });
+  wb.creator = h.company;
+  wb.created = h.at;
+  // rows 1-3: logo and company name, the list's title, when it was downloaded; row 4: column names
+  const HEAD = 4;
+  const ws = wb.addWorksheet("الحجوزات", { views: [{ rightToLeft: true, state: "frozen", ySplit: HEAD }] });
   ws.columns = COLUMNS.map((c) => ({ key: c.head, width: c.width }));
-  ws.mergeCells(1, 1, 1, COLUMNS.length);
-  const titleCell = ws.getCell(1, 1);
-  titleCell.value = title;
-  titleCell.font = { bold: true, size: 13 };
-  const head = ws.getRow(2);
+  const logoCols = h.logo ? 2 : 0;
+  ws.getRow(1).height = 48;
+  if (h.logo) {
+    const height = 56;
+    const width = h.logo.w && h.logo.h ? Math.min(150, Math.round((height * h.logo.w) / h.logo.h)) : height;
+    const id = wb.addImage({ buffer: h.logo.data as unknown as ExcelJS.Buffer, extension: h.logo.ext });
+    ws.addImage(id, { tl: { col: 0.15, row: 0.1 }, ext: { width, height } });
+  }
+  ws.mergeCells(1, logoCols + 1, 1, COLUMNS.length);
+  const companyCell = ws.getCell(1, logoCols + 1);
+  companyCell.value = h.company;
+  companyCell.font = { bold: true, size: 16, color: { argb: "FF0F6B4F" } };
+  companyCell.alignment = { vertical: "middle" };
+  ws.mergeCells(2, 1, 2, COLUMNS.length);
+  ws.getCell(2, 1).value = title;
+  ws.getCell(2, 1).font = { bold: true, size: 13 };
+  ws.mergeCells(3, 1, 3, COLUMNS.length);
+  ws.getCell(3, 1).value = madeAt(h);
+  ws.getCell(3, 1).font = { size: 10, color: { argb: "FF5F6B66" } };
+  const head = ws.getRow(HEAD);
   head.values = COLUMNS.map((c) => c.head);
   head.font = { bold: true, color: { argb: "FFFFFFFF" } };
   head.eachCell((cell) => {
@@ -56,15 +76,15 @@ export async function bookingsXlsx(rows: Row[], title: string): Promise<Buffer> 
   });
   // totals of the money columns
   if (rows.length) {
-    const total = ws.addRow(COLUMNS.map((c, i) => (i === 0 ? "الإجمالي" : c.money ? { formula: `SUM(${ws.getColumn(i + 1).letter}3:${ws.getColumn(i + 1).letter}${rows.length + 2})` } : null)));
+    const total = ws.addRow(COLUMNS.map((c, i) => (i === 0 ? "الإجمالي" : c.money ? { formula: `SUM(${ws.getColumn(i + 1).letter}${HEAD + 1}:${ws.getColumn(i + 1).letter}${rows.length + HEAD})` } : null)));
     total.font = { bold: true };
   }
-  ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: COLUMNS.length } };
+  ws.autoFilter = { from: { row: HEAD, column: 1 }, to: { row: HEAD, column: COLUMNS.length } };
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
-export async function bookingsPdf(rows: Row[], title: string): Promise<Buffer> {
-  const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 24, info: { Title: title } });
+export async function bookingsPdf(rows: Row[], title: string, h: ExportHead): Promise<Buffer> {
+  const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 24, info: { Title: title, Author: h.company } });
   registerFonts(doc);
   const chunks: Buffer[] = [];
   doc.on("data", (d: Buffer) => chunks.push(d));
@@ -96,6 +116,21 @@ export async function bookingsPdf(rows: Row[], title: string): Promise<Buffer> {
   let y = doc.page.margins.top;
   // dates stay in one left-to-right piece inside the Arabic title
   const shown = title.replace(/\d{4}-\d{2}-\d{2}/g, (m) => isolate(m));
+  // first page: logo and company name on the right, when it was downloaded on the left
+  {
+    const logoH = 40;
+    let nameRight = R;
+    if (h.logo) {
+      const w = h.logo.w && h.logo.h ? Math.min(140, (logoH * h.logo.w) / h.logo.h) : logoH;
+      doc.image(h.logo.data, R - w, y, { fit: [w, logoH] });
+      nameRight = R - w - 10;
+    }
+    line(h.company, { x: L, w: nameRight - L, y: y + (h.logo ? 12 : 0), size: 15, font: "b", color: "#0f6b4f", align: "start" });
+    line(madeAt(h), { x: L, w: (R - L) / 2, y: y + (h.logo ? 15 : 3), size: 9, color: "#5f6b66", align: "end" });
+    y += (h.logo ? logoH : 22) + 8;
+    doc.moveTo(L, y).lineTo(R, y).lineWidth(0.6).strokeColor("#d9dfdc").stroke();
+    y += 8;
+  }
   const header = () => {
     line(shown, { x: L, w: R - L, y, size: 12, font: "b" });
     y += 20;

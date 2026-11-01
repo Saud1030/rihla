@@ -16,7 +16,7 @@ type Company = { name: string; vatNumber: string; crNumber: string; address: str
 
 const T = {
   ar: {
-    title: "سند دفع",
+    title: "سند صرف",
     no: "رقم السند",
     date: "تاريخ الإصدار",
     booking: "رقم الحجز",

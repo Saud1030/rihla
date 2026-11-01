@@ -1395,6 +1395,9 @@ if (!ONLY || ONLY === "features") {
     eq(voucherMsg.to, "966501234567", "to the customer");
     eq(voucherMsg.document.filename, `REC-${String(rno).padStart(4, "0")}.pdf`, "file name");
     assert(voucherMsg.document.caption.includes("تصلك الفاتورة الضريبية بعد انتهاء الرحلة"), "caption: " + voucherMsg.document.caption);
+    assert(voucherMsg.document.caption.trim().endsWith("شكرًا لكم لاختياركم Mighty Hands Trans، سوف نتواصل معكم في أقرب وقت ممكن."), "thanks at the end: " + voucherMsg.document.caption);
+    await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
+    assert((await cp.getByTestId("paid-thanks").innerText()).includes("Mighty Hands Trans"), "thanks on the booking page");
     const pdf = await fetch(new URL(new URL(voucherMsg.document.link).pathname, BASE));
     eq(pdf.status, 200, "PDF reachable");
     eq(pdf.headers.get("content-type"), "application/pdf", "PDF type");
@@ -1403,13 +1406,13 @@ if (!ONLY || ONLY === "features") {
     // the voucher page
     await cp.goto(`${BASE}/ar/booking/${ref}/receipt`, { waitUntil: "networkidle" });
     const r = cp.getByTestId("receipt");
-    await r.getByRole("heading", { name: "سند دفع" }).waitFor();
+    await r.getByRole("heading", { name: "سند صرف" }).waitFor();
     await r.getByText("ليس فاتورة ضريبية", { exact: false }).waitFor();
     await r.getByText("دفع إلكتروني (ماي فاتورة)").waitFor();
     await cp.goto(`${BASE}/ar/booking/${ref}/invoice`, { waitUntil: "networkidle" });
     eq(await cp.getByTestId("invoice").count(), 0, "no invoice before the trip ends");
     await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
-    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "سند الدفع", "only the voucher link");
+    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "سند الصرف", "only the voucher link");
     // trip ends -> invoice + rating in one message
     await mf("/__wa_reset");
     await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
@@ -1430,7 +1433,7 @@ if (!ONLY || ONLY === "features") {
     eq(sub + vat, amt, "totals add up");
     await inv.getByText(`REC-${String(rno).padStart(4, "0")}`, { exact: false }).waitFor();
     await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
-    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "سند الدفع|الفاتورة", "both links");
+    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "سند الصرف|الفاتورة", "both links");
     await a.reload({ waitUntil: "networkidle" });
     assert((await a.getByTestId("booking-documents").innerText()).includes(`INV-${String(ino).padStart(4, "0")}`), "admin sees both");
     // the next paid booking gets the next voucher number
@@ -2614,6 +2617,11 @@ if (!ONLY || ONLY === "drivers") {
     await drv.goto(`${BASE}/admin/my-trips`, { waitUntil: "networkidle" });
     const trip = drv.getByTestId("my-trips").locator("li").filter({ hasText: no });
     assert((await trip.getByTestId("trip-fare").innerText()).includes("١٥٠"), "driver sees his fare");
+    // and the customer's name, mobile, email and the booking number
+    sql(`update bookings set customer_email='fare.customer@example.com' where ref='${r1}'`);
+    await drv.reload({ waitUntil: "networkidle" });
+    const who = await drv.getByTestId("my-trips").locator("li").filter({ hasText: no }).getByTestId("trip-customer").innerText();
+    for (const x of [no, sql(`select customer_name from bookings where ref='${r1}'`), sql(`select customer_phone from bookings where ref='${r1}'`), "fare.customer@example.com"]) assert(who.includes(x), `driver sees ${x}: ${who}`);
     const money = () => drv.getByTestId("driver-money").locator("[data-money]").allInnerTexts();
     // trip ends -> earned 150; a payout of 100 leaves 50
     sql(`update bookings set status='completed', completed_at=now() where ref='${r1}'`);
@@ -2681,8 +2689,10 @@ if (!ONLY || ONLY === "drivers") {
     eq((await fetch(`${BASE}/api/admin/drivers/${driverId}/doc/iban`)).status, 404, "not public");
   });
 
-  await check("bookings list downloads as Excel and PDF, with the page's filters; staff only", async () => {
+  await check("bookings list downloads as Excel and PDF, with the page's filters, the company logo and name, and when it was downloaded; staff only", async () => {
     const r1 = paidBooking({ name: "عميل التصدير" });
+    const hadLogo = sql("select count(*) from assets where key='logo'") !== "0";
+    if (!hadLogo) sql(`insert into assets(key, mime, data) values ('logo', 'image/png', decode('${PHOTO.toString("hex")}', 'hex'))`);
     const xlsx = await a.request.get(`${BASE}/api/admin/bookings/export?format=xlsx&customer=${encodeURIComponent("عميل التصدير")}`);
     eq(xlsx.status(), 200, "xlsx");
     eq(xlsx.headers()["content-type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx type");
@@ -2690,14 +2700,20 @@ if (!ONLY || ONLY === "drivers") {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(await xlsx.body());
     const ws = wb.worksheets[0];
-    eq(ws.getRow(2).getCell(1).value, "رقم الحجز", "header row");
-    eq(ws.getRow(3).getCell(8).value, "عميل التصدير", "the filtered booking");
-    eq(ws.getRow(3).getCell(12).value, 200, "before VAT");
-    eq(ws.getRow(3).getCell(14).value, 230, "after VAT");
-    eq(ws.rowCount, 4, "one booking + totals row");
+    const company = sql("select coalesce((select value from settings where key='company_name_ar' and value <> ''), '')");
+    assert(String(ws.getRow(1).getCell(3).value).length > 1 && (!company || ws.getRow(1).getCell(3).value === company), "company name on top: " + ws.getRow(1).getCell(3).value);
+    eq(ws.getImages().length, 1, "logo in the sheet");
+    assert(String(ws.getRow(3).getCell(1).value).startsWith("تاريخ ووقت التحميل: "), "downloaded at: " + ws.getRow(3).getCell(1).value);
+    eq(ws.getRow(4).getCell(1).value, "رقم الحجز", "header row");
+    eq(ws.getRow(5).getCell(8).value, "عميل التصدير", "the filtered booking");
+    eq(ws.getRow(5).getCell(12).value, 200, "before VAT");
+    eq(ws.getRow(5).getCell(14).value, 230, "after VAT");
+    eq(ws.rowCount, 6, "one booking + totals row");
     const pdf = await a.request.get(`${BASE}/api/admin/bookings/export?format=pdf`);
     eq(pdf.status(), 200, "pdf");
     eq((await pdf.body()).subarray(0, 5).toString(), "%PDF-", "a real PDF");
+    assert((await pdf.body()).toString("latin1").includes("/Subtype /Image"), "logo in the PDF");
+    if (!hadLogo) sql("delete from assets where key='logo'");
     eq((await fetch(`${BASE}/api/admin/bookings/export?format=xlsx`)).status, 404, "not for the public");
     await a.goto(`${BASE}/admin/bookings?status=paid`, { waitUntil: "networkidle" });
     assert((await a.getByTestId("bookings-export").getByRole("link", { name: "Excel" }).getAttribute("href")).includes("status=paid"), "download keeps the filters");
@@ -2777,35 +2793,31 @@ if (!ONLY || ONLY === "drivers") {
     sql(`delete from bookings where ref='${r1}'`);
   });
 
-  await check("bookings: daily revenue table for the filtered list; pick one day to see only its bookings and revenue", async () => {
-    const d1 = inDaysUTC(5), d2 = inDaysUTC(6);
-    sql("delete from bookings where customer_name='إيراد يومي'");
-    const refs = [paidBooking({ name: "إيراد يومي", date: d1 }), paidBooking({ name: "إيراد يومي", date: d1, status: "confirmed" }), paidBooking({ name: "إيراد يومي", date: d2 }), paidBooking({ name: "إيراد يومي", date: d2, status: "pending_payment" })];
+  await check("bookings revenue: pick a period from one date to another; totals only (no table of days)", async () => {
+    const d1 = inDaysUTC(5), d2 = inDaysUTC(6), d3 = inDaysUTC(9);
+    sql("delete from bookings where customer_name='إيراد الفترة'");
+    const refs = [paidBooking({ name: "إيراد الفترة", date: d1 }), paidBooking({ name: "إيراد الفترة", date: d2, status: "confirmed" }), paidBooking({ name: "إيراد الفترة", date: d3 }), paidBooking({ name: "إيراد الفترة", date: d2, status: "pending_payment" })];
     sql(`update bookings set driver_fare=5000 where ref='${refs[0]}'`);
-    await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد يومي")}`, { waitUntil: "networkidle" });
-    const daily = a.getByTestId("daily-revenue");
-    eq(await daily.locator("tbody tr").count(), 2, "one row per day");
-    eq(await daily.locator("tbody tr").first().getAttribute("data-day"), d2, "newest day first");
-    const day1 = daily.locator(`tr[data-day="${d1}"]`);
-    const cells = await day1.locator("td").allInnerTexts();
-    assert(cells[1].includes("٢"), "2 paid bookings that day: " + cells);
-    assert(cells[2].includes("٤٠٠") && cells[4].includes("٤٦٠"), "before and after VAT: " + cells);
-    assert(cells[5].includes("٥٠") && cells[6].includes("٣٥٠"), "driver fares and what's left: " + cells);
-    assert((await daily.locator(`tr[data-day="${d2}"] td`).nth(1).innerText()).includes("١"), "the unpaid booking isn't revenue");
-    // pick one day
-    await daily.locator('input[name="day"]').fill(d2);
-    await daily.getByRole("button", { name: "عرض اليوم" }).click();
-    await a.waitForURL(new RegExp(`day=${d2}`), { waitUntil: "commit" });
-    await a.waitForLoadState("networkidle");
-    eq(await a.getByTestId("daily-revenue").locator("tbody tr").count(), 1, "only that day");
-    eq(await a.locator('input[name="from"]').inputValue(), d2, "the date filter shows the day");
-    eq(await a.locator("[data-testid=bookings-table] tbody tr").count(), 2, "that day's bookings (paid and unpaid)");
-    assert((await a.getByTestId("bookings-revenue").locator('[data-revenue="gross"]').innerText()).includes("٢٣٠"), "totals for that day");
-    await a.getByTestId("daily-revenue").getByRole("link", { name: "كل الأيام" }).click();
+    await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد الفترة")}`, { waitUntil: "networkidle" });
+    eq(await a.getByTestId("daily-revenue").count(), 0, "no table of days");
+    const rev = a.getByTestId("bookings-revenue");
+    assert((await rev.locator('[data-revenue="count"]').innerText()).includes("٣"), "3 paid in all");
+    await rev.getByTestId("revenue-range-form").locator('input[name="from"]').fill(d1);
+    await rev.getByTestId("revenue-range-form").locator('input[name="to"]').fill(d2);
+    await rev.getByRole("button", { name: "عرض الإيرادات" }).click();
+    await a.waitForURL(new RegExp(`from=${d1}.*to=${d2}|to=${d2}.*from=${d1}`), { waitUntil: "commit" });
+    await a.getByTestId("revenue-range").waitFor();
+    const r = a.getByTestId("bookings-revenue");
+    assert((await r.locator('[data-revenue="count"]').innerText()).includes("٢"), "2 paid in the period");
+    assert((await r.locator('[data-revenue="net"]').innerText()).includes("٤٠٠"), "before VAT");
+    assert((await r.locator('[data-revenue="gross"]').innerText()).includes("٤٦٠"), "after VAT");
+    assert((await r.locator('[data-revenue="fares"]').innerText()).includes("٥٠"), "driver fares");
+    eq(await a.locator("[data-testid=bookings-table] tbody tr").count(), 3, "the period's bookings listed (paid and unpaid)");
+    await r.getByRole("link", { name: "كل التواريخ" }).click();
     await a.waitForURL((u) => !u.search.includes("from="), { waitUntil: "commit" });
-    await a.getByTestId("daily-revenue").locator(`tr[data-day="${d1}"]`).waitFor();
-    eq(await a.getByTestId("daily-revenue").locator("tbody tr").count(), 2, "back to every day");
-    sql(`delete from bookings where ref in (${refs.map((r) => `'${r}'`).join(",")})`);
+    await a.getByTestId("revenue-range").waitFor({ state: "detached" });
+    assert((await a.getByTestId("bookings-revenue").locator('[data-revenue="count"]').innerText()).includes("٣"), "back to all dates");
+    sql(`delete from bookings where ref in (${refs.map((x) => `'${x}'`).join(",")})`);
   });
 
   await check("staff account: only the sections it was given, in the menu and on the server", async () => {

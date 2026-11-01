@@ -89,6 +89,9 @@ async function BookingView({
           <div>
             <h1 className="text-2xl font-semibold">{t.booking.paidTitle}</h1>
             <p className="text-white/85 mt-1">{b.driverId && b.status === "confirmed" ? t.driver.ready : t.booking.paidLead}</p>
+            <p className="text-white mt-2 font-medium" data-testid="paid-thanks">
+              {t.booking.thanks}
+            </p>
             {b.paidAt && (
               <p className="text-white/70 text-sm mt-2">
                 {t.booking.paidAt}: {formatDateTime(b.paidAt, lang)}

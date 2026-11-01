@@ -143,6 +143,31 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
                         ))}
                       </ol>
                     ) : null}
+                    {/* the customer, for this booking */}
+                    <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-[15px] rounded-lg bg-stone px-3 py-2" data-testid="trip-customer">
+                      <dt className="text-muted">رقم الحجز</dt>
+                      <dd className="font-semibold">
+                        <bdi dir="ltr">{bookingNo(b.number)}</bdi>
+                      </dd>
+                      <dt className="text-muted">اسم العميل</dt>
+                      <dd className="font-medium">{b.customerName}</dd>
+                      <dt className="text-muted">جوال العميل</dt>
+                      <dd>
+                        <a href={`tel:${b.customerPhone}`} className="hover:underline">
+                          <bdi dir="ltr">{b.customerPhone}</bdi>
+                        </a>
+                      </dd>
+                      <dt className="text-muted">إيميل العميل</dt>
+                      <dd>
+                        {b.customerEmail ? (
+                          <a href={`mailto:${b.customerEmail}`} className="hover:underline">
+                            <bdi dir="ltr">{b.customerEmail}</bdi>
+                          </a>
+                        ) : (
+                          <span className="text-muted">لم يكتب إيميلًا</span>
+                        )}
+                      </dd>
+                    </dl>
                     <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-[15px]">
                       <dt className="text-muted">الاستلام</dt>
                       <dd>{b.pickupAddress}</dd>
@@ -158,12 +183,6 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
                           <dd>{end}</dd>
                         </>
                       )}
-                      <dt className="text-muted">العميل</dt>
-                      <dd>{b.customerName}</dd>
-                      <dt className="text-muted">الجوال</dt>
-                      <dd dir="ltr" style={{ textAlign: "right" }}>
-                        {b.customerPhone}
-                      </dd>
                       <dt className="text-muted">الركاب</dt>
                       <dd>
                         {formatNumber(b.passengers, "ar")} راكب، {formatNumber(b.bags, "ar")} حقيبة
@@ -221,8 +240,19 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
               {finished.map(({ b, r }) => (
                 <li key={b.id} className="px-5 py-3 text-sm flex flex-wrap items-center justify-between gap-2">
                   <span className="min-w-0">
-                    <span className="block font-medium">{formatDate(b.pickupDate, "ar")}</span>
+                    <span className="block font-medium">
+                      {formatDate(b.pickupDate, "ar")} · <bdi dir="ltr">{bookingNo(b.number)}</bdi>
+                    </span>
                     <bdi className="text-muted">{b.routeTitle}</bdi>
+                    <span className="block text-muted" data-testid="finished-customer">
+                      {b.customerName} · <bdi dir="ltr">{b.customerPhone}</bdi>
+                      {b.customerEmail && (
+                        <>
+                          {" "}
+                          · <bdi dir="ltr">{b.customerEmail}</bdi>
+                        </>
+                      )}
+                    </span>
                   </span>
                   <span className="flex items-center gap-3">
                     {b.driverFare != null && <span className="font-medium tabular">{formatSAR(b.driverFare, "ar")}</span>}

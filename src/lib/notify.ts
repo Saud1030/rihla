@@ -29,7 +29,7 @@ export const KIND_LABELS: Record<NotifyKind, string> = {
   driver_rejected: "رفض طلب سائق",
   driver_suspended: "إيقاف سائق مؤقتًا",
   driver_blocked: "حظر سائق",
-  payment_receipt: "سند الدفع للعميل",
+  payment_receipt: "سند الصرف للعميل",
   trip_invoice: "الفاتورة للعميل",
 };
 
@@ -54,8 +54,8 @@ export const TEMPLATES: Record<Exclude<NotifyKind, "rating_received" | "driver_a
   },
   payment_receipt: {
     setting: "wa_tpl_payment_receipt",
-    params: ["اسم العميل", "رقم الحجز", "المبلغ", "رابط سند الدفع"],
-    suggested: "(رأس القالب: Document — يُرفق ملف سند الدفع PDF)\nمرحبًا {{1}}، استلمنا دفعتك لحجز رقم {{2}} بمبلغ {{3}}. مرفق سند الدفع، ورابطه: {{4}}\nتصلك الفاتورة الضريبية بعد انتهاء الرحلة.",
+    params: ["اسم العميل", "رقم الحجز", "المبلغ", "رابط سند الصرف"],
+    suggested: "(رأس القالب: Document — يُرفق ملف سند الصرف PDF)\nمرحبًا {{1}}، استلمنا دفعتك لحجز رقم {{2}} بمبلغ {{3}}. مرفق سند الصرف، ورابطه: {{4}}\nتصلك الفاتورة الضريبية بعد انتهاء الرحلة.\nشكرًا لكم لاختياركم Mighty Hands Trans، سوف نتواصل معكم في أقرب وقت ممكن.",
   },
   trip_invoice: {
     setting: "wa_tpl_trip_invoice",

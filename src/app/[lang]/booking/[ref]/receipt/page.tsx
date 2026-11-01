@@ -9,7 +9,7 @@ import { ReceiptSheet } from "@/components/site/money-document";
 
 export async function generateMetadata(): Promise<Metadata> {
   const lang = await getLocale();
-  return { title: lang === "ar" ? "سند دفع" : "Payment voucher", robots: { index: false } };
+  return { title: lang === "ar" ? "سند صرف" : "Payment voucher", robots: { index: false } };
 }
 
 /** The customer's payment voucher (issued when the booking is paid). The secret booking ref is the key. */

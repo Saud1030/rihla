@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   // Self-contained server build, used by the Dockerfile
   output: "standalone",
   // the payment voucher PDF: pdfkit reads its own data files and our Arabic fonts from disk
-  serverExternalPackages: ["pdfkit", "exceljs"],
+  serverExternalPackages: ["pdfkit", "exceljs", "sharp"],
   outputFileTracingIncludes: {
     "/api/booking/[ref]/receipt": ["./assets/fonts/*.ttf"],
     "/api/admin/bookings/export": ["./assets/fonts/*.ttf"],

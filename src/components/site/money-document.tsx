@@ -10,7 +10,7 @@ type Company = { name: string; logoUrl: string | null; vatNumber: string; crNumb
 
 const T = {
   ar: {
-    receipt: "سند دفع",
+    receipt: "سند صرف",
     receiptNote: "هذا السند يثبت استلام المبلغ وليس فاتورة ضريبية. تصلك الفاتورة الضريبية بعد انتهاء الرحلة.",
     taxInvoice: "فاتورة ضريبية مبسطة",
     invoice: "فاتورة",
@@ -36,7 +36,7 @@ const T = {
     totalVat: "إجمالي الضريبة",
     grand: "الإجمالي شامل الضريبة",
     tripDate: "موعد الرحلة",
-    voucher: "سند الدفع",
+    voucher: "سند الصرف",
     print: "طباعة / حفظ PDF",
     pdf: "تحميل ملف PDF",
     status: { paid: "مدفوع", cancelled: "الحجز ملغي" },
@@ -123,7 +123,7 @@ function Head({ c, title, rows, lang }: { c: Company; title: string; rows: [stri
 
 const sheet = "mx-auto max-w-3xl bg-paper border border-line rounded-xl p-6 sm:p-8 space-y-6 print:border-0 print:rounded-none print:p-0 print:max-w-none";
 
-/** سند دفع: what was received, from whom, for which booking */
+/** سند صرف: what was received, from whom, for which booking */
 export function ReceiptSheet({ b, c, lang }: { b: Booking; c: Company; lang: Locale }) {
   const t = T[lang];
   const rows: [string, React.ReactNode][] = [

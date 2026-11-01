@@ -277,7 +277,7 @@ async function Detail({
               <p className="px-5 py-3 text-sm border-t border-line flex flex-wrap gap-x-6 gap-y-1" data-testid="booking-documents">
                 {b.receiptNo && (
                   <a href={`/${b.locale === "en" ? "en" : "ar"}/booking/${b.ref}/receipt`} target="_blank" rel="noopener noreferrer" className="text-sign hover:underline">
-                    سند الدفع <span dir="ltr">{receiptNo(b.receiptNo)}</span>
+                    سند الصرف <span dir="ltr">{receiptNo(b.receiptNo)}</span>
                   </a>
                 )}
                 {b.invoiceNo ? (

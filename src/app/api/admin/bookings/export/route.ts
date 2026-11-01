@@ -3,6 +3,8 @@ import { can } from "@/lib/permissions";
 import { EXPORT_MAX, listBookings, parseBookingFilters } from "@/lib/admin-data";
 import { bookingsPdf, bookingsXlsx } from "@/lib/bookings-export";
 import { todayInRiyadh } from "@/lib/booking";
+import { getBrand } from "@/lib/brand";
+import { logoForFiles } from "@/lib/logo-image";
 
 /** Download the bookings list, with the page's filters: ?format=xlsx|pdf&status=...&from=... (bookings section only) */
 export async function GET(req: Request) {
@@ -14,7 +16,9 @@ export async function GET(req: Request) {
   const day = todayInRiyadh();
   const range = filters.from || filters.to ? ` (${filters.from ?? "…"} - ${filters.to ?? "…"})` : "";
   const title = `الحجوزات${range} — ${rows.length.toLocaleString("ar-SA")} حجز${total > EXPORT_MAX ? ` من ${total.toLocaleString("ar-SA")}` : ""} — ${day}`;
-  const file = format === "pdf" ? await bookingsPdf(rows, title) : await bookingsXlsx(rows, title);
+  const [brand, logo] = await Promise.all([getBrand(), logoForFiles()]);
+  const head = { company: brand.name.ar, logo, at: new Date() };
+  const file = format === "pdf" ? await bookingsPdf(rows, title, head) : await bookingsXlsx(rows, title, head);
   return new Response(new Uint8Array(file), {
     headers: {
       "Content-Type": format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

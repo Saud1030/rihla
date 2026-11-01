@@ -8,13 +8,19 @@ import { notify } from "./notify";
 
 /**
  * The customer's two documents:
- *  - payment voucher (سند دفع): proof the money arrived, sent on WhatsApp as soon as the booking is paid
+ *  - payment voucher (سند صرف): proof the money arrived, sent on WhatsApp as soon as the booking is paid
  *  - tax invoice (فاتورة ضريبية مبسطة): issued when the trip ends, sent together with the rating request
  * Both are pages behind the booking's secret ref, numbered in order (REC-0001, INV-0001).
  */
 
 export const receiptNo = (n: number | null | undefined) => (n ? `REC-${String(n).padStart(4, "0")}` : "—");
 export const invoiceNo = (n: number | null | undefined) => (n ? `INV-${String(n).padStart(4, "0")}` : "—");
+
+/** the last line of the payment message */
+export const THANKS = {
+  ar: "شكرًا لكم لاختياركم Mighty Hands Trans، سوف نتواصل معكم في أقرب وقت ممكن.",
+  en: "Thank you for choosing Mighty Hands Trans. We will contact you as soon as possible.",
+};
 
 const lang = (b: Pick<Booking, "locale">) => (b.locale === "en" ? "en" : "ar");
 export const receiptLink = async (b: Pick<Booking, "ref" | "locale">) => `${await publicBaseUrl()}/${lang(b)}/booking/${b.ref}/receipt`;
@@ -39,8 +45,10 @@ export async function issueReceipt(bookingId: string) {
           `مرحبًا ${b.customerName}، استلمنا دفعتك بنجاح.`,
           `رقم الحجز: ${b.ref}`,
           `المبلغ: ${amount}`,
-          `مرفق سند الدفع رقم ${receiptNo(b.receiptNo)}، ورابطه: ${link}`,
+          `مرفق سند الصرف رقم ${receiptNo(b.receiptNo)}، ورابطه: ${link}`,
           "تصلك الفاتورة الضريبية بعد انتهاء الرحلة.",
+          "",
+          THANKS.ar,
         ].join("\n")
       : [
           `Hello ${b.customerName}, we have received your payment.`,
@@ -48,6 +56,8 @@ export async function issueReceipt(bookingId: string) {
           `Amount: ${amount}`,
           `Your payment voucher ${receiptNo(b.receiptNo)} is attached. Link: ${link}`,
           "Your tax invoice will follow when the trip ends.",
+          "",
+          THANKS.en,
         ].join("\n");
     return await notify({
       bookingId: b.id,
