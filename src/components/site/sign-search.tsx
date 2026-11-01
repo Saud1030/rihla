@@ -34,6 +34,8 @@ export type SignSearchLabels = {
   addStop: string;
   removeStop: string;
   chooseStop: string;
+  stopDate: string;
+  stopTime: string;
   cities: string;
   /** word shown before a city's name in the chooser ("مدينة ") */
   cityPrefix: string;
@@ -85,6 +87,11 @@ export function SignSearch({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [stops, setStops] = useState<string[]>(["", ""]);
+  /** from the third stop on: its own date and time */
+  const [stopAt, setStopAt] = useState<{ date: string; time: string }[]>([
+    { date: "", time: "" },
+    { date: "", time: "" },
+  ]);
   const [hours, setHours] = useState<10 | 12 | 24>(10);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -459,6 +466,7 @@ export function SignSearch({
         const m: Field[] = [];
         if (!from) m.push("from");
         if (mode === "multi" ? stops.some((x) => !x) : !to) m.push("to");
+        if (mode === "multi" && stopAt.some((x, i) => i >= 2 && (!x.date || !x.time))) m.push("time");
         if (!date) m.push("date");
         if (!time) m.push("time");
         if (m.length) {
@@ -478,6 +486,8 @@ export function SignSearch({
       <input type="hidden" name="mode" value={mode} />
       <input type="hidden" name="from" value={from} />
       {mode === "multi" ? <input type="hidden" name="stops" value={stops.join(",")} /> : <input type="hidden" name="to" value={to} />}
+      {mode === "multi" &&
+        stopAt.map((x, i) => (i >= 2 && x.date && x.time ? <input key={i} type="hidden" name={`t${i + 1}`} value={`${x.date}T${x.time}`} /> : null))}
       {mode === "hourly" && <input type="hidden" name="hours" value={hours} />}
 
       {modes.length > 1 && (
@@ -512,11 +522,38 @@ export function SignSearch({
           {stops.map((_, i) => (
             <div key={i} className="relative min-w-0">
               {placeField(`s${i}`, `${L.stop} ${num(i + 1)}`)}
+              {i >= 2 && (
+                <div className="grid grid-cols-2 gap-2 -mt-3 mb-1" data-testid={`stop-at-${i + 1}`}>
+                  <input
+                    type="date"
+                    min={minDate}
+                    max={maxDate}
+                    value={stopAt[i]?.date ?? ""}
+                    onChange={(e) => setStopAt((list) => list.map((y, j) => (j === i ? { ...y, date: e.target.value } : y)))}
+                    aria-label={`${L.stopDate} ${num(i + 1)}`}
+                    className={`field ${missing.includes("time") && !stopAt[i]?.date ? "!border-danger" : ""}`}
+                  />
+                  <select
+                    value={stopAt[i]?.time ?? ""}
+                    onChange={(e) => setStopAt((list) => list.map((y, j) => (j === i ? { ...y, time: e.target.value } : y)))}
+                    aria-label={`${L.stopTime} ${num(i + 1)}`}
+                    className={`field ${stopAt[i]?.time ? "" : "text-muted"} ${missing.includes("time") && !stopAt[i]?.time ? "!border-danger" : ""}`}
+                  >
+                    <option value="">{L.chooseTime}</option>
+                    {TIME_SLOTS.map((t) => (
+                      <option key={t} value={t}>
+                        {formatTime(t, lang)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {stops.length > 2 && (
                 <button
                   type="button"
                   onClick={() => {
                     setStops((list) => list.filter((_, j) => j !== i));
+                    setStopAt((list) => list.filter((_, j) => j !== i));
                     setOpen(null);
                   }}
                   aria-label={`${L.removeStop} ${num(i + 1)}`}
@@ -535,6 +572,7 @@ export function SignSearch({
               type="button"
               onClick={() => {
                 setStops((list) => [...list, ""]);
+                setStopAt((list) => [...list, { date: "", time: "" }]);
                 setOpen(`s${stops.length}`);
                 setNav({});
               }}

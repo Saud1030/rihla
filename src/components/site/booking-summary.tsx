@@ -1,6 +1,6 @@
 import type { Booking } from "@/db/schema";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
-import { formatDate, formatSAR, formatTime, formatNumber } from "@/lib/format";
+import { formatDate, formatSAR, formatTime, formatNumber, stopLines } from "@/lib/format";
 import { maskPhone } from "@/lib/booking";
 import { bookingEnd } from "@/lib/timespan";
 
@@ -19,6 +19,18 @@ export function StatusBadge({ status, t }: { status: Booking["status"]; t: Dicti
 export function BookingSummary({ b, lang, t, vatNumber }: { b: Booking; lang: Locale; t: Dictionary; vatNumber?: string }) {
   const rows: [string, React.ReactNode][] = [
     [t.checkout.route, b.routeTitle],
+    ...(b.stops?.length
+      ? ([
+          [
+            lang === "ar" ? "المسار" : "Stops",
+            <ol key="s" className="list-decimal ps-5" data-testid="summary-stops">
+              {stopLines(b, lang).map((l, i) => (
+                <li key={i}>{l}</li>
+              ))}
+            </ol>,
+          ],
+        ] as [string, React.ReactNode][])
+      : []),
     [t.checkout.vehicle, b.vehicleName],
     [t.checkout.when, `${formatDate(b.pickupDate, lang)} · ${formatTime(b.pickupTime, lang)}`],
     ...(bookingEnd(b, lang) ? ([[b.hours || !b.toLocationId ? t.checkout.endsAt : t.checkout.arrivesAround, bookingEnd(b, lang)!]] as [string, string][]) : []),

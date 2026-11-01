@@ -71,6 +71,7 @@ async function Content() {
         initialTheme={brand.theme}
         logoUrl={brand.logoUrl}
         placeholders={{ heroTitle: t.hero.title, heroLead: t.hero.lead }}
+        initialHeroMode={st.hero_text_mode === "custom" || st.hero_text_mode === "hidden" ? st.hero_text_mode : (st.hero_title_ar || st.hero_lead_ar) ? "custom" : "default"}
         initialTexts={{
           company_name_ar: brand.name.ar,
           company_name_en: brand.name.en,

@@ -123,6 +123,11 @@ async function Content({ lang, t, searchParams }: { lang: Locale; t: Dictionary;
         initialTime={isClock(sp.time) ? sp.time : ""}
         span={quote.minutes ? { minutes: quote.minutes, kind: "arrives" } : null}
         action={createBooking.bind(null, lang)}
+        schedule={quote.places.slice(3).map((p, n) => {
+          const k = n + 3;
+          const at = typeof sp[`t${k}`] === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(sp[`t${k}`] as string) ? (sp[`t${k}`] as string).split("T") : ["", ""];
+          return { index: k, label: `${t.multi.stopAt} ${formatNumber(k, lang)}: ${name(p)}`, date: at[0], time: at[1] };
+        })}
       />
     </>
   );

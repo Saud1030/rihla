@@ -67,3 +67,14 @@ export function vatNote(vat: { rateBp: number; inclusiveDisplay: boolean }, loca
 
 /** Staff-facing running booking number: 1 -> MHT01, 120 -> MHT120 */
 export const bookingNo = (n: number | null | undefined) => (n ? `MHT${String(n).padStart(2, "0")}` : "—");
+
+/** a multi-stop trip's places in order, with the date and time set for the later stops */
+export function stopLines(b: { stops?: string[] | null; stopTimes?: (string | null)[] | null }, locale: Locale): string[] {
+  if (!b.stops?.length) return [];
+  return b.stops.map((name, i) => {
+    const at = b.stopTimes?.[i];
+    if (!at) return name;
+    const [d, t] = at.split(" ");
+    return `${name} — ${formatDate(d, locale, { weekday: false })} ${formatTime(t, locale)}`;
+  });
+}

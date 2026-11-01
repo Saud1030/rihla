@@ -14,7 +14,7 @@ import { multiTitle, parseStops, quoteMultiTrip } from "@/lib/multi";
 
 export type BookingFormState = {
   errors?: Partial<Record<FieldName, true>>;
-  formError?: "generic" | "trip";
+  formError?: "generic" | "trip" | "stops";
   values?: Record<string, string>;
 };
 
@@ -85,6 +85,23 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
         : await resolveFixedTrip(Number(d.tripId), d.reversed === "1", locale);
   if (!resolved) return { formError: "trip", values };
 
+  // multi-stop: from the third destination on, each has its own date and time, in order, after the start
+  let stopTimes: (string | null)[] | null = null;
+  if (resolved.mode === "multi" && resolved.stops) {
+    stopTimes = resolved.stops.map(() => null);
+    let last = `${d.date} ${d.time}`;
+    for (let k = 3; k < resolved.stops.length; k++) {
+      const sd = String(formData.get(`stopDate_${k}`) ?? "");
+      const stt = String(formData.get(`stopTime_${k}`) ?? "");
+      values[`stopDate_${k}`] = sd;
+      values[`stopTime_${k}`] = stt;
+      const at = `${sd} ${stt}`;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(sd) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(stt) || sd > maxBookingDate() || at <= last) return { formError: "stops", values };
+      stopTimes[k] = at;
+      last = at;
+    }
+  }
+
   const errors: BookingFormState["errors"] = {};
   if (d.date < todayInRiyadh() || d.date > maxBookingDate()) errors.date = true;
   if (d.passengers > resolved.vehicle.passengers) errors.passengers = true;
@@ -110,6 +127,7 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
         distanceKm: resolved.km,
         hours: resolved.hours,
         stops: resolved.stops ?? null,
+        stopTimes,
         durationMin: resolved.durationMin,
         routeTitle: resolved.title,
         vehicleName: locale === "ar" ? resolved.vehicle.nameAr : resolved.vehicle.nameEn,

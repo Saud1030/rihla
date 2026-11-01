@@ -7,6 +7,7 @@ import { getHomeBanners, getSettings, getVehicles } from "@/lib/catalog";
 import { BannerSlider } from "@/components/site/banner-slider";
 import { getBrand, getHeroBackground } from "@/lib/brand";
 import { TripSearch } from "@/components/site/trip-search";
+import { HeroSlides } from "@/components/site/hero-slides";
 import { formatNumber } from "@/lib/format";
 import { PersonIcon, BagIcon, WhatsAppIcon, PhoneIcon } from "@/components/icons";
 import { waLink } from "@/components/site/whatsapp-fab";
@@ -24,11 +25,11 @@ export default async function HomePage() {
           <HeroBackground />
         </Suspense>
         {/* the text, then the booking box as a wide rectangle under it */}
-        <div className="relative mx-auto max-w-6xl px-4 py-10 md:py-14 grid gap-8">
+        <div className="relative mx-auto max-w-6xl px-4 py-8 md:py-12 grid gap-6">
           <Suspense
             fallback={
               <div>
-                <h1 className="text-[2.1rem] md:text-5xl font-semibold max-w-[16ch]">{t.hero.title}</h1>
+                <h1 className="text-3xl md:text-[2.6rem] leading-tight font-semibold max-w-[18ch]">{t.hero.title}</h1>
                 <p className="mt-5 text-lg text-muted max-w-[52ch]">{t.hero.lead}</p>
               </div>
             }
@@ -36,7 +37,7 @@ export default async function HomePage() {
             <HeroText lang={lang} t={t} />
           </Suspense>
 
-          <div className="booking-box sign-reveal p-5 md:p-6" data-testid="booking-box">
+          <div className="booking-box sign-reveal p-4 md:p-5 w-full max-w-4xl" data-testid="booking-box">
             <Suspense fallback={<SearchFormSkeleton />}>
               <TripSearch lang={lang} t={t} id="search" />
             </Suspense>
@@ -97,11 +98,15 @@ export default async function HomePage() {
 }
 
 async function HeroText({ lang, t }: { lang: Locale; t: Dictionary }) {
-  const brand = await getBrand();
+  const { hero } = await getBrand();
+  // set in Admin -> Appearance: the default text, the admin's own text, or none
+  if (hero.mode === "hidden") return <h1 className="sr-only">{t.hero.title}</h1>;
+  const title = hero.mode === "custom" ? hero.title[lang] || hero.title.ar : t.hero.title;
+  const lead = hero.mode === "custom" ? hero.lead[lang] || (lang === "ar" ? "" : hero.lead.ar) : t.hero.lead;
   return (
-    <div>
-      <h1 className="text-[2.1rem] md:text-5xl font-semibold max-w-[16ch]">{brand.hero.title[lang] || t.hero.title}</h1>
-      <p className="mt-5 text-lg text-muted max-w-[52ch]">{brand.hero.lead[lang] || t.hero.lead}</p>
+    <div data-testid="hero-text">
+      <h1 className="text-3xl md:text-[2.6rem] leading-tight font-semibold max-w-[18ch]">{title}</h1>
+      {lead && <p className="mt-4 text-lg text-muted max-w-[52ch]">{lead}</p>}
     </div>
   );
 }
@@ -175,13 +180,17 @@ async function ContactBand({ t }: { t: Dictionary }) {
 }
 
 async function HomeBanners({ lang, t }: { lang: Locale; t: Dictionary }) {
-  const banners = await getHomeBanners();
+  const [banners, st] = await Promise.all([getHomeBanners(), getSettings()]);
   if (!banners.length) return null;
   const pick = (ar: string, en: string) => (lang === "ar" ? ar || en : en || ar);
   return (
     <div className="mx-auto max-w-6xl px-4 pt-10">
       <BannerSlider
         labels={t.home.banners}
+        autoplay={st.banners_autoplay !== "0"}
+        effect={st.banners_effect === "fade" ? "fade" : "slide"}
+        seconds={Math.min(30, Math.max(3, Number(st.banners_seconds) || 6))}
+        rtl={lang === "ar"}
         slides={banners.map((b) => ({
           id: b.id,
           src: `/api/banners/${b.id}?v=${b.updatedAt.getTime()}`,
@@ -202,8 +211,7 @@ async function HeroBackground() {
   const veil = { light: "bg-paper/45", medium: "bg-paper/65", strong: "bg-paper/80" }[bg.overlay];
   return (
     <div className="absolute inset-0 -z-10" aria-hidden="true" data-testid="hero-bg">
-      {/* eslint-disable-next-line @next/next/no-img-element -- served from our own API route */}
-      <img src={bg.url} alt="" className="size-full object-cover" fetchPriority="high" />
+      <HeroSlides urls={bg.images.map((x) => x.url)} animate={bg.animate} seconds={bg.seconds} />
       <div className={`absolute inset-0 ${veil}`} data-overlay={bg.overlay} />
       {/* a bit more veil on the headline's side (start), so the text stays crisp on busy photos */}
       <div className="absolute inset-y-0 start-0 hidden lg:block w-3/5 from-paper/75 to-transparent ltr:bg-gradient-to-r rtl:bg-gradient-to-l" />

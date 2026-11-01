@@ -6,6 +6,11 @@ import { todayInRiyadh } from "@/lib/booking";
 import { formatDate } from "@/lib/format";
 import { deleteBanner, removeHero, saveBanner, saveHomeDisplay, toggleBanner, uploadHero } from "../../banner-actions";
 import { getSettings } from "@/lib/catalog";
+import { getBrand, heroImages, HERO_SLOTS } from "@/lib/brand";
+import { getDictionary } from "@/i18n/dictionaries";
+import { HeroUploader } from "@/components/admin/hero-uploader";
+
+const t = getDictionary("ar");
 import { ActionForm } from "@/components/admin/action-form";
 import { Card, Field, PageHeader, Skeleton } from "@/components/admin/ui";
 
@@ -42,10 +47,8 @@ async function Banners({ searchParams }: { searchParams: Promise<Record<string, 
     })
     .from(s.banners)
     .orderBy(asc(s.banners.sortOrder), asc(s.banners.id));
-  const [st, [hero]] = await Promise.all([
-    getSettings(),
-    db.select({ updatedAt: s.assets.updatedAt }).from(s.assets).where(eq(s.assets.key, "hero")).limit(1),
-  ]);
+  const [st, heroes, brand] = await Promise.all([getSettings(), heroImages(), getBrand()]);
+  const hero = heroes[0];
   const heroOn = st.hero_bg_enabled !== "0";
   const today = todayInRiyadh();
   const state = (b: Row) =>
@@ -57,36 +60,48 @@ async function Banners({ searchParams }: { searchParams: Promise<Record<string, 
       <Card className="p-6" data-testid="hero-card">
         <h2 className="font-semibold">خلفية أعلى الصفحة الرئيسية</h2>
         <p className="text-sm text-muted mt-1 mb-4 max-w-[70ch]">
-          صورة تظهر خلف لوحة الحجز والعنوان في أعلى الصفحة الرئيسية، وباقي الصفحة كما هو. المقاس المقترح ١٩٢٠×٩٠٠ بكسل (PNG أو JPG أو WEBP، حتى ٣ ميجابايت).
+          صورة تظهر خلف لوحة الحجز والعنوان في أعلى الصفحة الرئيسية، وباقي الصفحة كما هو. المقاس المقترح ١٩٢٠×٩٠٠ بكسل (PNG أو JPG أو WEBP، حتى ٣ ميجابايت). تقدر تضيف حتى ٥ صور تتبدّل تلقائيًا بحركة ناعمة، وتشوف المعاينة قبل الحفظ.
         </p>
         {sp.hero === "deleted" && !hero && (
           <p role="status" className="mb-4 rounded-lg bg-sign-soft border border-sign/20 px-4 py-3 text-sign">
             تم حذف الخلفية. يظهر أعلى الصفحة الرئيسية الآن بدون صورة.
           </p>
         )}
-        <div className="grid gap-5 sm:grid-cols-[240px_1fr] items-start">
-          <div className="rounded-lg border border-line bg-stone overflow-hidden aspect-[16/9] grid place-items-center text-sm text-muted">
-            {hero ? (
-              // eslint-disable-next-line @next/next/no-img-element -- served from our own API route
-              <img src={`/api/brand/hero?v=${hero.updatedAt.getTime().toString(36)}`} alt="الخلفية الحالية" className={`size-full object-cover ${heroOn ? "" : "opacity-40"}`} />
-            ) : (
-              "لا توجد خلفية"
-            )}
+        {sp.hero === "added" && (
+          <p role="status" className="mb-4 rounded-lg bg-sign-soft border border-sign/20 px-4 py-3 text-sign">
+            تم رفع الخلفية، وتظهر الآن خلف أعلى الصفحة الرئيسية.
+          </p>
+        )}
+        {heroes.length > 0 && (
+          <div className="mb-5">
+            <p className={`text-sm mb-2 ${heroOn ? "text-sign" : "text-danger"}`}>
+              {heroOn ? (heroes.length > 1 ? `تظهر الآن في الموقع: ${heroes.length} صور تتبدّل تلقائيًا` : "تظهر الآن في الموقع") : "مخفية عن الموقع"}
+            </p>
+            <ul className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" data-testid="hero-list">
+              {heroes.map((h, n) => (
+                <li key={h.key} className="space-y-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- served from our own API route */}
+                  <img src={h.url} alt={`الخلفية ${n + 1}`} className={`w-full aspect-[16/9] rounded-lg border border-line object-cover ${heroOn ? "" : "opacity-40"}`} />
+                  <ActionForm action={removeHero} submitLabel={heroes.length === 1 ? "حذف الخلفية" : `حذف الصورة ${n + 1}`} pendingLabel="جارٍ الحذف…" submitClassName="text-xs text-danger hover:underline" className="">
+                    <input type="hidden" name="slot" value={h.key} />
+                  </ActionForm>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div className="space-y-4">
-            {hero && <p className={`text-sm ${heroOn ? "text-sign" : "text-danger"}`}>{heroOn ? "تظهر الآن في الموقع" : "مخفية عن الموقع"}</p>}
-            <ActionForm action={uploadHero} submitLabel={hero ? "استبدال الخلفية" : "رفع الخلفية"} pendingLabel="جارٍ الرفع…">
-              <Field label={hero ? "صورة جديدة" : "صورة الخلفية"}>
-                <input type="file" name="hero" accept="image/png,image/jpeg,image/webp" required className="field" />
-              </Field>
-            </ActionForm>
-            {hero && (
-              <ActionForm action={removeHero} submitLabel="حذف الخلفية" pendingLabel="جارٍ الحذف…" submitClassName="btn btn-ghost !min-h-9 !py-1 text-sm !text-danger">
-                <span className="sr-only">حذف الخلفية</span>
-              </ActionForm>
-            )}
-          </div>
-        </div>
+        )}
+        {heroes.length < HERO_SLOTS.length ? (
+          <ActionForm action={uploadHero} submitLabel={hero ? "حفظ الخلفية" : "رفع الخلفية"} pendingLabel="جارٍ الرفع…">
+            <HeroUploader
+              current={hero?.url ?? null}
+              overlay={(["light", "medium", "strong"].includes(st.hero_bg_overlay) ? st.hero_bg_overlay : "light") as "light" | "medium" | "strong"}
+              title={brand.hero.title.ar || t.hero.title}
+              lead={brand.hero.lead.ar || t.hero.lead}
+            />
+          </ActionForm>
+        ) : (
+          <p className="text-sm text-muted">وصلت للحد الأقصى (٥ صور). احذف صورة لإضافة غيرها.</p>
+        )}
       </Card>
 
       {/* ---------- what shows on the home page ---------- */}
@@ -118,12 +133,62 @@ async function Banners({ searchParams }: { searchParams: Promise<Record<string, 
             </div>
           </fieldset>
           <label className="flex items-start gap-3">
+            <input type="checkbox" name="hero_bg_animate" defaultChecked={st.hero_bg_animate !== "0"} className="size-4 mt-1 accent-sign" />
+            <span>
+              <span className="block font-medium">تحريك الخلفية تلقائيًا</span>
+              <span className="block text-sm text-muted">تكبير بطيء للصورة، والصور تتبدّل بتلاشٍ ناعم إذا كانت أكثر من صورة.</span>
+            </span>
+          </label>
+          <Field label="مدة كل صورة خلفية">
+            <select name="hero_bg_seconds" defaultValue={st.hero_bg_seconds || "7"} className="field max-w-48">
+              {["5", "7", "10", "15"].map((v) => (
+                <option key={v} value={v}>
+                  {v} ثوانٍ
+                </option>
+              ))}
+            </select>
+          </Field>
+          <label className="flex items-start gap-3">
             <input type="checkbox" name="banners_enabled" defaultChecked={st.banners_enabled !== "0"} className="size-4 mt-1 accent-sign" />
             <span>
               <span className="block font-medium">إظهار قسم البنرات (العروض) تحت لوحة الحجز</span>
               <span className="block text-sm text-muted">يخفي كل البنرات مرة واحدة. ولإخفاء أو حذف بنر واحد استخدم الأزرار في قائمة البنرات بالأسفل.</span>
             </span>
           </label>
+          <label className="flex items-start gap-3">
+            <input type="checkbox" name="banners_autoplay" defaultChecked={st.banners_autoplay !== "0"} className="size-4 mt-1 accent-sign" />
+            <span>
+              <span className="block font-medium">تحريك البنرات تلقائيًا</span>
+              <span className="block text-sm text-muted">تتوقف الحركة إذا مرّ الزائر بالمؤشر فوق البنر.</span>
+            </span>
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <fieldset>
+              <legend className="text-sm font-medium mb-2">نوع الحركة</legend>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["slide", "انزلاق"],
+                    ["fade", "تلاشٍ"],
+                  ] as const
+                ).map(([v, label]) => (
+                  <label key={v} className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 has-[:checked]:border-sign has-[:checked]:bg-sign-soft">
+                    <input type="radio" name="banners_effect" value={v} defaultChecked={(st.banners_effect || "slide") === v} className="accent-sign" />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <Field label="مدة كل بنر">
+              <select name="banners_seconds" defaultValue={st.banners_seconds || "6"} className="field max-w-48">
+                {["4", "6", "8", "12"].map((v) => (
+                  <option key={v} value={v}>
+                    {v} ثوانٍ
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
         </ActionForm>
       </Card>
 

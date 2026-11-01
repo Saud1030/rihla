@@ -40,9 +40,11 @@ type Props = {
   /** how long the booking lasts: hourly package, or the estimated drive for transfers */
   span?: { minutes: number; kind: "ends" | "arrives" } | null;
   action: (state: BookingFormState, formData: FormData) => Promise<BookingFormState>;
+  /** multi-stop trips: from the third stop on, each stop has its own date and time */
+  schedule?: { index: number; label: string; date: string; time: string }[];
 };
 
-export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action }: Props) {
+export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action, schedule = [] }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const v = state.values ?? {};
   const [tripId, setTripId] = useState<string>(v.tripId || initialTripId);
@@ -165,6 +167,26 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
             {endText && (
               <p className="sm:col-span-2 -mt-2 text-sm bg-sign-soft border border-sign/15 rounded-lg px-3 py-2" data-testid="form-end">
                 {endText}
+              </p>
+            )}
+            {schedule.map((x) => (
+              <fieldset key={x.index} className="sm:col-span-2 rounded-lg border border-line bg-paper p-3" data-testid={`stop-time-${x.index}`}>
+                <legend className="px-1 text-sm font-medium">{x.label}</legend>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="block text-xs text-muted mb-1">{t.form.date}</span>
+                    <input type="date" name={`stopDate_${x.index}`} min={minDate} max={maxDate} defaultValue={v[`stopDate_${x.index}`] ?? x.date} required className="field" />
+                  </label>
+                  <label className="block">
+                    <span className="block text-xs text-muted mb-1">{t.form.time}</span>
+                    <input type="time" name={`stopTime_${x.index}`} defaultValue={v[`stopTime_${x.index}`] ?? x.time} required className="field" />
+                  </label>
+                </div>
+              </fieldset>
+            ))}
+            {state.formError === "stops" && (
+              <p className="sm:col-span-2 text-sm text-danger" role="alert">
+                {E.stops}
               </p>
             )}
             {field(

@@ -615,6 +615,7 @@ const appearanceSchema = z.object({
   hero_title_en: z.string().trim().max(120),
   hero_lead_ar: z.string().trim().max(300),
   hero_lead_en: z.string().trim().max(300),
+  hero_text_mode: z.enum(["default", "custom", "hidden"]).default("default"),
   preset: z.string().max(40),
   primary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -633,6 +634,7 @@ export async function saveAppearance(_prev: ActionState, formData: FormData): Pr
     return { error: "راجع الحقول: الألوان بصيغة ‎#RRGGBB‎." };
   }
   const d = parsed.data;
+  if (d.hero_text_mode === "custom" && !d.hero_title_ar) return { error: "اكتب العنوان بالعربي، أو اختر «النص الافتراضي» أو «بدون نص»." };
   const theme = { preset: d.preset, primary: d.primary.toLowerCase(), accent: d.accent.toLowerCase(), background: d.background.toLowerCase(), font: d.font, corners: d.corners };
   const rows: Record<string, string> = {
     company_name_ar: d.company_name_ar,
@@ -643,6 +645,7 @@ export async function saveAppearance(_prev: ActionState, formData: FormData): Pr
     hero_title_en: d.hero_title_en,
     hero_lead_ar: d.hero_lead_ar,
     hero_lead_en: d.hero_lead_en,
+    hero_text_mode: d.hero_text_mode,
     theme: JSON.stringify(theme),
   };
   await db.transaction(async (tx) => {

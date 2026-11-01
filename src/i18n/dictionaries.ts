@@ -42,6 +42,8 @@ const ar = {
     addStop: "أضف وجهة",
     removeStop: "احذف هذه الوجهة",
     chooseStop: "إلى أين بعدها؟",
+    stopDate: "تاريخ الوجهة",
+    stopTime: "وقت الوجهة",
     pickupPlace: "مكان الاستلام",
     duration: "المدة",
     hours: { 10: "١٠ ساعات", 12: "١٢ ساعة", 24: "٢٤ ساعة" },
@@ -188,6 +190,7 @@ const ar = {
     sending: "جارٍ إنشاء الحجز…",
     agree: "بالمتابعة أنت توافق على الشروط والأحكام.",
     errors: {
+      stops: "حدّد تاريخ ووقت كل وجهة من الثالثة وما بعدها، بعد موعد بداية الرحلة وبالترتيب.",
       name: "اكتب الاسم الكامل.",
       phone: "اكتب رقم واتساب صحيحًا، مثل 0501234567 أو مع رمز الدولة.",
       email: "البريد الإلكتروني غير صحيح.",
@@ -339,6 +342,7 @@ const ar = {
     unavailableLead: "اختر نقطتين مختلفتين، أو تواصل معنا على واتساب لنعطيك السعر.",
   },
   multi: {
+    stopAt: "موعد الوجهة",
     title: "رحلة متعددة الوجهات",
     lead: "سيارة واحدة تمر بكل الوجهات بالترتيب الذي اخترته. السعر مجموع أسعار المراحل، وهو ثابت ولن يتغير بعد الدفع.",
     legs: "مراحل الرحلة",
@@ -502,6 +506,8 @@ const en: Dictionary = {
     addStop: "Add a stop",
     removeStop: "Remove this stop",
     chooseStop: "Where to next?",
+    stopDate: "Date at this stop",
+    stopTime: "Time at this stop",
     pickupPlace: "Pickup point",
     duration: "Duration",
     hours: { 10: "10 hours", 12: "12 hours", 24: "24 hours" },
@@ -648,6 +654,7 @@ const en: Dictionary = {
     sending: "Creating your booking…",
     agree: "By continuing you agree to the terms and conditions.",
     errors: {
+      stops: "Set a date and time for every stop from the third on, after the trip starts and in order.",
       name: "Enter your full name.",
       phone: "Enter a valid WhatsApp number, with country code if outside Saudi Arabia.",
       email: "This email address is not valid.",
@@ -799,6 +806,7 @@ const en: Dictionary = {
     unavailableLead: "Pick two different places, or message us on WhatsApp for a quote.",
   },
   multi: {
+    stopAt: "Time at stop",
     title: "Multi-stop trip",
     lead: "One car takes you through every stop in the order you chose. The price is the sum of the legs, fixed and won't change after you pay.",
     legs: "Trip legs",

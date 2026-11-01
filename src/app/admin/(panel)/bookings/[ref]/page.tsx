@@ -20,6 +20,7 @@ import {
   formatDateTime,
   formatNumber,
   formatSAR,
+  stopLines,
   formatTime,
 } from "@/lib/format";
 import { ActionForm } from "@/components/admin/action-form";
@@ -109,6 +110,18 @@ async function Detail({
 
   const rows: [string, React.ReactNode][] = [
     ["الرحلة", b.routeTitle],
+    ...(b.stops?.length
+      ? ([
+          [
+            "المسار",
+            <ol key="s" className="list-decimal ps-5" data-testid="admin-stops">
+              {stopLines(b, "ar").map((l, i) => (
+                <li key={i}>{l}</li>
+              ))}
+            </ol>,
+          ],
+        ] as [string, React.ReactNode][])
+      : []),
     ["السيارة", b.vehicleName],
     [
       "طريقة التسعير",
@@ -116,7 +129,9 @@ async function Detail({
         ? `حسب المسافة (حوالي ${formatNumber(b.distanceKm ?? 0, "ar")} كم)`
         : b.pricingMode === "hourly"
           ? `بالساعة مع سائق (${formatNumber(b.hours ?? 0, "ar")} ساعة)`
-          : "سعر ثابت",
+          : b.pricingMode === "multi"
+            ? "رحلة متعددة الوجهات (مجموع أسعار المراحل)"
+            : "سعر ثابت",
     ],
     [
       "المبلغ",

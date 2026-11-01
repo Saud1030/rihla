@@ -1004,6 +1004,7 @@ if (!ONLY || ONLY === "features") {
     await a.fill('input[name="company_name_ar"]', "شركة الاختبار للنقل");
     await a.selectOption('select[name="font"]', "tajawal");
     await a.selectOption('select[name="corners"]', "round");
+    await a.check('input[name="hero_text_mode"][value="custom"]');
     await a.fill('input[name="hero_title_ar"]', "عنوان من لوحة التحكم");
     await a.getByRole("button", { name: "حفظ المظهر" }).click();
     await a.getByText("تم حفظ المظهر").waitFor();
@@ -1031,11 +1032,19 @@ if (!ONLY || ONLY === "features") {
     await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
     await a.getByRole("button", { name: "الرجوع للتصميم الافتراضي" }).click();
     await a.fill('input[name="company_name_ar"]', "رحلة للنقل");
-    await a.fill('input[name="hero_title_ar"]', "");
+    // the home text can also be switched off altogether
+    await a.check('input[name="hero_text_mode"][value="hidden"]');
     await a.getByRole("button", { name: "حفظ المظهر" }).click();
     await a.getByText("تم حفظ المظهر").waitFor();
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("hero-text").count(), 0, "no text above the booking box");
     eq(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-sign").trim()), "#0b5d45", "default colour");
+    await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
+    await a.check('input[name="hero_text_mode"][value="default"]');
+    await a.getByRole("button", { name: "حفظ المظهر" }).click();
+    await a.getByText("تم حفظ المظهر").waitFor();
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    await page.getByTestId("hero-text").getByRole("heading", { name: "من المطار إلى الحرم", exact: false }).waitFor();
   });
   const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
   await check("logo: fake image, scripted SVG and >1MB files are refused", async () => {
@@ -1229,6 +1238,29 @@ if (!ONLY || ONLY === "features") {
     }
     await payInBrowser(page, ref, "pay");
     eq(sql(`select status from bookings where ref='${ref}'`), "paid", "paid");
+  });
+  await check("multi-stop trip: from the third stop on, each stop has its own date and time (home, trip page, booking, driver)", async () => {
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    await page.getByRole("tab", { name: "رحلة متعددة" }).click();
+    eq(await page.getByTestId("stop-at-3").count(), 0, "two stops: no extra times");
+    await page.getByRole("button", { name: /أضف وجهة/ }).click();
+    await page.locator("#search-panel").getByRole("button", { name: "إغلاق" }).click();
+    await page.getByTestId("stop-at-3").waitFor();
+    // the trip page shows a date and time for stop 3, filled from the link
+    const t3 = `${inDaysUTC(4)}T09:00`;
+    await page.goto(`${BASE}/ar/multi?stops=jeddah-airport,makkah,madinah,madinah-airport&t3=${t3}`, { waitUntil: "networkidle" });
+    eq(await page.locator('input[name="stopDate_3"]').inputValue(), inDaysUTC(4), "date filled");
+    eq(await page.locator('input[name="stopTime_3"]').inputValue(), "09:00", "time filled");
+    // before the start is refused
+    await fillBooking(page, { url: `/ar/multi?stops=jeddah-airport,makkah,madinah,madinah-airport&t3=${inDaysUTC(1)}T09:00`, vehicle: "تويوتا كامري", date: inDaysUTC(3) });
+    await page.getByText("حدّد تاريخ ووقت كل وجهة من الثالثة").waitFor();
+    const ref = await makeBooking(page, { url: `/ar/multi?stops=jeddah-airport,makkah,madinah,madinah-airport&t3=${t3}`, vehicle: "تويوتا كامري", date: inDaysUTC(3) });
+    eq(sql(`select stop_times::text from bookings where ref='${ref}'`), `[null, null, null, "${inDaysUTC(4)} 09:00"]`, "stored");
+    await page.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("summary-stops").locator("li").count(), 4, "customer sees every place");
+    assert((await page.getByTestId("summary-stops").locator("li").nth(3).innerText()).includes("٩:٠٠"), "with the stop's time");
+    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
+    eq(await a.getByTestId("admin-stops").locator("li").count(), 4, "admin sees every place");
   });
   await check("vehicle hourly prices are editable in admin", async () => {
     const id = sql("select id from vehicles where slug='toyota-camry'");
@@ -2015,6 +2047,48 @@ if (!ONLY || ONLY === "features") {
     eq(await page.getByTestId("hero-bg").count(), 0, "gone from the site");
     eq((await fetch(`${BASE}/api/brand/hero`)).status, 404, "image gone");
   });
+  await check("hero background: preview before saving; up to five photos take turns with a moving animation; banners move by themselves", async () => {
+    sql("delete from assets where key like 'hero%'");
+    await touchCache();
+    await a.goto(`${BASE}/admin/banners`, { waitUntil: "networkidle" });
+    // the preview changes as soon as a photo and a veil are picked, before anything is saved
+    await heroCard().locator('input[name="hero"]').setInputFiles({ name: "one.jpg", mimeType: "image/jpeg", buffer: JPG });
+    await heroCard().getByTestId("hero-preview").locator('[data-preview-src="new"]').waitFor();
+    await heroCard().locator('input[name="preview_overlay"][value="strong"]').check();
+    eq(await heroCard().locator("[data-preview-veil]").getAttribute("data-preview-veil"), "strong", "veil previewed");
+    eq(sql("select count(*) from assets where key like 'hero%'"), "0", "nothing saved yet");
+    await submit(a, "رفع الخلفية");
+    await a.waitForURL(/hero=added/, { waitUntil: "commit" });
+    eq(sql("select value from settings where key='hero_bg_overlay'"), "strong", "the previewed veil is kept");
+    // a second photo
+    await heroCard().locator('input[name="hero"]').setInputFiles({ name: "two.jpg", mimeType: "image/jpeg", buffer: Buffer.concat([JPG, Buffer.from([1])]) });
+    await submit(a, "حفظ الخلفية");
+    await a.waitForURL(/hero=added/, { waitUntil: "commit" });
+    eq(sql("select string_agg(key, ',' order by key) from assets where key like 'hero%'"), "hero,hero-2", "two photos");
+    eq(await heroCard().getByTestId("hero-list").locator("li").count(), 2, "listed");
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    const bg = page.getByTestId("hero-bg");
+    eq(await bg.locator("img").count(), 2, "both photos on the site");
+    eq(await bg.locator("[data-animate]").getAttribute("data-animate"), "1", "moving by default");
+    eq((await fetch(BASE + (await bg.locator("img").nth(1).getAttribute("src")))).status, 200, "second photo served");
+    // animation off; banners fade instead of slide
+    await saveDisplay(async () => { await a.uncheck('input[name="hero_bg_animate"]'); await a.check('input[name="banners_effect"][value="fade"]'); await a.selectOption('select[name="banners_seconds"]', "4"); });
+    eq(sql("select string_agg(key||'='||value, ',' order by key) from settings where key in ('hero_bg_animate','banners_effect','banners_seconds')"), "banners_effect=fade,banners_seconds=4,hero_bg_animate=0", "saved");
+    await addBanner({ title: "بنر متحرك" });
+    await a.waitForURL(/added=1/, { waitUntil: "commit" });
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("hero-bg").locator("[data-animate]").getAttribute("data-animate"), "0", "still");
+    eq(await page.getByTestId("home-banners").getAttribute("data-effect"), "fade", "fade effect");
+    await saveDisplay(async () => { await a.check('input[name="hero_bg_animate"]'); await a.check('input[name="banners_effect"][value="slide"]'); await a.check('input[name="hero_bg_overlay"][value="light"]'); });
+    // remove the photos again
+    await a.goto(`${BASE}/admin/banners`, { waitUntil: "networkidle" });
+    await a.getByRole("button", { name: "حذف الصورة 2" }).click();
+    await a.waitForURL(/hero=deleted/, { waitUntil: "commit" });
+    await a.getByRole("button", { name: "حذف الخلفية", exact: true }).click();
+    await heroCard().getByText("تم حذف الخلفية").waitFor();
+    eq(sql("select count(*) from assets where key like 'hero%'"), "0", "all gone");
+    sql("delete from banners where title_ar='بنر متحرك'");
+  });
   await check("offers section: one switch hides all banners; turning it back on shows them", async () => {
     await addBanner({ title: "عرض للتجربة" });
     await a.waitForURL(/added=1/, { waitUntil: "commit" });
@@ -2519,6 +2593,63 @@ if (!ONLY || ONLY === "drivers") {
     await a.goto(`${BASE}/admin/bookings?status=paid`, { waitUntil: "networkidle" });
     assert((await a.getByTestId("bookings-export").getByRole("link", { name: "Excel" }).getAttribute("href")).includes("status=paid"), "download keeps the filters");
     sql(`delete from bookings where ref='${r1}'`);
+  });
+
+  await check("dashboard: today's trips by status, number of drivers, this month's payments; no upcoming list", async () => {
+    const today = sql("select (now() at time zone 'Asia/Riyadh')::date");
+    const r1 = paidBooking({ name: "دفعة الشهر", status: "confirmed", date: today });
+    const r2 = paidBooking({ name: "رحلة ملغية اليوم", status: "cancelled", date: today });
+    sql(`update bookings set payment_id='TEST-'||ref, payment_method='myfatoorah', paid_at=now() where ref in ('${r1}','${r2}')`);
+    await a.goto(`${BASE}/admin`, { waitUntil: "networkidle" });
+    const todayCard = a.locator('[data-stat="today"]');
+    const counts = sql(`select count(*) filter (where status in ('paid','confirmed')), count(*) filter (where status='completed'), count(*) filter (where status='cancelled') from bookings where pickup_date='${today}'`).split("|").map(Number);
+    const ar = (n) => n.toLocaleString("ar-SA");
+    assert((await todayCard.innerText()).includes(`مؤكد ${ar(counts[0])} · مكتمل ${ar(counts[1])} · ملغي ${ar(counts[2])}`), "today by status: " + (await todayCard.innerText()));
+    eq(await todayCard.getAttribute("href"), `/admin/bookings?from=${today}&to=${today}`, "opens today's bookings");
+    const drivers = Number(sql("select count(*) from drivers where status='approved'"));
+    assert((await a.locator('[data-stat="drivers"]').innerText()).includes(ar(drivers)), "drivers count");
+    const pay = a.getByTestId("month-payments");
+    await pay.getByText("دفعة الشهر").waitFor();
+    await pay.getByText("رحلة ملغية اليوم").waitFor();
+    eq(await a.getByText("الرحلات القادمة (٧ أيام)").count(), 0, "upcoming list removed");
+    sql(`delete from bookings where ref in ('${r1}','${r2}')`);
+  });
+
+  await check("messages: filter by customer, driver, WhatsApp, email and rating", async () => {
+    const kinds = async (type) => {
+      await a.goto(`${BASE}/admin/messages?type=${type}`, { waitUntil: "networkidle" });
+      return a.getByTestId("notification-list").locator("li[data-kind]").evaluateAll((els) => els.map((e) => e.getAttribute("data-kind")));
+    };
+    const d = await kinds("driver");
+    assert(d.length > 0 && d.every((k) => k.startsWith("driver_")), "driver only: " + d.join(","));
+    const c = await kinds("customer");
+    assert(c.length > 0 && c.every((k) => ["customer_driver", "rating_request", "payment_receipt", "trip_invoice"].includes(k)), "customer only: " + c.join(","));
+    const r = await kinds("rating");
+    assert(r.length > 0 && r.every((k) => k.startsWith("rating_")), "rating only: " + r.join(","));
+    const e = await kinds("email");
+    eq(e.length, Number(sql("select least(count(*), 100) from notifications where channel='email'")), "email only");
+    // the status filter keeps the type
+    await a.goto(`${BASE}/admin/messages?type=driver`, { waitUntil: "networkidle" });
+    assert((await a.getByRole("link", { name: "أُرسلت" }).getAttribute("href")).includes("type=driver"), "filters combine");
+  });
+
+  await check("admin photo: uploaded from the account page (cropped square), shown in the top bar; private", async () => {
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+    sql("delete from assets where key like 'avatar-%'");
+    await a.goto(`${BASE}/admin/account`, { waitUntil: "networkidle" });
+    await a.getByTestId("avatar-card").locator('input[name="photo"]').setInputFiles({ name: "me.png", mimeType: "image/png", buffer: png });
+    await a.getByTestId("card-cropper").getByRole("button", { name: "اعتماد" }).click();
+    await a.getByTestId("avatar-card").getByRole("button", { name: "حفظ الصورة" }).click();
+    await a.getByText("تم حفظ صورتك.").waitFor();
+    const uid = sql("select id from admin_users where email='admin@example.com'");
+    eq(sql(`select mime from assets where key='avatar-${uid}'`), "image/jpeg", "saved (cropped JPEG)");
+    await a.reload({ waitUntil: "networkidle" });
+    const src = await a.getByTestId("current-admin").locator("img").getAttribute("src");
+    assert(src.startsWith(`/api/admin/avatar/${uid}`), "in the top bar");
+    eq((await a.request.get(BASE + src)).status(), 200, "for signed-in users");
+    eq((await fetch(BASE + src)).status, 404, "not public");
+    await a.getByTestId("avatar-card").getByRole("button", { name: "حذف الصورة" }).click();
+    await a.getByText("تم حذف الصورة.").waitFor();
   });
 
   await check("staff account: only the sections it was given, in the menu and on the server", async () => {

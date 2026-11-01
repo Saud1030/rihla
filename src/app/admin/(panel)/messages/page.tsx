@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
@@ -17,6 +17,27 @@ const FILTERS = [
   ["sent", "أُرسلت"],
 ] as const;
 
+/** who / what the message is for */
+const TYPES = [
+  ["", "كل الأنواع"],
+  ["customer", "رسائل العميل"],
+  ["driver", "رسائل السائق"],
+  ["whatsapp", "واتساب"],
+  ["email", "البريد"],
+  ["rating", "التقييم"],
+] as const;
+type TypeKey = Exclude<(typeof TYPES)[number][0], "">;
+const CUSTOMER_KINDS = ["customer_driver", "rating_request", "payment_receipt", "trip_invoice"];
+const DRIVER_KINDS = ["driver_trip", "driver_approved", "driver_rejected", "driver_suspended", "driver_blocked"];
+const typeWhere = (t: TypeKey) =>
+  t === "customer"
+    ? inArray(s.notifications.kind, CUSTOMER_KINDS)
+    : t === "driver"
+      ? inArray(s.notifications.kind, DRIVER_KINDS)
+      : t === "rating"
+        ? inArray(s.notifications.kind, ["rating_request", "rating_received"])
+        : eq(s.notifications.channel, t);
+
 export default function MessagesPage({ searchParams }: PageProps<"/admin/messages">) {
   return (
     <>
@@ -30,14 +51,25 @@ export default function MessagesPage({ searchParams }: PageProps<"/admin/message
 
 async function Messages({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireSection("messages");
-  const status = String((await searchParams).status ?? "");
+  const sp = await searchParams;
+  const status = String(sp.status ?? "");
   const filter = (["pending", "failed", "sent"] as const).find((x) => x === status);
+  const type = String(sp.type ?? "");
+  const typeFilter = TYPES.map((x) => x[0]).find((x): x is TypeKey => x !== "" && x === type);
+  const href = (p: { status?: string; type?: string }) => {
+    const q = new URLSearchParams();
+    const st = p.status ?? (filter ?? "");
+    const ty = p.type ?? (typeFilter ?? "");
+    if (st) q.set("status", st);
+    if (ty) q.set("type", ty);
+    return `/admin/messages${q.size ? `?${q}` : ""}`;
+  };
   const [rows, st] = await Promise.all([
     db
       .select({ n: s.notifications, ref: s.bookings.ref, number: s.bookings.number })
       .from(s.notifications)
       .leftJoin(s.bookings, eq(s.bookings.id, s.notifications.bookingId))
-      .where(filter ? eq(s.notifications.status, filter) : undefined)
+      .where(and(filter ? eq(s.notifications.status, filter) : undefined, typeFilter ? typeWhere(typeFilter) : undefined))
       .orderBy(desc(s.notifications.id))
       .limit(100),
     getSettings(),
@@ -66,13 +98,25 @@ async function Messages({ searchParams }: { searchParams: Promise<Record<string,
           {FILTERS.map(([v, label]) => (
             <Link
               key={v}
-              href={v ? `/admin/messages?status=${v}` : "/admin/messages"}
-              className={`rounded-full px-3 py-1 text-sm border ${status === v ? "bg-sign text-white border-sign" : "border-line hover:border-sign"}`}
+              href={href({ status: v })}
+              className={`rounded-full px-3 py-1 text-sm border ${(filter ?? "") === v ? "bg-sign text-white border-sign" : "border-line hover:border-sign"}`}
             >
               {label}
             </Link>
           ))}
         </div>
+        <nav className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-line" aria-label="نوع الرسائل" data-testid="message-types">
+          {TYPES.map(([v, label]) => (
+            <Link
+              key={v}
+              href={href({ type: v })}
+              aria-current={(typeFilter ?? "") === v ? "page" : undefined}
+              className={`rounded-full px-3 py-1 text-sm border ${(typeFilter ?? "") === v ? "bg-ink text-white border-ink" : "border-line hover:border-sign"}`}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
         <NotificationList rows={rows.map((r) => ({ ...r.n, ref: r.ref, number: r.number }))} showBooking />
       </Card>
 

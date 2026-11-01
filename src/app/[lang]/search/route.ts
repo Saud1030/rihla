@@ -36,7 +36,13 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/[lang]/search">)
   if (q.get("mode") === "multi") {
     const stops = parseStops([from, ...(q.get("stops") ?? "").split(",")].filter(Boolean).join(","));
     if (!stops) return back();
-    return go(`/${locale}/multi`, { stops: stops.join(",") });
+    // dates and times of stops 3+ (t3=2026-11-03T10:00 ...)
+    const at: Record<string, string> = {};
+    for (let k = 3; k < stops.length; k++) {
+      const v = q.get(`t${k}`) ?? "";
+      if (/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/.test(v)) at[`t${k}`] = v;
+    }
+    return go(`/${locale}/multi`, { stops: stops.join(","), ...at });
   }
 
   const locations = await getLocations();

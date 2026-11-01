@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { and, eq, ne } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { requireSection } from "@/lib/auth";
+import { requireAdmin, requireSection } from "@/lib/auth";
+import { detectFile, IMAGE_TYPES, MB } from "@/lib/files";
 import { isSection } from "@/lib/permissions";
 import { normalizePhone } from "@/lib/phone";
 import type { ActionState } from "./actions";
@@ -88,4 +89,29 @@ export async function deleteUser(_prev: ActionState, formData: FormData): Promis
   if (u.role === "owner" && (await activeOwners(id)) === 0) return { error: "يجب أن يبقى مدير واحد على الأقل." };
   await db.delete(s.adminUsers).where(eq(s.adminUsers.id, id));
   redirect("/admin/users?deleted=1");
+}
+
+/* ---------- The signed-in user's own photo (shown in the panel's top bar) ---------- */
+
+export async function saveMyAvatar(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const me = await requireAdmin();
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) return { error: "اختر صورة أولًا." };
+  if (file.size > MB) return { error: "حجم الصورة أكبر من ١ ميجابايت." };
+  const data = Buffer.from(await file.arrayBuffer());
+  const kind = detectFile(data, IMAGE_TYPES);
+  if (!kind) return { error: "الصورة يجب أن تكون PNG أو JPG أو WEBP." };
+  const key = `avatar-${me.uid}`;
+  const now = new Date();
+  await db.insert(s.assets).values({ key, mime: kind.mime, data, updatedAt: now }).onConflictDoUpdate({ target: s.assets.key, set: { mime: kind.mime, data, updatedAt: now } });
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: "تم حفظ صورتك." };
+}
+
+export async function removeMyAvatar(_prev: ActionState, _formData: FormData): Promise<ActionState> {
+  const me = await requireAdmin();
+  await db.delete(s.assets).where(eq(s.assets.key, `avatar-${me.uid}`));
+  revalidatePath("/admin", "layout");
+  // the delete button goes away with the photo, so the message is shown by the page
+  redirect("/admin/account?avatar=removed");
 }

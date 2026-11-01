@@ -102,6 +102,16 @@ h3 {
   color: var(--color-ink);
   min-height: 46px;
 }
+/* the home booking box is compact, so the background photo and the banners show well */
+.booking-box .field {
+  min-height: 40px;
+  padding: 0.45rem 0.7rem;
+  font-size: 15px;
+}
+.booking-box .btn {
+  min-height: 40px;
+}
+
 .field:focus {
   outline: none;
   border-color: var(--color-sign);
@@ -167,6 +177,17 @@ h3 {
   .sign-reveal > *:nth-child(2) { animation-delay: 0.12s; }
   .sign-reveal > *:nth-child(3) { animation-delay: 0.24s; }
   .sign-reveal > *:nth-child(4) { animation-delay: 0.36s; }
+}
+
+/* slow zoom on the home background photo */
+@keyframes hero-zoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-zoom {
+    animation: hero-zoom 8s ease-out both;
+  }
 }
 
 @keyframes sign-in {

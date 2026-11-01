@@ -201,6 +201,8 @@ export const bookings = pgTable(
     hours: integer("hours"),
     /** multi-destination trip: every place in order (start, stops...), names in the booking's language */
     stops: jsonb("stops").$type<string[]>(),
+    /** multi-destination trip: when the car is at each place ("YYYY-MM-DD HH:MM"), null where not set (stops 3+ have one) */
+    stopTimes: jsonb("stop_times").$type<(string | null)[]>(),
     /** how long the booking lasts in minutes (hourly package, or estimated drive), for the end time */
     durationMin: integer("duration_min"),
     /** null until the customer picks a payment method on the checkout page */

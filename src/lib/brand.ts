@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { site } from "@/config/site";
 import type { Locale } from "@/i18n/dictionaries";
@@ -16,7 +16,7 @@ export type Brand = {
   logoUrl: string | null;
   theme: Theme;
   css: string;
-  hero: { title: Record<Locale, string>; lead: Record<Locale, string> };
+  hero: { title: Record<Locale, string>; lead: Record<Locale, string>; mode: "default" | "custom" | "hidden" };
 };
 
 const logoVersion = cache(() =>
@@ -40,26 +40,41 @@ export const getBrand = cache(async (): Promise<Brand> => {
     hero: {
       title: { ar: st.hero_title_ar ?? "", en: st.hero_title_en ?? "" },
       lead: { ar: st.hero_lead_ar ?? "", en: st.hero_lead_en ?? "" },
+      // older settings: own text if any was typed, else the default
+      mode: st.hero_text_mode === "custom" || st.hero_text_mode === "hidden" || st.hero_text_mode === "default" ? st.hero_text_mode : st.hero_title_ar || st.hero_lead_ar ? "custom" : "default",
     },
   };
 });
 
 /* ---------- Background image behind the home page's top section ---------- */
 
-const heroVersion = cache(() =>
-  cached("hero-version", async () => {
-    const [row] = await db.select({ updatedAt: s.assets.updatedAt }).from(s.assets).where(eq(s.assets.key, "hero")).limit(1);
-    return row ? row.updatedAt.getTime().toString(36) : null;
+/** up to five background photos; they take turns behind the top section */
+export const HERO_SLOTS = ["hero", "hero-2", "hero-3", "hero-4", "hero-5"] as const;
+export const isHeroSlot = (k: string): k is (typeof HERO_SLOTS)[number] => (HERO_SLOTS as readonly string[]).includes(k);
+
+export const heroImages = cache(() =>
+  cached("hero-images", async () => {
+    const rows = await db.select({ key: s.assets.key, updatedAt: s.assets.updatedAt }).from(s.assets).where(inArray(s.assets.key, [...HERO_SLOTS]));
+    return HERO_SLOTS.flatMap((k) => {
+      const r = rows.find((x) => x.key === k);
+      return r ? [{ key: k, url: `/api/brand/hero?k=${k}&v=${r.updatedAt.getTime().toString(36)}` }] : [];
+    });
   }),
 );
 
 export type HeroOverlay = "light" | "medium" | "strong";
 export const HERO_OVERLAYS: HeroOverlay[] = ["light", "medium", "strong"];
 
-/** The uploaded background, or null when there is none or it's switched off in the admin panel */
+/** The uploaded backgrounds, or null when there are none or they're switched off in the admin panel */
 export const getHeroBackground = cache(async () => {
-  const [st, v] = await Promise.all([getSettings(), heroVersion()]);
-  if (!v || st.hero_bg_enabled === "0") return null;
+  const [st, images] = await Promise.all([getSettings(), heroImages()]);
+  if (!images.length || st.hero_bg_enabled === "0") return null;
   const overlay: HeroOverlay = (HERO_OVERLAYS as string[]).includes(st.hero_bg_overlay) ? (st.hero_bg_overlay as HeroOverlay) : "medium";
-  return { url: `/api/brand/hero?v=${v}`, overlay };
+  return {
+    images,
+    overlay,
+    /** slow zoom on the photo, and photos taking turns */
+    animate: st.hero_bg_animate !== "0",
+    seconds: Math.min(30, Math.max(3, Number(st.hero_bg_seconds) || 7)),
+  };
 });

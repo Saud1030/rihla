@@ -4,17 +4,34 @@ import { useEffect, useState } from "react";
 
 export type Slide = { id: number; src: string; title: string; text: string; link: string; external: boolean };
 
-/** Home banners: one at a time, changing every 6 seconds (paused on hover/focus or with reduced motion) */
-export function BannerSlider({ slides, labels }: { slides: Slide[]; labels: { prev: string; next: string; slide: string; region: string } }) {
+/**
+ * Home banners: one at a time, moving on by themselves (slide or fade, every few seconds; set in
+ * Admin -> Background and banners). Paused on hover/focus; still for reduced-motion users.
+ */
+export function BannerSlider({
+  slides,
+  labels,
+  autoplay = true,
+  effect = "slide",
+  seconds = 6,
+  rtl = true,
+}: {
+  slides: Slide[];
+  labels: { prev: string; next: string; slide: string; region: string };
+  autoplay?: boolean;
+  effect?: "slide" | "fade";
+  seconds?: number;
+  rtl?: boolean;
+}) {
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
   const many = slides.length > 1;
 
   useEffect(() => {
-    if (!many || paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = setInterval(() => setI((x) => (x + 1) % slides.length), 6000);
+    if (!many || !autoplay || paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const id = setInterval(() => setI((x) => (x + 1) % slides.length), seconds * 1000);
     return () => clearInterval(id);
-  }, [many, paused, slides.length]);
+  }, [many, autoplay, paused, slides.length, seconds]);
 
   const go = (d: number) => setI((x) => (x + d + slides.length) % slides.length);
 
@@ -28,6 +45,8 @@ export function BannerSlider({ slides, labels }: { slides: Slide[]; labels: { pr
       onBlur={() => setPaused(false)}
       className="relative"
       data-testid="home-banners"
+      data-effect={effect}
+      data-autoplay={autoplay && many ? "1" : "0"}
     >
       <div className="grid rounded-2xl overflow-hidden bg-stone border border-line">
         {slides.map((s, n) => {
@@ -50,7 +69,9 @@ export function BannerSlider({ slides, labels }: { slides: Slide[]; labels: { pr
               aria-roledescription="slide"
               aria-label={`${labels.slide} ${n + 1} / ${slides.length}`}
               aria-hidden={n !== i}
-              className={`relative [grid-area:1/1] transition-opacity duration-500 ${n === i ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+              className={`relative [grid-area:1/1] motion-safe:duration-700 ease-out ${effect === "fade" ? "transition-opacity" : "transition-[transform,opacity]"} ${n === i ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+              // slide: the next banner comes in from the reading direction's end
+              style={effect === "slide" ? { transform: `translateX(${(n - i) * (rtl ? -100 : 100)}%)` } : undefined}
             >
               {s.link ? (
                 <a href={s.link} tabIndex={n === i ? 0 : -1} {...(s.external ? { target: "_blank", rel: "noopener noreferrer" } : {})} className="block">

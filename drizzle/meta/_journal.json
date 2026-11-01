@@ -113,6 +113,13 @@
       "when": 1793471573346,
       "tag": "0015_multi_driver_money",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793534501313,
+      "tag": "0016_stop_times",
+      "breakpoints": true
     }
   ]
 }

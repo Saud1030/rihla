@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Booking, Driver, Rating } from "@/db/schema";
 import { publicBaseUrl } from "./public-url";
-import { bookingNo, formatDate, formatSAR, formatTime } from "./format";
+import { bookingNo, formatDate, formatSAR, formatTime, stopLines } from "./format";
 import { companyName, notify, readSettings } from "./notify";
 import { invoiceLink, invoiceNo, issueInvoice } from "./documents";
 
@@ -23,6 +23,7 @@ export async function sendDriverAssigned(b: Booking, d: Driver) {
   const driverBody = [
     `مرحبًا ${d.name}، لديك رحلة جديدة رقم ${bookingNo(b.number)}.`,
     `الرحلة: ${b.routeTitle}`,
+    ...(b.stops?.length ? ["المسار:", ...stopLines(b, "ar").map((l, i) => `${i + 1}. ${l}`)] : []),
     `العميل: ${b.customerName}`,
     `جوال العميل (واتساب): ${b.customerPhone}`,
     `الموعد: ${when(b, "ar")}`,

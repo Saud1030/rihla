@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireDriver } from "@/lib/auth";
-import { bookingNo, formatDate, formatNumber, formatSAR, formatTime } from "@/lib/format";
+import { bookingNo, formatDate, formatNumber, formatSAR, formatTime, stopLines } from "@/lib/format";
 import { driverMoney, driverPayoutList } from "@/lib/driver-money";
 import { bookingEnd } from "@/lib/timespan";
 import { driverCompleteTrip, driverStartTrip, saveMyBankAccount } from "../../driver-actions";
@@ -131,6 +131,13 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
                       <span className="text-muted">أجرتك: </span>
                       {b.driverFare != null ? <span className="font-semibold tabular">{formatSAR(b.driverFare, "ar")}</span> : <span className="text-muted">تحددها الإدارة</span>}
                     </p>
+                    {b.stops?.length ? (
+                      <ol className="list-decimal ps-5 text-[15px] space-y-0.5" data-testid="trip-stops">
+                        {stopLines(b, "ar").map((l, i) => (
+                          <li key={i}>{l}</li>
+                        ))}
+                      </ol>
+                    ) : null}
                     <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-[15px]">
                       <dt className="text-muted">الاستلام</dt>
                       <dd>{b.pickupAddress}</dd>

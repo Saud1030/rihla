@@ -9,28 +9,27 @@ const PAID_STATES = ["paid", "confirmed", "completed"] as const;
 export async function getDashboardStats() {
   const today = todayInRiyadh();
   const monthStart = `${today.slice(0, 7)}-01`;
-  const in7 = new Date(Date.now() + 7 * 864e5);
-  const in7Str = todayInRiyadh(in7);
 
-  const [[pendingPay], [toConfirm], [monthRevenue], [todayCount], upcoming, [refunds], [transfers], [withReceipt]] = await Promise.all([
+  const [[pendingPay], [toConfirm], [monthRevenue], todayByStatus, monthPayments, [refunds], [transfers], [withReceipt], [drivers]] = await Promise.all([
     db.select({ n: count() }).from(s.bookings).where(eq(s.bookings.status, "pending_payment")),
     db.select({ n: count() }).from(s.bookings).where(eq(s.bookings.status, "paid")),
     db
       .select({ total: sum(s.bookings.amount), n: count() })
       .from(s.bookings)
       .where(and(inArray(s.bookings.status, [...PAID_STATES]), gte(s.bookings.paidAt, new Date(`${monthStart}T00:00:00+03:00`)))),
+    // today's trips by status (paid, confirmed, completed, cancelled; not the unpaid ones)
     db
-      .select({ n: count() })
+      .select({ status: s.bookings.status, n: count() })
       .from(s.bookings)
-      .where(and(inArray(s.bookings.status, [...PAID_STATES]), eq(s.bookings.pickupDate, today))),
+      .where(and(eq(s.bookings.pickupDate, today), sql`${s.bookings.status} <> 'pending_payment'`))
+      .groupBy(s.bookings.status),
+    // every payment received this month (also bookings cancelled later, with what was refunded)
     db
       .select()
       .from(s.bookings)
-      .where(
-        and(inArray(s.bookings.status, ["paid", "confirmed"]), gte(s.bookings.pickupDate, today), lte(s.bookings.pickupDate, in7Str)),
-      )
-      .orderBy(asc(s.bookings.pickupDate), asc(s.bookings.pickupTime))
-      .limit(15),
+      .where(and(sql`${s.bookings.paymentId} is not null`, gte(s.bookings.paidAt, new Date(`${monthStart}T00:00:00+03:00`))))
+      .orderBy(desc(s.bookings.paidAt))
+      .limit(500),
     db.select({ n: count() }).from(s.bookings).where(inArray(s.bookings.refundStatus, ["pending_approval", "failed"])),
     db
       .select({ n: count() })
@@ -41,18 +40,32 @@ export async function getDashboardStats() {
       .from(s.receipts)
       .innerJoin(s.bookings, eq(s.bookings.id, s.receipts.bookingId))
       .where(and(eq(s.bookings.status, "pending_payment"), eq(s.bookings.paymentMethod, "bank_transfer"))),
+    db
+      .select({
+        total: sql<number>`(count(*) filter (where ${s.drivers.status} = 'approved'))::int`,
+        available: sql<number>`(count(*) filter (where ${s.drivers.status} = 'approved' and ${s.drivers.active} and ${s.drivers.blockedAt} is null and (${s.drivers.suspendedUntil} is null or ${s.drivers.suspendedUntil} <= now())))::int`,
+      })
+      .from(s.drivers),
   ]);
+  const todayCount = (st: string) => todayByStatus.find((x) => x.status === st)?.n ?? 0;
 
   return {
     pendingPayment: pendingPay.n,
     toConfirm: toConfirm.n,
     monthRevenue: Number(monthRevenue.total ?? 0),
     monthPaidCount: monthRevenue.n,
-    todayPickups: todayCount.n,
+    today: {
+      total: todayByStatus.reduce((a, x) => a + x.n, 0),
+      paid: todayCount("paid"),
+      confirmed: todayCount("confirmed"),
+      completed: todayCount("completed"),
+      cancelled: todayCount("cancelled"),
+    },
+    monthPayments: await withTableInfo(monthPayments),
+    drivers: { total: drivers.total, available: drivers.available },
     refundsWaiting: refunds.n,
     transfersWaiting: transfers.n,
     transfersWithReceipt: withReceipt.n,
-    upcoming: await withTableInfo(upcoming),
   };
 }
 

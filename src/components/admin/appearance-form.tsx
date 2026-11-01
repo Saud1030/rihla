@@ -15,7 +15,10 @@ type Props = {
   initialTexts: Texts;
   placeholders: { heroTitle: string; heroLead: string };
   logoUrl: string | null;
+  /** default text, the admin's own text, or no text at all above the booking box */
+  initialHeroMode?: HeroMode;
 };
+type HeroMode = "default" | "custom" | "hidden";
 
 function ColorField({ id, label, hint, value, onChange }: { id: string; label: string; hint: string; value: string; onChange: (v: string) => void }) {
   const [text, setText] = useState(value);
@@ -56,8 +59,9 @@ function ColorField({ id, label, hint, value, onChange }: { id: string; label: s
   );
 }
 
-export function AppearanceForm({ action, initialTheme, initialTexts, placeholders, logoUrl }: Props) {
+export function AppearanceForm({ action, initialTheme, initialTexts, placeholders, logoUrl, initialHeroMode = "default" }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
+  const [heroMode, setHeroMode] = useState<HeroMode>(initialHeroMode);
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [texts, setTexts] = useState<Texts>(initialTexts);
   const set = (patch: Partial<Theme>) => setTheme((t) => ({ ...t, ...patch, preset: patch.preset ?? "custom" }));
@@ -187,8 +191,28 @@ export function AppearanceForm({ action, initialTheme, initialTexts, placeholder
         <fieldset className="bg-paper border border-line rounded-xl p-6 space-y-4">
           <legend className="sr-only">نص الواجهة</legend>
           <h2 className="font-semibold">نص الواجهة الرئيسية</h2>
-          <p className="text-sm text-muted -mt-2">اتركه فارغًا لاستخدام النص الافتراضي الظاهر بالرمادي.</p>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="نص الواجهة الرئيسية" data-testid="hero-mode">
+            {(
+              [
+                ["default", "النص الافتراضي"],
+                ["custom", "نص أكتبه بنفسي"],
+                ["hidden", "بدون نص"],
+              ] as const
+            ).map(([v, label]) => (
+              <label key={v} className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm has-[:checked]:border-sign has-[:checked]:bg-sign-soft">
+                <input type="radio" name="hero_text_mode" value={v} checked={heroMode === v} onChange={() => setHeroMode(v)} className="accent-sign" />
+                {label}
+              </label>
+            ))}
+          </div>
+          <p className="text-sm text-muted">
+            {heroMode === "default"
+              ? "يظهر النص الافتراضي الظاهر بالرمادي في الخانات."
+              : heroMode === "hidden"
+                ? "لا يظهر عنوان ولا وصف فوق خانة الحجز، فتظهر الخلفية أوضح."
+                : "اكتب العنوان والوصف كما تريد. يمكنك ترك الوصف فارغًا ليظهر العنوان فقط."}
+          </p>
+          <div className={`grid sm:grid-cols-2 gap-4 ${heroMode === "custom" ? "" : "hidden"}`}>
             {text("hero_title_ar", "العنوان بالعربي", { max: 120, placeholder: placeholders.heroTitle })}
             {text("hero_title_en", "العنوان بالإنجليزي", { max: 120, ltr: true })}
             {text("hero_lead_ar", "الوصف بالعربي", { max: 300, area: true, placeholder: placeholders.heroLead })}
@@ -231,7 +255,9 @@ export function AppearanceForm({ action, initialTheme, initialTexts, placeholder
             <span className="btn btn-primary !min-h-8 !py-1 !px-3 text-xs ms-auto">احجز الآن</span>
           </div>
           <div className="p-4 space-y-3">
-            <p className="font-display text-xl font-semibold leading-snug">{texts.hero_title_ar || placeholders.heroTitle}</p>
+            {heroMode !== "hidden" && (
+              <p className="font-display text-xl font-semibold leading-snug">{heroMode === "custom" ? texts.hero_title_ar : placeholders.heroTitle}</p>
+            )}
             <div className="sign p-4 space-y-2">
               <p className="font-display font-semibold">مكة المكرمة</p>
               <span className="btn btn-amber w-full !min-h-9 text-sm">اعرض الأسعار</span>
