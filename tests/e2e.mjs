@@ -1273,6 +1273,26 @@ if (!ONLY || ONLY === "features") {
     await payInBrowser(page, ref, "pay");
     eq(sql(`select status from bookings where ref='${ref}'`), "paid", "paid");
   });
+  await check("multiple trips: more than 10 trips in one booking (up to 20)", async () => {
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    await page.getByRole("tab", { name: "رحلات متعددة" }).click();
+    for (let n = 3; n <= 20; n++) await page.getByRole("button", { name: /أضف مشوارًا/ }).click();
+    eq(await page.locator('[data-testid^="leg-"]').count(), 20, "20 trips");
+    eq(await page.getByRole("button", { name: /أضف مشوارًا/ }).count(), 0, "no more after 20");
+    // the list scrolls instead of growing the box without end
+    eq(await page.getByTestId("multi-legs-list").evaluate((e) => getComputedStyle(e).overflowY), "auto", "list scrolls");
+    // 12 trips back and forth, each a day apart, priced and listed
+    const ends = ["jeddah-airport", "makkah"];
+    const q = Array.from({ length: 12 }, (_, i) => `l${i + 1}=${ends[i % 2]},${ends[(i + 1) % 2]},${inDaysUTC(3 + i)},10:00`).join("&");
+    await page.goto(`${BASE}/ar/multi?${q}`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("multi-legs").locator("li").count(), 12, "12 trips priced");
+    // and from the home search too (two-digit trip numbers are kept)
+    const r = await fetch(`${BASE}/ar/search?mode=multi&${q}`, { redirect: "manual" });
+    assert((r.headers.get("location") ?? "").includes("l12="), "search keeps trip 12: " + r.headers.get("location"));
+    const over = Array.from({ length: 21 }, (_, i) => `l${i + 1}=${ends[i % 2]},${ends[(i + 1) % 2]}`).join("&");
+    await page.goto(`${BASE}/ar/multi?${over}`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("multi-legs").locator("li").count(), 20, "at most 20 read from a link");
+  });
   await check("vehicle hourly prices are editable in admin", async () => {
     const id = sql("select id from vehicles where slug='toyota-camry'");
     await a.goto(`${BASE}/admin/vehicles/${id}`, { waitUntil: "networkidle" });
@@ -2070,7 +2090,10 @@ if (!ONLY || ONLY === "features") {
     await heroCard().locator('input[name="hero"]').setInputFiles({ name: "two.jpg", mimeType: "image/jpeg", buffer: Buffer.concat([JPG, Buffer.from([1])]) });
     await submit(a, "حفظ الخلفية");
     await a.waitForURL(/hero=added/, { waitUntil: "commit" });
+    for (let i = 0; i < 50 && sql("select count(*) from assets where key like 'hero%'") !== "2"; i++) await a.waitForTimeout(100);
     eq(sql("select string_agg(key, ',' order by key) from assets where key like 'hero%'"), "hero,hero-2", "two photos");
+    // the URL already had hero=added from the first photo, so wait for the list itself
+    await heroCard().getByTestId("hero-list").locator("li").nth(1).waitFor();
     eq(await heroCard().getByTestId("hero-list").locator("li").count(), 2, "listed");
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     const bg = page.getByTestId("hero-bg");
@@ -2336,13 +2359,15 @@ if (!ONLY || ONLY === "drivers") {
     await a.goto(`${BASE}/admin/users`, { waitUntil: "networkidle" });
     const f = a.locator("form").filter({ has: a.getByRole("button", { name: "إضافة الحساب" }) });
     await f.locator('input[name="name"]').fill("فهد الحربي");
-    await f.locator('input[name="login"]').fill(driverLogin);
+    await f.locator('input[name="phone"]').fill(driverLogin);
     await f.locator('input[name="password"]').fill("Driver-Pass-123");
     await f.locator('select[name="role"]').selectOption("driver");
     await f.locator('select[name="driverId"]').selectOption(String(driverId));
     await f.getByRole("button", { name: "إضافة الحساب" }).click();
     await a.waitForURL(/added=1/, { waitUntil: "commit" });
-    eq(sql("select email, role from admin_users where driver_id=" + driverId), "+966551234321|driver", "stored");
+    eq(sql("select coalesce(email, '-'), phone, role from admin_users where driver_id=" + driverId), "-|+966551234321|driver", "stored: mobile in its own field");
+    const row = a.getByTestId("user-list").locator("li").filter({ hasText: "فهد الحربي" });
+    await row.getByTestId("user-contact").getByText("+966551234321").waitFor();
   });
 
   const drv = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
@@ -2351,6 +2376,8 @@ if (!ONLY || ONLY === "drivers") {
     await adminLogin(drv, "+966 55 123 4321", "Driver-Pass-123");
     await drv.waitForURL(/\/admin\/my-trips$/);
     await drv.getByTestId("my-trips").waitFor();
+    // the menu streams in after the page (a placeholder shows first)
+    await drv.locator("nav[aria-label='لوحة التحكم'] a", { hasText: "رحلاتي" }).waitFor();
     const nav = (await drv.locator("nav[aria-label='لوحة التحكم'] a").allInnerTexts()).join("|");
     eq(nav, "رحلاتي|حسابي", "driver menu");
     const tripNo = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
@@ -2596,14 +2623,18 @@ if (!ONLY || ONLY === "drivers") {
     const card = a.locator(`[data-driver="${driverId}"]`);
     await card.getByText("تعديل بيانات السائق").click();
     const f = card.locator("form").filter({ has: a.getByRole("button", { name: "حفظ", exact: true }) }).first();
-    eq(await f.getByTestId("driver-docs-fields").locator('input[type="file"]').count(), 6, "ID, licence, registration, inside, outside, IBAN");
+    eq(await f.getByTestId("driver-docs-fields").locator('input[type="file"]').count(), 10, "ID, licence, registration, 6 car photos inside and outside, IBAN");
     await f.locator('input[name="license"]').setInputFiles({ name: "l.png", mimeType: "image/png", buffer: PHOTO });
     await a.getByTestId("card-cropper").getByRole("button", { name: "اعتماد" }).click();
     await a.getByTestId("card-cropper").waitFor({ state: "detached" });
     await f.locator('input[name="iban"]').setInputFiles({ name: "iban.png", mimeType: "image/png", buffer: PHOTO });
+    await f.locator('input[name="car_inside_back"]').setInputFiles({ name: "back.png", mimeType: "image/png", buffer: PHOTO });
+    await f.locator('input[name="email"]').fill("Fahad.Driver@example.com");
     await f.getByRole("button", { name: "حفظ", exact: true }).click();
     await card.getByText("تم حفظ بيانات السائق و", { exact: false }).waitFor();
-    eq(sql(`select string_agg(kind::text || ':' || mime, ',' order by kind) from driver_documents where driver_id=${driverId}`), "license:image/jpeg,iban:image/png", "saved");
+    eq(sql(`select string_agg(kind::text || ':' || mime, ',' order by kind) from driver_documents where driver_id=${driverId}`), "license:image/jpeg,iban:image/png,car_inside_back:image/png", "saved");
+    eq(sql(`select email from drivers where id=${driverId}`), "fahad.driver@example.com", "driver email");
+    eq(sql(`select email, phone from admin_users where driver_id=${driverId}`), "fahad.driver@example.com|+966551234321", "his sign-in account follows: email and mobile each in its own field");
     eq((await a.request.get(`${BASE}/api/admin/drivers/${driverId}/doc/iban`)).status(), 200, "IBAN photo for staff");
     eq((await fetch(`${BASE}/api/admin/drivers/${driverId}/doc/iban`)).status, 404, "not public");
   });
@@ -2704,11 +2735,43 @@ if (!ONLY || ONLY === "drivers") {
     sql(`delete from bookings where ref='${r1}'`);
   });
 
+  await check("bookings: daily revenue table for the filtered list; pick one day to see only its bookings and revenue", async () => {
+    const d1 = inDaysUTC(5), d2 = inDaysUTC(6);
+    sql("delete from bookings where customer_name='إيراد يومي'");
+    const refs = [paidBooking({ name: "إيراد يومي", date: d1 }), paidBooking({ name: "إيراد يومي", date: d1, status: "confirmed" }), paidBooking({ name: "إيراد يومي", date: d2 }), paidBooking({ name: "إيراد يومي", date: d2, status: "pending_payment" })];
+    sql(`update bookings set driver_fare=5000 where ref='${refs[0]}'`);
+    await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد يومي")}`, { waitUntil: "networkidle" });
+    const daily = a.getByTestId("daily-revenue");
+    eq(await daily.locator("tbody tr").count(), 2, "one row per day");
+    eq(await daily.locator("tbody tr").first().getAttribute("data-day"), d2, "newest day first");
+    const day1 = daily.locator(`tr[data-day="${d1}"]`);
+    const cells = await day1.locator("td").allInnerTexts();
+    assert(cells[1].includes("٢"), "2 paid bookings that day: " + cells);
+    assert(cells[2].includes("٤٠٠") && cells[4].includes("٤٦٠"), "before and after VAT: " + cells);
+    assert(cells[5].includes("٥٠") && cells[6].includes("٣٥٠"), "driver fares and what's left: " + cells);
+    assert((await daily.locator(`tr[data-day="${d2}"] td`).nth(1).innerText()).includes("١"), "the unpaid booking isn't revenue");
+    // pick one day
+    await daily.locator('input[name="day"]').fill(d2);
+    await daily.getByRole("button", { name: "عرض اليوم" }).click();
+    await a.waitForURL(new RegExp(`day=${d2}`), { waitUntil: "commit" });
+    await a.waitForLoadState("networkidle");
+    eq(await a.getByTestId("daily-revenue").locator("tbody tr").count(), 1, "only that day");
+    eq(await a.locator('input[name="from"]').inputValue(), d2, "the date filter shows the day");
+    eq(await a.locator("[data-testid=bookings-table] tbody tr").count(), 2, "that day's bookings (paid and unpaid)");
+    assert((await a.getByTestId("bookings-revenue").locator('[data-revenue="gross"]').innerText()).includes("٢٣٠"), "totals for that day");
+    await a.getByTestId("daily-revenue").getByRole("link", { name: "كل الأيام" }).click();
+    await a.waitForURL((u) => !u.search.includes("from="), { waitUntil: "commit" });
+    await a.getByTestId("daily-revenue").locator(`tr[data-day="${d1}"]`).waitFor();
+    eq(await a.getByTestId("daily-revenue").locator("tbody tr").count(), 2, "back to every day");
+    sql(`delete from bookings where ref in (${refs.map((r) => `'${r}'`).join(",")})`);
+  });
+
   await check("staff account: only the sections it was given, in the menu and on the server", async () => {
     await a.goto(`${BASE}/admin/users`, { waitUntil: "networkidle" });
     const f = a.locator("form").filter({ has: a.getByRole("button", { name: "إضافة الحساب" }) });
     await f.locator('input[name="name"]').fill("نورة الموظفة");
-    await f.locator('input[name="login"]').fill("staff@example.com");
+    await f.locator('input[name="email"]').fill("staff@example.com");
+    await f.locator('input[name="phone"]').fill("0557770001");
     await f.locator('input[name="password"]').fill("Staff-Pass-123");
     await f.locator('select[name="role"]').selectOption("staff");
     await f.getByRole("button", { name: "إضافة الحساب" }).click();
@@ -2821,12 +2884,13 @@ if (!ONLY || ONLY === "join") {
   const j = await jctx.newPage();
   const actx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const a = await actx.newPage();
-  const cleanup = () => sql("delete from admin_users where email in ('+966559990001','+966559990002'); delete from drivers where phone in ('+966559990001','+966559990002')");
+  const cleanup = () => sql("delete from admin_users where phone in ('+966559990001','+966559990002') or email = 'bandar.driver@example.com'; delete from drivers where phone in ('+966559990001','+966559990002')");
   cleanup();
   const fill = async (o) => {
     await j.goto(`${BASE}/ar/drivers/join`, { waitUntil: "networkidle" });
     await j.fill('input[name="name"]', o.name ?? "بندر السائق");
     await j.fill('input[name="phone"]', o.phone);
+    if (o.email) await j.fill('input[name="email"]', o.email);
     await j.fill('input[name="password"]', o.password ?? "Driver-Join-1");
     await j.selectOption('select[name="vehicleId"]', { label: "تويوتا كامري" });
     await j.selectOption('select[name="carModel"]', "2022");
@@ -2842,6 +2906,8 @@ if (!ONLY || ONLY === "join") {
         await j.getByTestId("card-cropper").waitFor({ state: "detached" });
       }
     }
+    // optional extra car photos (outside and inside)
+    for (const k of o.extra ?? []) await j.setInputFiles(`input[name="${k}"]`, img(k));
     await j.check('input[name="agree"]');
   };
   await check("join page: linked in the footer; car types come from the fleet list; model years to choose", async () => {
@@ -2908,15 +2974,17 @@ if (!ONLY || ONLY === "join") {
     eq(sql("select count(*) from drivers where phone='+966559990001'"), "0", "nothing saved");
   });
   await check("application sent: waits for review, can't sign in yet, the same number can't apply twice", async () => {
-    await fill({ phone: "0559990001" });
+    await fill({ phone: "0559990001", email: "bandar.driver@example.com", extra: ["car_outside_back", "car_inside_dash"] });
+    eq(await j.getByTestId("join-extra-photos").locator('input[type="file"]').count(), 4, "4 optional car photos");
     await j.getByRole("button", { name: "إرسال الطلب" }).click();
     await j.getByTestId("join-done").waitFor();
     eq(sql("select status, active, car_type, car_model, vehicle_id is not null from drivers where phone='+966559990001'"), "pending|f|تويوتا كامري|2022|t", "pending driver");
-    eq(sql("select count(*) from driver_documents d join drivers r on r.id=d.driver_id where r.phone='+966559990001'"), "5", "5 documents");
+    eq(sql("select count(*) from driver_documents d join drivers r on r.id=d.driver_id where r.phone='+966559990001'"), "7", "5 documents + 2 extra car photos");
     eq(sql("select mime from driver_documents d join drivers r on r.id=d.driver_id where r.phone='+966559990001' and d.kind='license'"), "image/jpeg", "licence saved as the cropped JPEG");
     eq(sql("select plate_number, car_color, photo_mime from drivers where phone='+966559990001'"), "ك ل م 4444|أبيض|image/jpeg", "plate letters + numbers, colour from the list, cropped photo");
     assert(sql("select bank_account from drivers where phone='+966559990001'").includes("SA0380000000608010167519"), "bank account saved");
-    eq(sql("select role, active from admin_users where email='+966559990001'"), "driver|f", "account off");
+    eq(sql("select role, active, email from admin_users where phone='+966559990001'"), "driver|f|bandar.driver@example.com", "account off, mobile and email each in its own field");
+    eq(sql("select email from drivers where phone='+966559990001'"), "bandar.driver@example.com", "driver email");
     await adminLogin(j, "0559990001", "Driver-Join-1");
     await j.getByText("طلب انضمامك قيد المراجعة").waitFor();
     await fill({ phone: "+966 55 999 0001" });
@@ -2929,16 +2997,21 @@ if (!ONLY || ONLY === "join") {
     await a.getByText("طلبات انضمام سائقين").waitFor();
     await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
     const app = a.getByTestId("application").filter({ hasText: "+966559990001" });
-    eq(await app.locator("img").count(), 6, "photo + 5 documents");
+    eq(await app.locator("img").count(), 8, "photo + 7 documents");
+    await app.getByTestId("driver-contact").getByText("bandar.driver@example.com").waitFor();
     const id = sql("select id from drivers where phone='+966559990001'");
     eq((await a.request.get(`${BASE}/api/admin/drivers/${id}/doc/id_card`)).status(), 200, "staff sees the ID");
     eq((await fetch(`${BASE}/api/admin/drivers/${id}/doc/id_card`)).status, 404, "public can't");
     await app.getByRole("button", { name: "قبول السائق وتفعيل حسابه" }).click();
     await a.waitForURL(/approved=/, { waitUntil: "commit" });
     eq(sql(`select status, active from drivers where id=${id}`), "approved|t", "approved");
-    eq(sql("select active from admin_users where email='+966559990001'"), "t", "account on");
+    eq(sql("select active from admin_users where phone='+966559990001'"), "t", "account on");
     assert(sql("select body from notifications where kind='driver_approved' order by id desc limit 1").includes("/admin/login"), "WhatsApp with sign-in link");
     await adminLogin(j, "0559990001", "Driver-Join-1");
+    await j.waitForURL(/\/admin\/my-trips$/);
+    // or with his email
+    await j.context().clearCookies();
+    await adminLogin(j, "Bandar.Driver@example.com", "Driver-Join-1");
     await j.waitForURL(/\/admin\/my-trips$/);
   });
   await check("a rejected applicant is told why when signing in, and may apply again", async () => {

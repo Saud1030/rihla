@@ -68,7 +68,7 @@ type Props = {
 /** "pf0"/"pt0", "pf1"/"pt1"... are the from/to of each trip in a multi-trip booking; "city" is the hourly city */
 type Target = "from" | "to" | "hours" | "city" | `pf${number}` | `pt${number}`;
 type Mode = "transfer" | "hourly" | "multi";
-const MAX_LEGS = 5;
+const MAX_LEGS = 20;
 type Leg = { from: string; to: string; date: string; time: string };
 const emptyLeg = (): Leg => ({ from: "", to: "", date: "", time: "" });
 /** which trip and which end a target is, for multi-trip targets */
@@ -553,7 +553,8 @@ export function SignSearch({
       {mode === "multi" ? (
         /* separate trips, each from -> to, with its own date and time */
         <div className="space-y-3" data-testid="multi-legs-form">
-          <div className="grid gap-3 lg:grid-cols-2">
+          {/* many trips (up to MAX_LEGS): the list scrolls so the box stays a sensible height */}
+          <div className={`grid gap-3 lg:grid-cols-2 ${legs.length > 4 ? "max-h-[26rem] overflow-y-auto overscroll-contain pe-1 pt-1" : ""}`} data-testid="multi-legs-list">
             {legs.map((l, i) => (
               <fieldset key={i} className="relative rounded-lg border border-white/25 p-3 space-y-2 min-w-0" data-testid={`leg-${i + 1}`}>
                 <legend className="px-1 text-sm font-semibold">

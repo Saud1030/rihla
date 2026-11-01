@@ -51,6 +51,7 @@ type Row = {
   status: "pending" | "approved" | "rejected";
   rejectReason: string | null;
   bankAccount: string;
+  email: string;
   blockedAt: Date | null;
   blockReason: string | null;
   suspendedUntil: Date | null;
@@ -97,6 +98,7 @@ async function Drivers({
         status: s.drivers.status,
         rejectReason: s.drivers.rejectReason,
         bankAccount: s.drivers.bankAccount,
+        email: s.drivers.email,
         blockedAt: s.drivers.blockedAt,
         blockReason: s.drivers.blockReason,
         suspendedUntil: s.drivers.suspendedUntil,
@@ -203,12 +205,15 @@ async function Drivers({
                     <DriverPhoto d={d} className="size-20 rounded-xl" />
                     <div className="min-w-0 flex-1 text-sm space-y-1">
                       <p className="font-semibold text-[16px]">{d.name}</p>
-                      <p
-                        dir="ltr"
-                        className="text-muted"
-                        style={{ textAlign: "right" }}
-                      >
-                        {d.phone}
+                      <p className="text-muted flex flex-wrap gap-x-4" data-testid="driver-contact">
+                        <span>
+                          الجوال: <bdi dir="ltr">{d.phone}</bdi>
+                        </span>
+                        {d.email && (
+                          <span>
+                            البريد: <bdi dir="ltr">{d.email}</bdi>
+                          </span>
+                        )}
                       </p>
                       <p>
                         {[d.carType, d.carModel, d.carColor]
@@ -340,12 +345,15 @@ async function Drivers({
                           {hold.reason ? ` · ${hold.reason}` : ""}
                         </p>
                       )}
-                      <p
-                        dir="ltr"
-                        className="text-muted"
-                        style={{ textAlign: "right" }}
-                      >
-                        {d.phone}
+                      <p className="text-muted flex flex-wrap gap-x-4" data-testid="driver-contact">
+                        <span>
+                          الجوال: <bdi dir="ltr">{d.phone}</bdi>
+                        </span>
+                        {d.email && (
+                          <span>
+                            البريد: <bdi dir="ltr">{d.email}</bdi>
+                          </span>
+                        )}
                       </p>
                       <p>
                         {[d.carType, d.carModel, d.carColor]
@@ -681,6 +689,9 @@ function DriverFields({ d, vehicles, docs }: { d?: Row; vehicles: VehicleOption[
             className="field text-start"
             inputMode="tel"
           />
+        </Field>
+        <Field label="البريد الإلكتروني (اختياري)" hint="يقدر السائق يدخل به أيضًا">
+          <input name="email" type="email" maxLength={200} defaultValue={d?.email ?? ""} dir="ltr" className="field text-start" autoComplete="off" />
         </Field>
         <div className="sm:col-span-2">
           <PlateFields value={d?.plateNumber} label="رقم اللوحة" lettersLabel="الحروف" digitsLabel="الأرقام" />

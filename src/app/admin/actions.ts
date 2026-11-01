@@ -45,7 +45,8 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
 
   if (loginThrottled(key)) return { error: "محاولات كثيرة. انتظر ١٥ دقيقة ثم حاول مرة أخرى." };
 
-  const user = email ? await db.query.adminUsers.findFirst({ where: eq(s.adminUsers.email, email) }) : undefined;
+  // an account signs in with its email or with its mobile number
+  const user = email ? await db.query.adminUsers.findFirst({ where: email.includes("@") ? eq(s.adminUsers.email, email) : eq(s.adminUsers.phone, email) }) : undefined;
   // Always run bcrypt so response time doesn't reveal whether the email exists
   dummyHash ??= await bcrypt.hash("not-a-real-password", 12);
   const ok = await bcrypt.compare(password, user?.passwordHash ?? dummyHash);
@@ -67,7 +68,7 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
     if (hold?.kind === "suspended") return { error: `حسابك موقوف مؤقتًا حتى ${formatDateTime(hold.until, "ar")}${hold.reason ? ` (${hold.reason})` : ""}.` };
   }
   clearLoginFailures(key);
-  await createSession({ uid: user.id, email: user.email, name: user.name });
+  await createSession({ uid: user.id, email: user.email ?? user.phone ?? "", name: user.name });
   redirect(user.role === "driver" ? "/admin/my-trips" : "/admin");
 }
 

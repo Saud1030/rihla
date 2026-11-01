@@ -95,6 +95,8 @@ const touches = (placeCond: ReturnType<typeof sql>) => sql`(
 export const PAGE_SIZE = 25;
 /** the most rows a PDF / Excel export holds */
 export const EXPORT_MAX = 5000;
+/** the most days the daily revenue table lists */
+export const DAILY_MAX = 62;
 
 /** Booking filters from the page's query string (also used by the PDF / Excel export) */
 export function parseBookingFilters(sp: Record<string, string | string[] | undefined> | URLSearchParams): BookingFilters {
@@ -106,11 +108,13 @@ export function parseBookingFilters(sp: Record<string, string | string[] | undef
   const date = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
   const time = (v: string) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : undefined);
   const id = (v: string) => (/^\d{1,9}$/.test(v) ? Number(v) : undefined);
+  // one day: from = to = that day
+  const day = date(one("day"));
   return {
     status: s.bookingStatus.enumValues.find((x) => x === one("status")),
     q: one("q").slice(0, 60) || undefined,
-    from: date(one("from")),
-    to: date(one("to")),
+    from: day ?? date(one("from")),
+    to: day ?? date(one("to")),
     timeFrom: time(one("timeFrom")),
     timeTo: time(one("timeTo")),
     customer: one("customer").slice(0, 60) || undefined,
@@ -164,7 +168,23 @@ export async function listBookings(f: BookingFilters, opts: { all?: boolean } = 
     .from(s.bookings)
     .where(and(cond, inArray(s.bookings.status, [...PAID_STATES])));
 
-  const [rows, [{ n }], [totals]] = await Promise.all([
+  // the same revenue, day by day (trip date), newest first
+  const dailyQuery = db
+    .select({
+      day: s.bookings.pickupDate,
+      n: sql<number>`count(*)::int`,
+      subtotal: sql<number>`coalesce(sum(${s.bookings.subtotal}), 0)::bigint`,
+      vat: sql<number>`coalesce(sum(${s.bookings.vatAmount}), 0)::bigint`,
+      amount: sql<number>`coalesce(sum(${s.bookings.amount}), 0)::bigint`,
+      driverFares: sql<number>`coalesce(sum(${s.bookings.driverFare}), 0)::bigint`,
+    })
+    .from(s.bookings)
+    .where(and(cond, inArray(s.bookings.status, [...PAID_STATES])))
+    .groupBy(s.bookings.pickupDate)
+    .orderBy(desc(s.bookings.pickupDate))
+    .limit(DAILY_MAX);
+
+  const [rows, [{ n }], [totals], daily] = await Promise.all([
     db
       .select()
       .from(s.bookings)
@@ -174,6 +194,7 @@ export async function listBookings(f: BookingFilters, opts: { all?: boolean } = 
       .offset(opts.all ? 0 : (page - 1) * PAGE_SIZE),
     db.select({ n: count() }).from(s.bookings).where(cond),
     totalsQuery,
+    opts.all ? Promise.resolve([]) : dailyQuery,
   ]);
   // which of these bookings have a transfer receipt uploaded
   const ids = rows.map((r) => r.id);
@@ -185,6 +206,7 @@ export async function listBookings(f: BookingFilters, opts: { all?: boolean } = 
   return {
     rows: await withTableInfo(rows.map((r) => ({ ...r, hasReceipt: withReceipt.has(r.id) }))),
     total: n,
+    daily: daily.map((d) => ({ day: d.day, count: d.n, subtotal: Number(d.subtotal), vat: Number(d.vat), amount: Number(d.amount), driverFares: Number(d.driverFares) })),
     revenue: { count: totals.n, subtotal: Number(totals.subtotal), vat: Number(totals.vat), amount: Number(totals.amount), driverFares: Number(totals.driverFares) },
     page,
     pages: Math.max(1, Math.ceil(n / PAGE_SIZE)),

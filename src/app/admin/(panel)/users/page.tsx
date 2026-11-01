@@ -28,6 +28,7 @@ async function Users({ searchParams }: { searchParams: Promise<Record<string, st
         id: s.adminUsers.id,
         name: s.adminUsers.name,
         email: s.adminUsers.email,
+        phone: s.adminUsers.phone,
         role: s.adminUsers.role,
         permissions: s.adminUsers.permissions,
         driverId: s.adminUsers.driverId,
@@ -64,8 +65,17 @@ async function Users({ searchParams }: { searchParams: Promise<Record<string, st
                   <p className="font-medium">
                     {u.name} {u.id === me.uid && <span className="text-xs text-muted">(أنت)</span>}
                   </p>
-                  <p className="text-sm text-muted" dir="ltr" style={{ textAlign: "right" }}>
-                    {u.email}
+                  <p className="text-sm text-muted flex flex-wrap gap-x-4" data-testid="user-contact">
+                    {u.email && (
+                      <span>
+                        البريد: <bdi dir="ltr">{u.email}</bdi>
+                      </span>
+                    )}
+                    {u.phone && (
+                      <span>
+                        الجوال: <bdi dir="ltr">{u.phone}</bdi>
+                      </span>
+                    )}
                   </p>
                   <p className="text-sm mt-1">
                     <span className="font-medium">{ROLE_LABELS[u.role]}</span>

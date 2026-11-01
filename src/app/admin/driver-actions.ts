@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireDriver, requireSection } from "@/lib/auth";
 import { detectFile, IMAGE_TYPES, RECEIPT_TYPES } from "@/lib/files";
@@ -24,9 +24,22 @@ const driverSchema = z.object({
   carModel: z.string().refine((y) => y === "" || modelYears().includes(y)),
   carColor: z.string().trim().max(30),
   bankAccount: z.string().trim().max(300),
+  email: z.union([z.literal(""), z.email().max(200)]),
   notes: z.string().trim().max(500),
   active: z.boolean(),
 });
+
+/** the driver's sign-in account follows his mobile and email (unless another account already uses them) */
+async function syncAccount(driverId: number, phone: string, email: string) {
+  const acc = await db.query.adminUsers.findFirst({ where: and(eq(s.adminUsers.driverId, driverId), eq(s.adminUsers.role, "driver")) });
+  if (!acc) return;
+  const phoneFree = !(await db.query.adminUsers.findFirst({ where: and(eq(s.adminUsers.phone, phone), ne(s.adminUsers.id, acc.id)) }));
+  const emailFree = !email || !(await db.query.adminUsers.findFirst({ where: and(eq(s.adminUsers.email, email), ne(s.adminUsers.id, acc.id)) }));
+  const set: { phone?: string; email?: string | null } = {};
+  if (phoneFree && acc.phone !== phone) set.phone = phone;
+  if (emailFree && (acc.email ?? "") !== email && (email || acc.phone || set.phone)) set.email = email || null;
+  if (Object.keys(set).length) await db.update(s.adminUsers).set(set).where(eq(s.adminUsers.id, acc.id));
+}
 
 /** Add a driver or edit one (new photo optional) */
 export async function saveDriver(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -39,12 +52,13 @@ export async function saveDriver(_prev: ActionState, formData: FormData): Promis
     carModel: formData.get("carModel") ?? "",
     carColor: formData.get("carColor") ?? "",
     bankAccount: formData.get("bankAccount") ?? "",
+    email: String(formData.get("email") ?? "").trim().toLowerCase(),
     notes: formData.get("notes") ?? "",
     active: formData.get("active") === "on",
   });
   if (!parsed.success) {
     const f = parsed.error.issues[0]?.path[0];
-    return { error: f === "plateNumber" ? "اختر حروف اللوحة الثلاثة واكتب أرقامها (١ إلى ٤ أرقام)." : f === "vehicleId" ? "اختر نوع السيارة." : f === "carModel" ? "اختر الموديل." : "اكتب اسم السائق." };
+    return { error: f === "plateNumber" ? "اختر حروف اللوحة الثلاثة واكتب أرقامها (١ إلى ٤ أرقام)." : f === "vehicleId" ? "اختر نوع السيارة." : f === "carModel" ? "اختر الموديل." : f === "email" ? "البريد الإلكتروني للسائق غير صحيح." : "اكتب اسم السائق." };
   }
   const phone = normalizePhone(String(formData.get("phone") ?? ""));
   if (!phone) return { error: "رقم جوال السائق غير صحيح. اكتبه مثل 0501234567 أو مع رمز الدولة." };
@@ -84,6 +98,7 @@ export async function saveDriver(_prev: ActionState, formData: FormData): Promis
     const done = await db.update(s.drivers).set(values).where(eq(s.drivers.id, id)).returning({ id: s.drivers.id });
     if (!done.length) return { error: "السائق غير موجود." };
     await saveDocs(id);
+    await syncAccount(id, phone, parsed.data.email);
     revalidatePath("/admin/drivers");
     return { ok: true, message: docs.length ? `تم حفظ بيانات السائق و${docs.length === 1 ? "صورة واحدة" : `${docs.length} صور`}.` : "تم حفظ بيانات السائق." };
   }

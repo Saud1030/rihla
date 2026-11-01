@@ -71,8 +71,12 @@ async function Account({ searchParams }: { searchParams: Promise<Record<string, 
             <dd>{me.name}</dd>
           </div>
           <div className="flex gap-3">
-            <dt className="text-muted w-28">اسم الدخول</dt>
-            <dd dir="ltr">{me.email}</dd>
+            <dt className="text-muted w-28">البريد الإلكتروني</dt>
+            <dd dir="ltr">{me.mail || "—"}</dd>
+          </div>
+          <div className="flex gap-3">
+            <dt className="text-muted w-28">رقم الجوال</dt>
+            <dd dir="ltr">{me.phone || "—"}</dd>
           </div>
           <div className="flex gap-3">
             <dt className="text-muted w-28">نوع الحساب</dt>

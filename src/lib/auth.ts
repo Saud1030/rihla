@@ -16,7 +16,8 @@ function secretKey() {
   return new TextEncoder().encode(secret);
 }
 
-export type AdminSession = { uid: number; email: string; name: string; role: Role; permissions: string[]; driverId: number | null };
+/** email: what the account signs in with (its email, else its mobile number) */
+export type AdminSession = { uid: number; email: string; mail?: string | null; phone?: string | null; name: string; role: Role; permissions: string[]; driverId: number | null };
 
 export async function createSession(user: Pick<AdminSession, "uid" | "email" | "name">) {
   const token = await new SignJWT({ email: user.email, name: user.name })
@@ -56,7 +57,7 @@ export async function getSession(): Promise<AdminSession | null> {
       });
       if (d && driverHold(d)) return null;
     }
-    return { uid: user.id, email: user.email, name: user.name, role: user.role, permissions: user.permissions ?? [], driverId: user.driverId };
+    return { uid: user.id, email: user.email ?? user.phone ?? "", mail: user.email, phone: user.phone, name: user.name, role: user.role, permissions: user.permissions ?? [], driverId: user.driverId };
   } catch {
     return null;
   }

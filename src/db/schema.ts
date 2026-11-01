@@ -298,8 +298,9 @@ export const userRole = pgEnum("user_role", ["owner", "staff", "driver"]);
 
 export const adminUsers = pgTable("admin_users", {
   id: serial("id").primaryKey(),
-  /** sign-in name: an email, or a mobile number in +966... form */
-  email: text("email").notNull().unique(),
+  /** sign-in by email or by mobile number (+966...); at least one of the two is set */
+  email: text("email").unique(),
+  phone: text("phone").unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
   role: userRole("role").notNull().default("owner"),
@@ -320,6 +321,7 @@ export const drivers = pgTable("drivers", {
   name: text("name").notNull(),
   /** mobile / WhatsApp in +966... form */
   phone: text("phone").notNull(),
+  email: text("email").notNull().default(""),
   plateNumber: text("plate_number").notNull(),
   /** car make and name, e.g. Toyota Camry */
   carType: text("car_type").notNull(),
@@ -347,7 +349,18 @@ export const drivers = pgTable("drivers", {
 });
 
 /** Documents a driver uploads when applying: ID, car registration (istimara), car inside and outside */
-export const driverDocKind = pgEnum("driver_doc_kind", ["id_card", "license", "registration", "car_inside", "car_outside", "iban"]);
+export const driverDocKind = pgEnum("driver_doc_kind", [
+  "id_card",
+  "license",
+  "registration",
+  "car_inside",
+  "car_outside",
+  "iban",
+  "car_outside_back",
+  "car_outside_side",
+  "car_inside_back",
+  "car_inside_dash",
+]);
 export const driverDocuments = pgTable(
   "driver_documents",
   {

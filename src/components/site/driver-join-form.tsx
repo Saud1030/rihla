@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { applyAsDriver, type JoinState } from "@/app/actions/driver-apply";
-import { DOC_KINDS, DOC_LABELS } from "@/lib/driver-docs";
+import { CAR_EXTRA_DOCS, DOC_KINDS, DOC_LABELS } from "@/lib/driver-docs";
 import { PhotoField } from "./photo-field";
 import { ColorSelect, PlateFields } from "@/components/plate-fields";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
@@ -51,6 +51,12 @@ export function DriverJoinForm({ lang, t, vehicles, years }: { lang: Locale; t: 
             <input name="phone" type="tel" required maxLength={20} defaultValue={v.phone} dir="ltr" inputMode="tel" autoComplete="tel" placeholder="05XXXXXXXX" className="field text-start" aria-invalid={E.phone || undefined} />
             <span className="block text-xs text-muted mt-1">{t.phoneHint}</span>
             {err("phone")}
+          </label>
+          <label className="block sm:col-span-2">
+            <span className="block text-sm font-medium mb-1">{t.email}</span>
+            <input name="email" type="email" maxLength={200} defaultValue={v.email} dir="ltr" autoComplete="email" className="field text-start" aria-invalid={E.email || undefined} />
+            <span className="block text-xs text-muted mt-1">{t.emailHint}</span>
+            {err("email")}
           </label>
           <label className="block sm:col-span-2">
             <span className="block text-sm font-medium mb-1">{t.password}</span>
@@ -122,6 +128,13 @@ export function DriverJoinForm({ lang, t, vehicles, years }: { lang: Locale; t: 
           <PhotoField name="iban" label={`${L("iban")} (${lang === "ar" ? "اختياري" : "optional"})`} t={t} required={false} />
         </div>
         {err("photo")}
+        <h3 className="font-medium pt-2">{t.extraPhotos}</h3>
+        <p className="text-sm text-muted">{t.extraPhotosHint}</p>
+        <div className="grid gap-3 sm:grid-cols-2" data-testid="join-extra-photos">
+          {CAR_EXTRA_DOCS.map((k) => (
+            <PhotoField key={k} name={k} label={L(k)} t={t} required={false} />
+          ))}
+        </div>
       </section>
 
       <label className="flex items-start gap-2">

@@ -12,7 +12,7 @@ import { distancePrice, driveMinutes, roadKm } from "./pricing";
  */
 
 export const MULTI_MIN_LEGS = 2;
-export const MULTI_MAX_LEGS = 5;
+export const MULTI_MAX_LEGS = 20;
 
 const SLUG = /^[a-z0-9-]{1,80}$/;
 

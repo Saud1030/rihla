@@ -11,11 +11,11 @@ import { allow, clientIp } from "@/lib/rate-limit";
 import { ALL_DOC_KINDS, DRIVER_PHOTO_MAX, modelYears, OPTIONAL_DOCS } from "@/lib/driver-docs";
 import { isCarColor, plateFromForm } from "@/lib/plate";
 
-export type JoinField = "name" | "phone" | "password" | "vehicle" | "model" | "plate" | "color" | "photo" | "agree";
+export type JoinField = "name" | "phone" | "email" | "password" | "vehicle" | "model" | "plate" | "color" | "photo" | "agree";
 export type JoinState = {
   done?: boolean;
   errors?: Partial<Record<JoinField, true>>;
-  formError?: "fileType" | "tooBig" | "exists" | "throttled" | "generic";
+  formError?: "fileType" | "tooBig" | "exists" | "emailTaken" | "throttled" | "generic";
   missing?: string[];
   values?: Record<string, string>;
 };
@@ -37,6 +37,7 @@ export async function applyAsDriver(_prev: JoinState, formData: FormData): Promi
   const values = {
     name: text("name"),
     phone: text("phone"),
+    email: text("email").trim().toLowerCase().slice(0, 200),
     vehicleId: text("vehicleId"),
     carModel: text("carModel"),
     plateNumber: plate ?? "",
@@ -51,6 +52,8 @@ export async function applyAsDriver(_prev: JoinState, formData: FormData): Promi
       errors[({ name: "name", password: "password", vehicleId: "vehicle", carModel: "model", plateNumber: "plate", carColor: "color" } as const)[i.path[0] as "name"] ?? "name"] = true;
   const phone = normalizePhone(values.phone);
   if (!phone) errors.phone = true;
+  // optional; when given he can sign in with it too
+  if (values.email && !z.email().safeParse(values.email).success) errors.email = true;
   if (formData.get("agree") !== "on") errors.agree = true;
 
   // photos: every one required, a real image, under 1 MB
@@ -78,8 +81,12 @@ export async function applyAsDriver(_prev: JoinState, formData: FormData): Promi
 
   // one application per number (a rejected one may apply again)
   const existing = await db.query.drivers.findFirst({ where: eq(s.drivers.phone, phone) });
-  const account = await db.query.adminUsers.findFirst({ where: eq(s.adminUsers.email, phone) });
+  const account = await db.query.adminUsers.findFirst({ where: eq(s.adminUsers.phone, phone) });
   if ((existing && existing.status !== "rejected") || (account && account.driverId !== existing?.id)) return { formError: "exists", values };
+  if (values.email) {
+    const byEmail = await db.query.adminUsers.findFirst({ where: eq(s.adminUsers.email, values.email) });
+    if (byEmail && byEmail.id !== account?.id) return { errors: { email: true }, formError: "emailTaken", values };
+  }
 
   if (!allow(`driver-apply:${clientIp(await headers())}`, 5, 60 * 60_000)) return { formError: "throttled", values };
 
@@ -89,6 +96,7 @@ export async function applyAsDriver(_prev: JoinState, formData: FormData): Promi
       const driverValues = {
         name: d.name,
         phone,
+        email: values.email,
         plateNumber: d.plateNumber,
         carType: vehicle.nameAr,
         carModel: d.carModel,
@@ -116,8 +124,8 @@ export async function applyAsDriver(_prev: JoinState, formData: FormData): Promi
         .insert(s.driverDocuments)
         .values(ALL_DOC_KINDS.filter((kind) => files[kind]).map((kind) => ({ driverId, kind, mime: files[kind].mime, size: files[kind].data.length, data: files[kind].data })));
       // the sign-in account exists from now on, but stays switched off until the application is approved
-      if (account) await tx.update(s.adminUsers).set({ name: d.name, passwordHash, active: false }).where(eq(s.adminUsers.id, account.id));
-      else await tx.insert(s.adminUsers).values({ email: phone, name: d.name, passwordHash, role: "driver", driverId, active: false });
+      if (account) await tx.update(s.adminUsers).set({ name: d.name, email: values.email || null, passwordHash, active: false }).where(eq(s.adminUsers.id, account.id));
+      else await tx.insert(s.adminUsers).values({ phone, email: values.email || null, name: d.name, passwordHash, role: "driver", driverId, active: false });
     });
   } catch (e) {
     console.error("driver application failed", e);

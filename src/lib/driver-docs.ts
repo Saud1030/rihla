@@ -5,7 +5,9 @@ export const DRIVER_PHOTO_MAX = 1024 * 1024; // 1 MB
 
 export const DOC_KINDS = ["id_card", "license", "registration", "car_inside", "car_outside"] as const;
 /** optional: a photo of the bank account / IBAN certificate, for paying the driver */
-export const OPTIONAL_DOCS = ["iban"] as const;
+/** optional: more photos of the car, outside and inside */
+export const CAR_EXTRA_DOCS = ["car_outside_back", "car_outside_side", "car_inside_back", "car_inside_dash"] as const;
+export const OPTIONAL_DOCS = [...CAR_EXTRA_DOCS, "iban"] as const;
 export const ALL_DOC_KINDS = [...DOC_KINDS, ...OPTIONAL_DOCS] as const;
 export type DocKind = (typeof ALL_DOC_KINDS)[number];
 
@@ -15,8 +17,12 @@ export const DOC_LABELS: Record<DocKind | "photo", { ar: string; en: string }> =
   id_card: { ar: "صورة الهوية أو الإقامة", en: "ID card or iqama" },
   license: { ar: "صورة رخصة القيادة", en: "Driving licence" },
   registration: { ar: "صورة استمارة السيارة", en: "Car registration (istimara)" },
-  car_inside: { ar: "صورة السيارة من الداخل", en: "Car interior" },
-  car_outside: { ar: "صورة السيارة من الخارج", en: "Car exterior" },
+  car_inside: { ar: "صورة السيارة من الداخل (المقاعد الأمامية)", en: "Car interior (front seats)" },
+  car_outside: { ar: "صورة السيارة من الخارج (من الأمام)", en: "Car exterior (front)" },
+  car_outside_back: { ar: "السيارة من الخارج: من الخلف", en: "Car exterior: back" },
+  car_outside_side: { ar: "السيارة من الخارج: من الجانب", en: "Car exterior: side" },
+  car_inside_back: { ar: "السيارة من الداخل: المقاعد الخلفية", en: "Car interior: back seats" },
+  car_inside_dash: { ar: "السيارة من الداخل: الطبلون والمقود", en: "Car interior: dashboard" },
 };
 
 /** Model years offered: next year back to 2005 */

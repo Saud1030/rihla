@@ -12,10 +12,15 @@ import { isSection } from "@/lib/permissions";
 import { normalizePhone } from "@/lib/phone";
 import type { ActionState } from "./actions";
 
-/** Sign-in name: an email (lower case) or a mobile number (+966...) */
-function cleanLogin(v: string) {
-  const t = v.trim().toLowerCase();
-  if (t.includes("@")) return z.email().max(200).safeParse(t).success ? t : null;
+/** "" = not given, null = given but not valid */
+function cleanEmail(v: FormDataEntryValue | null) {
+  const t = String(v ?? "").trim().toLowerCase();
+  if (!t) return "";
+  return z.email().max(200).safeParse(t).success ? t : null;
+}
+function cleanPhone(v: FormDataEntryValue | null) {
+  const t = String(v ?? "").trim();
+  if (!t) return "";
   return normalizePhone(t);
 }
 
@@ -40,8 +45,11 @@ export async function saveUser(_prev: ActionState, formData: FormData): Promise<
   const parsed = schema.safeParse({ name: formData.get("name"), role: formData.get("role"), active: formData.get("active") === "on" });
   if (!parsed.success) return { error: "اكتب الاسم واختر نوع الحساب." };
   const { name, role, active } = parsed.data;
-  const login = cleanLogin(String(formData.get("login") ?? ""));
-  if (!login) return { error: "اسم الدخول يجب أن يكون بريدًا إلكترونيًا صحيحًا أو رقم جوال (مثل 0501234567)." };
+  const email = cleanEmail(formData.get("email"));
+  const phone = cleanPhone(formData.get("phone"));
+  if (email === null) return { error: "البريد الإلكتروني غير صحيح." };
+  if (phone === null) return { error: "رقم الجوال غير صحيح (مثل 0501234567)." };
+  if (!email && !phone) return { error: "اكتب البريد الإلكتروني أو رقم الجوال (أو الاثنين) ليدخل بهما صاحب الحساب." };
   const password = String(formData.get("password") ?? "");
   if ((!id || password) && password.length < 10) return { error: "كلمة المرور ١٠ أحرف على الأقل." };
   const permissions = role === "staff" ? formData.getAll("permissions").map(String).filter(isSection) : [];
@@ -53,8 +61,10 @@ export async function saveUser(_prev: ActionState, formData: FormData): Promise<
     if (taken) return { error: "لهذا السائق حساب دخول من قبل." };
   }
 
-  const clash = await db.query.adminUsers.findFirst({ where: and(eq(s.adminUsers.email, login), ne(s.adminUsers.id, id)) });
-  if (clash) return { error: "اسم الدخول مستخدم في حساب آخر." };
+  if (email && (await db.query.adminUsers.findFirst({ where: and(eq(s.adminUsers.email, email), ne(s.adminUsers.id, id)) })))
+    return { error: "البريد الإلكتروني مستخدم في حساب آخر." };
+  if (phone && (await db.query.adminUsers.findFirst({ where: and(eq(s.adminUsers.phone, phone), ne(s.adminUsers.id, id)) })))
+    return { error: "رقم الجوال مستخدم في حساب آخر." };
 
   if (id) {
     const current = await db.query.adminUsers.findFirst({ where: eq(s.adminUsers.id, id) });
@@ -65,7 +75,8 @@ export async function saveUser(_prev: ActionState, formData: FormData): Promise<
       .update(s.adminUsers)
       .set({
         name,
-        email: login,
+        email: email || null,
+        phone: phone || null,
         role,
         permissions,
         driverId: driverId || null,
@@ -76,7 +87,7 @@ export async function saveUser(_prev: ActionState, formData: FormData): Promise<
     revalidatePath("/admin/users");
     return { ok: true, message: "تم حفظ الحساب." };
   }
-  await db.insert(s.adminUsers).values({ name, email: login, role, permissions, driverId: driverId || null, active, passwordHash: await bcrypt.hash(password, 12) });
+  await db.insert(s.adminUsers).values({ name, email: email || null, phone: phone || null, role, permissions, driverId: driverId || null, active, passwordHash: await bcrypt.hash(password, 12) });
   redirect("/admin/users?added=1");
 }
 

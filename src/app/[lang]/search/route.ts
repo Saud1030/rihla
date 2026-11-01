@@ -34,7 +34,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/[lang]/search">)
 
   // several separate trips, each from -> to with its own date and time (l1=a,b,date,time ...)
   if (q.get("mode") === "multi") {
-    const params = Object.fromEntries([...q.entries()].filter(([k]) => /^l\d$/.test(k)));
+    const params = Object.fromEntries([...q.entries()].filter(([k]) => /^l\d{1,2}$/.test(k)));
     if (!legsFromParams(params)) return back();
     return seeOther(`/${locale}/multi`, new URLSearchParams(params));
   }

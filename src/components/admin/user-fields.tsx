@@ -6,7 +6,7 @@ import { Field } from "./ui";
 import { saveUser } from "@/app/admin/user-actions";
 import { ROLE_LABELS, SECTIONS, type Role } from "@/lib/permissions";
 
-export type UserRow = { id: number; name: string; email: string; role: Role; permissions: string[]; driverId: number | null; active: boolean };
+export type UserRow = { id: number; name: string; email: string | null; phone: string | null; role: Role; permissions: string[]; driverId: number | null; active: boolean };
 
 /** Add / edit an account: staff pick their sections, drivers pick which driver they are */
 export function UserFields({ u, drivers }: { u?: UserRow; drivers: { id: number; name: string }[] }) {
@@ -18,8 +18,11 @@ export function UserFields({ u, drivers }: { u?: UserRow; drivers: { id: number;
         <Field label="الاسم">
           <input name="name" required minLength={2} maxLength={80} defaultValue={u?.name} className="field" />
         </Field>
-        <Field label="اسم الدخول" hint="بريد إلكتروني، أو رقم جوال للسائقين مثل 0501234567">
-          <input name="login" required maxLength={200} defaultValue={u?.email} dir="ltr" className="field text-start" autoComplete="off" />
+        <Field label="البريد الإلكتروني" hint="يدخل به صاحب الحساب. اتركه فارغًا إن كان يدخل برقم الجوال.">
+          <input name="email" type="email" maxLength={200} defaultValue={u?.email ?? ""} dir="ltr" className="field text-start" autoComplete="off" />
+        </Field>
+        <Field label="رقم الجوال" hint="مثل 0501234567. يقدر يدخل به أيضًا.">
+          <input name="phone" type="tel" inputMode="tel" maxLength={20} defaultValue={u?.phone ?? ""} dir="ltr" className="field text-start" autoComplete="off" />
         </Field>
         <Field label={u ? "كلمة مرور جديدة (اختياري)" : "كلمة المرور"} hint="١٠ أحرف على الأقل">
           <input name="password" type="password" minLength={10} required={!u} dir="ltr" className="field text-start" autoComplete="new-password" />
