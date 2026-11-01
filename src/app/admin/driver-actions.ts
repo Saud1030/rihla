@@ -6,8 +6,8 @@ import { z } from "zod";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireDriver, requireSection } from "@/lib/auth";
-import { detectFile, IMAGE_TYPES } from "@/lib/files";
-import { DRIVER_PHOTO_MAX, modelYears } from "@/lib/driver-docs";
+import { detectFile, IMAGE_TYPES, RECEIPT_TYPES } from "@/lib/files";
+import { ALL_DOC_KINDS, DOC_LABELS, DRIVER_PHOTO_MAX, modelYears, type DocKind } from "@/lib/driver-docs";
 import { notify } from "@/lib/notify";
 import { publicBaseUrl } from "@/lib/public-url";
 import { normalizePhone } from "@/lib/phone";
@@ -60,14 +60,35 @@ export async function saveDriver(_prev: ActionState, formData: FormData): Promis
     if (!kind) return { error: "الصورة يجب أن تكون PNG أو JPG أو WEBP." };
     photo = { photo: buf, photoMime: kind.mime };
   }
+  // documents (ID, licence, registration, car photos, IBAN): each optional here, replaces the old one
+  const docs: { kind: DocKind; mime: string; data: Buffer }[] = [];
+  for (const kind of ALL_DOC_KINDS) {
+    const f = formData.get(kind);
+    if (!(f instanceof File) || f.size === 0) continue;
+    if (f.size > DRIVER_PHOTO_MAX) return { error: `${DOC_LABELS[kind].ar}: الحجم أكبر من ١ ميجابايت.` };
+    const buf = Buffer.from(await f.arrayBuffer());
+    const t = detectFile(buf, IMAGE_TYPES);
+    if (!t) return { error: `${DOC_LABELS[kind].ar}: يجب أن تكون صورة PNG أو JPG أو WEBP.` };
+    docs.push({ kind, mime: t.mime, data: buf });
+  }
+  const saveDocs = async (driverId: number) => {
+    for (const d of docs)
+      await db
+        .insert(s.driverDocuments)
+        .values({ driverId, kind: d.kind, mime: d.mime, size: d.data.length, data: d.data })
+        .onConflictDoUpdate({ target: [s.driverDocuments.driverId, s.driverDocuments.kind], set: { mime: d.mime, size: d.data.length, data: d.data, createdAt: new Date() } });
+  };
+
   const values = { ...parsed.data, carType: vehicle.nameAr, phone, updatedAt: new Date(), ...(photo ?? {}) };
   if (id > 0) {
     const done = await db.update(s.drivers).set(values).where(eq(s.drivers.id, id)).returning({ id: s.drivers.id });
     if (!done.length) return { error: "السائق غير موجود." };
+    await saveDocs(id);
     revalidatePath("/admin/drivers");
-    return { ok: true, message: "تم حفظ بيانات السائق." };
+    return { ok: true, message: docs.length ? `تم حفظ بيانات السائق و${docs.length === 1 ? "صورة واحدة" : `${docs.length} صور`}.` : "تم حفظ بيانات السائق." };
   }
-  await db.insert(s.drivers).values(values);
+  const [row] = await db.insert(s.drivers).values(values).returning({ id: s.drivers.id });
+  await saveDocs(row.id);
   redirect("/admin/drivers?added=1");
 }
 
@@ -331,18 +352,29 @@ export async function setDriverFare(_prev: ActionState, formData: FormData): Pro
   return { ok: true, message: fare == null ? "تم حذف أجرة السائق." : "تم حفظ أجرة السائق، وتظهر له في صفحته." };
 }
 
-/** Money handed to a driver (cash or transfer): lowers what we still owe him */
+/** Money handed to a driver: by bank transfer (with the transfer receipt) or cash. Lowers what we still owe him. */
 export async function addDriverPayout(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const admin = await requireSection("drivers");
   const driverId = Number(formData.get("driverId") ?? 0);
   const amount = sarToHalalas(formData.get("amount"));
   const paidOn = String(formData.get("paidOn") ?? "");
   const note = String(formData.get("note") ?? "").trim().slice(0, 200);
+  const method = formData.get("method") === "cash" ? "cash" : "transfer";
   if (!amount) return { error: "اكتب المبلغ المدفوع بالريال، مثل 500" };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(paidOn)) return { error: "اختر تاريخ الدفع." };
-  const d = await db.query.drivers.findFirst({ where: eq(s.drivers.id, driverId) });
+  let receipt: { receipt: Buffer; receiptMime: string } | null = null;
+  const file = formData.get("receipt");
+  if (method === "transfer") {
+    if (!(file instanceof File) || file.size === 0) return { error: "التحويل البنكي يحتاج إيصال التحويل. ارفع صورة الإيصال أو اختر «نقدًا»." };
+    if (file.size > 5 * 1024 * 1024) return { error: "حجم الإيصال أكبر من ٥ ميجابايت." };
+    const buf = Buffer.from(await file.arrayBuffer());
+    const t = detectFile(buf, RECEIPT_TYPES);
+    if (!t) return { error: "الإيصال يجب أن يكون صورة (PNG أو JPG أو WEBP) أو PDF." };
+    receipt = { receipt: buf, receiptMime: t.mime };
+  }
+  const d = await db.query.drivers.findFirst({ where: eq(s.drivers.id, driverId), columns: { id: true } });
   if (!d) return { error: "السائق غير موجود." };
-  await db.insert(s.driverPayouts).values({ driverId, amount, paidOn, note, createdBy: admin.email });
+  await db.insert(s.driverPayouts).values({ driverId, amount, paidOn, note, method, ...(receipt ?? {}), createdBy: admin.email });
   redirect(`/admin/drivers?paid=${driverId}#driver-${driverId}`);
 }
 

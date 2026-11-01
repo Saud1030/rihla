@@ -69,7 +69,13 @@ export function vatNote(vat: { rateBp: number; inclusiveDisplay: boolean }, loca
 export const bookingNo = (n: number | null | undefined) => (n ? `MHT${String(n).padStart(2, "0")}` : "—");
 
 /** a multi-stop trip's places in order, with the date and time set for the later stops */
-export function stopLines(b: { stops?: string[] | null; stopTimes?: (string | null)[] | null }, locale: Locale): string[] {
+export function stopLines(b: { stops?: string[] | null; stopTimes?: (string | null)[] | null; legs?: { from: string; to: string; at: string }[] | null }, locale: Locale): string[] {
+  const when = (at: string) => {
+    const [d, t] = at.split(" ");
+    return `${formatDate(d, locale, { weekday: false })} ${formatTime(t, locale)}`;
+  };
+  // several trips, each with its own time
+  if (b.legs?.length) return b.legs.map((l) => `${l.from} ${locale === "ar" ? "←" : "→"} ${l.to} — ${when(l.at)}`);
   if (!b.stops?.length) return [];
   return b.stops.map((name, i) => {
     const at = b.stopTimes?.[i];

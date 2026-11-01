@@ -263,6 +263,13 @@ if (!fs.existsSync(catalogMark) && env.DATABASE_URL === DB_URL) {
   if (node([tsx, "scripts/apply-catalog.ts"])) fs.writeFileSync(catalogMark, new Date().toISOString());
 }
 
+// sample hourly prices for each city (once)
+const hourlyMark = path.join(LOCAL, "city-hourly-added");
+if (!fs.existsSync(hourlyMark) && env.DATABASE_URL === DB_URL) {
+  say("إضافة أسعار تجريبية للحجز بالساعة لكل مدينة");
+  if (node([tsx, "scripts/demo-city-hourly.ts"])) fs.writeFileSync(hourlyMark, new Date().toISOString());
+}
+
 /* ---------- build (when the code changed) ---------- */
 const newest = (dir) =>
   fs.readdirSync(dir, { withFileTypes: true }).reduce((t, d) => {

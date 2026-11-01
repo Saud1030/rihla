@@ -87,8 +87,13 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
               {payouts.map((p) => (
                 <li key={p.id} className="px-4 py-2 flex flex-wrap justify-between gap-2">
                   <span>
-                    {formatDate(p.paidOn, "ar")}
+                    {formatDate(p.paidOn, "ar")} · {p.method === "cash" ? "نقدًا" : "تحويل بنكي"}
                     {p.note ? <span className="text-muted"> · {p.note}</span> : null}
+                    {p.hasReceipt && (
+                      <a href={`/api/payouts/${p.id}/receipt`} target="_blank" rel="noopener noreferrer" className="ms-2 text-sign hover:underline">
+                        الإيصال
+                      </a>
+                    )}
                   </span>
                   <span className="font-medium tabular">{formatSAR(p.amount, "ar")}</span>
                 </li>
@@ -131,7 +136,7 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
                       <span className="text-muted">أجرتك: </span>
                       {b.driverFare != null ? <span className="font-semibold tabular">{formatSAR(b.driverFare, "ar")}</span> : <span className="text-muted">تحددها الإدارة</span>}
                     </p>
-                    {b.stops?.length ? (
+                    {b.stops?.length || b.legs?.length ? (
                       <ol className="list-decimal ps-5 text-[15px] space-y-0.5" data-testid="trip-stops">
                         {stopLines(b, "ar").map((l, i) => (
                           <li key={i}>{l}</li>

@@ -1109,17 +1109,21 @@ if (!ONLY || ONLY === "features") {
     await fn();
     await submit(a, "حفظ السياسة");
   };
-  await check("chooser hourly tab: from, to, 6/12/24 hours, date and time — all on the home page", async () => {
+  await check("chooser hourly tab: one city, 10/12/24 hours, date and time — all on the home page", async () => {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     await page.getByRole("tab", { name: "بالساعة مع سائق" }).click();
     assert(page.url().endsWith("/ar"), "tab doesn't navigate away");
-    await pickPlace(page, 0, "منطقة مكة المكرمة", "مكة المكرمة", "مكة المكرمة (الفنادق)");
+    eq(await page.locator("form#search button[aria-controls=search-panel]").count(), 2, "city and duration only");
     await page.getByRole("button", { name: "اعرض الأسعار" }).click();
-    await page.getByText("اختر الوجهة التي تريد الذهاب إليها.").waitFor(); // "to" is required here too
-    await pickPlace(page, 1, "منطقة المدينة المنورة", "المدينة المنورة", "المدينة المنورة (الفنادق)");
+    await page.getByText("اختر نقطة الانطلاق أولًا.").waitFor(); // the city is required
+    // pick a city (not a place)
+    await page.locator("form#search button[aria-controls=search-panel]").nth(0).click();
+    await page.locator("#search-panel").getByRole("button", { name: /منطقة مكة المكرمة/ }).click();
+    await page.locator("#search-panel").getByRole("button", { name: /^مكة المكرمة/ }).click();
+    await page.locator("#search-panel").waitFor({ state: "detached" });
     // duration is chosen like a place: open the field, tap a package; every package works
     for (const h of ["١٠ ساعات", "١٢ ساعة", "٢٤ ساعة"]) {
-      await page.locator("form#search button[aria-controls=search-panel]").nth(2).click();
+      await page.locator("form#search button[aria-controls=search-panel]").nth(1).click();
       await page.locator("#search-panel").getByRole("button", { name: h }).click();
       assert((await page.locator("form#search").textContent()).includes(h), "picked " + h);
     }
@@ -1127,17 +1131,17 @@ if (!ONLY || ONLY === "features") {
     await page.selectOption('form#search select[name="time"]', "18:00");
     assert((await page.getByTestId("ends-at").textContent()).includes("٦:٠٠ م (اليوم التالي)"), "18:00 + 24h shown on the sign");
     await page.getByRole("button", { name: "اعرض الأسعار" }).click();
-    await page.waitForURL(/\/ar\/hourly\?from=makkah&to=madinah&hours=24&date=/, { waitUntil: "commit" });
+    await page.waitForURL(/\/ar\/hourly\?city=makkah&hours=24&date=/, { waitUntil: "commit" });
     await page.getByRole("heading", { name: /سيارة مع سائق · ٢٤ ساعة/ }).waitFor();
     assert((await page.getByTestId("form-end").textContent()).includes("ينتهي الحجز"), "end shown on the form");
-    assert((await page.textContent("main")).includes("الوجهة: المدينة المنورة (الفنادق)"), "destination shown");
-    // switching package keeps from, to, date and time
+    eq(await page.getByTestId("hourly-city").innerText(), "مدينة مكة المكرمة", "city shown");
+    // switching package keeps the city, date and time
     await page.getByRole("link", { name: "١٠ ساعات" }).click();
-    await page.waitForURL(/\/ar\/hourly\?from=makkah&to=madinah&hours=10&date=.*&time=18/, { waitUntil: "commit" });
+    await page.waitForURL(/\/ar\/hourly\?city=makkah&hours=10&date=.*&time=18/, { waitUntil: "commit" });
   });
   let hourRef;
-  await check("hourly 12h: server price + VAT, destination and end time stored, paid end to end", async () => {
-    await page.goto(`${BASE}/ar/hourly?from=makkah&to=madinah&hours=12`, { waitUntil: "networkidle" });
+  await check("hourly 12h in a city: server price + VAT, city and end time stored, paid end to end", async () => {
+    await page.goto(`${BASE}/ar/hourly?city=makkah&hours=12`, { waitUntil: "networkidle" });
     await page.getByRole("radiogroup").getByText("تويوتا كامري", { exact: true }).click();
     await page.fill("#date", tomorrow()); await page.fill("#time", "20:00");
     await page.fill("#passengers", "3"); await page.fill("#bags", "2");
@@ -1145,38 +1149,53 @@ if (!ONLY || ONLY === "features") {
     await page.locator("form:has(#name) button[type=submit]").click();
     await page.waitForURL(/\/checkout\/[A-Z0-9]{8}$/, { waitUntil: "commit" });
     hourRef = page.url().split("/").pop();
-    eq(sql(`select pricing_mode||','||hours||','||duration_min||','||subtotal||','||vat_amount||','||amount from bookings where ref='${hourRef}'`), "hourly,12,720,60000,9000,69000", "stored hourly booking");
-    eq(sql(`select l.slug from bookings b join locations l on l.id=b.to_location_id where b.ref='${hourRef}'`), "madinah", "destination stored");
-    assert(sql(`select route_title from bookings where ref='${hourRef}'`).includes("إلى المدينة المنورة"), "title has the destination");
+    eq(sql(`select pricing_mode||','||hours||','||duration_min||','||subtotal||','||vat_amount||','||amount||','||hourly_city from bookings where ref='${hourRef}'`), "hourly,12,720,60000,9000,69000,makkah", "stored hourly booking");
+    assert(sql(`select route_title from bookings where ref='${hourRef}'`).includes("مدينة مكة المكرمة"), "title has the city");
     assert((await page.textContent("main")).includes("٨:٠٠ ص (اليوم التالي)"), "checkout shows 20:00 + 12h = 8 AM next day");
     assert((await page.textContent("main")).includes("١٢ ساعة"), "title mentions 12 hours");
     await payInBrowser(page, hourRef, "pay");
     await page.getByText("تم الدفع وتأكيد استلام حجزك").waitFor();
   });
-  await check("hourly search needs a destination different from the start", async () => {
-    for (const q of ["from=makkah&hours=12", "from=makkah&to=makkah&hours=12", "from=makkah&to=nowhere&hours=12", "from=makkah&to=madinah&hours=7"]) {
+  await check("hourly search needs a real city and package", async () => {
+    for (const q of ["city=makkah&hours=7", "city=BAD!&hours=12", "hours=12"]) {
       const r = await fetch(`${BASE}/ar/search?mode=hourly&${q}`, { redirect: "manual" });
       assert(/\/ar#search$/.test(r.headers.get("location")), q + " -> " + r.headers.get("location"));
     }
-    const ok = await fetch(`${BASE}/ar/search?mode=hourly&from=makkah&to=madinah&hours=10&date=${inDaysUTC(2)}&time=08:00`, { redirect: "manual" });
-    assert(ok.headers.get("location").includes(`/ar/hourly?from=makkah&to=madinah&hours=10&date=${inDaysUTC(2)}&time=08%3A00`), ok.headers.get("location"));
+    const ok = await fetch(`${BASE}/ar/search?mode=hourly&city=makkah&hours=10&date=${inDaysUTC(2)}&time=08:00`, { redirect: "manual" });
+    assert(ok.headers.get("location").includes(`/ar/hourly?city=makkah&hours=10&date=${inDaysUTC(2)}&time=08%3A00`), ok.headers.get("location"));
+    await page.goto(`${BASE}/ar/hourly?city=nowhere&hours=10`, { waitUntil: "networkidle" });
+    await page.getByText("الحجز بالساعة غير متاح").waitFor();
   });
-  await check("hourly: switching package changes prices (10h = 550)", async () => {
-    await page.goto(`${BASE}/ar/hourly?from=makkah&hours=12`, { waitUntil: "networkidle" });
+  await check("hourly: switching package changes prices (10h = 550); a city's own price from the new hourly prices page wins", async () => {
+    await page.goto(`${BASE}/ar/hourly?city=makkah&hours=12`, { waitUntil: "networkidle" });
     await page.getByRole("link", { name: "١٠ ساعات" }).click();
     await page.waitForURL(/hours=10$/, { waitUntil: "commit" });
     await page.waitForLoadState("networkidle");
     assert((await page.getByRole("radiogroup").textContent()).includes("٥٥٠"), "10h price");
+    // Admin -> hourly prices by city
+    const camry = sql("select id from vehicles where slug='toyota-camry'");
+    await a.goto(`${BASE}/admin/hourly-prices`, { waitUntil: "networkidle" });
+    const card = a.getByTestId("city-hourly-makkah");
+    await card.locator(`input[name="p_${camry}_10"]`).fill("٤٤٤");
+    await card.getByRole("button", { name: "حفظ أسعار مكة المكرمة" }).click();
+    await card.getByText("تم حفظ أسعار مدينة مكة المكرمة.").waitFor();
+    eq(sql(`select price from city_hourly_prices where city='makkah' and vehicle_id=${camry} and hours=10`), "44400", "stored");
+    await page.goto(`${BASE}/ar/hourly?city=makkah&hours=10`, { waitUntil: "networkidle" });
+    assert((await page.getByRole("radiogroup").textContent()).includes("٤٤٤"), "city price used");
+    await page.goto(`${BASE}/ar/hourly?city=jeddah&hours=10`, { waitUntil: "networkidle" });
+    assert((await page.getByRole("radiogroup").textContent()).includes("٥٥٠"), "other cities keep the car's own price");
+    await card.locator(`input[name="p_${camry}_10"]`).fill("");
+    await card.getByRole("button", { name: "حفظ أسعار مكة المكرمة" }).click();
+    await card.getByText("تم حفظ أسعار مدينة مكة المكرمة.").waitFor();
+    eq(sql(`select count(*) from city_hourly_prices where city='makkah' and vehicle_id=${camry} and hours=10`), "0", "cleared back to the car's price");
   });
-  await check("hourly tampering: fake vehicle, 7 hours, unknown place, bad or same destination are rejected", async () => {
+  await check("hourly tampering: fake vehicle, 7 hours, unknown city are rejected", async () => {
     for (const tamper of [
       (p) => p.evaluate(() => { document.querySelector('input[name="tripId"]:checked').value = "h:99999"; }),
       (p) => p.evaluate(() => { document.querySelector('input[name="hours"]').value = "7"; }),
-      (p) => p.evaluate(() => { document.querySelector('input[name="hourlyFrom"]').value = "no-such-place"; }),
-      (p) => p.evaluate(() => { document.querySelector('input[name="hourlyTo"]').value = "no-such-place"; }),
-      (p) => p.evaluate(() => { document.querySelector('input[name="hourlyTo"]').value = "makkah"; }),
+      (p) => p.evaluate(() => { document.querySelector('input[name="hourlyCity"]').value = "no-such-city"; }),
     ]) {
-      await page.goto(`${BASE}/ar/hourly?from=makkah&to=madinah&hours=12`, { waitUntil: "networkidle" });
+      await page.goto(`${BASE}/ar/hourly?city=makkah&hours=12`, { waitUntil: "networkidle" });
       await page.fill("#date", tomorrow()); await page.fill("#time", "08:00");
       await page.fill("#pickup", "x فندق"); await page.fill("#name", "تلاعب"); await page.fill("#phone", "+966552223344");
       await tamper(page);
@@ -1184,7 +1203,7 @@ if (!ONLY || ONLY === "features") {
       await page.getByRole("alert").first().waitFor({ timeout: 8000 });
       assert(!/checkout/.test(page.url()), "should not reach checkout");
     }
-    const bad = await fetch(`${BASE}/ar/hourly?from=makkah&hours=5`);
+    const bad = await fetch(`${BASE}/ar/hourly?city=makkah&hours=5`);
     assert((await bad.text()).includes("الحجز بالساعة غير متاح"), "5 hours not offered");
   });
   await check("turning hourly off in settings hides the tab and blocks the page", async () => {
@@ -1192,75 +1211,67 @@ if (!ONLY || ONLY === "features") {
     await a.getByText("تم حفظ سياسة الإلغاء").waitFor();
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     eq(await page.getByRole("tab", { name: "بالساعة مع سائق" }).count(), 0, "no hourly tab");
-    await page.goto(`${BASE}/ar/hourly?from=makkah&hours=12`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/ar/hourly?city=makkah&hours=12`, { waitUntil: "networkidle" });
     await page.getByText("الحجز بالساعة غير متاح").waitFor();
-    const r = await fetch(`${BASE}/ar/search?mode=hourly&from=makkah&to=madinah&hours=12`, { redirect: "manual" });
+    const r = await fetch(`${BASE}/ar/search?mode=hourly&city=makkah&hours=12`, { redirect: "manual" });
     assert(!r.headers.get("location").includes("hourly"), r.headers.get("location"));
     await savePolicy(() => a.check('input[name="hourly_enabled"]'));
     await a.getByText("تم حفظ سياسة الإلغاء").waitFor();
   });
-  await check("multi-stop trip: a tab on the home page; start + stops; each leg priced (fixed route, else distance); booked and paid as one trip", async () => {
+  await check("multiple trips: each trip has its own from, to, date and time; each priced (fixed route, else distance); booked and paid as one", async () => {
+    const d1 = inDaysUTC(3), d2 = inDaysUTC(4);
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    await page.getByRole("tab", { name: "رحلة متعددة" }).click();
+    await page.getByRole("tab", { name: "رحلات متعددة" }).click();
+    eq(await page.locator('[data-testid^="leg-"]').count(), 2, "two trips to start with");
+    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.getByText("اختر نقطة الانطلاق أولًا.").waitFor(); // every trip needs its places
     await pickPlace(page, 0, "منطقة مكة المكرمة", "جدة", "مطار الملك عبدالعزيز");
-    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
-    await page.getByText("اختر الوجهة التي تريد الذهاب إليها.").waitFor(); // every stop is required
     await pickPlace(page, 1, "منطقة مكة المكرمة", "مكة المكرمة", "مكة المكرمة (الفنادق)");
-    await pickPlace(page, 2, "منطقة المدينة المنورة", "المدينة المنورة", "المدينة المنورة (الفنادق)");
-    // up to five stops; an extra one can be removed again
-    await page.getByRole("button", { name: /أضف وجهة/ }).click();
-    await page.locator("#search-panel").getByRole("button", { name: "إغلاق" }).click();
-    eq(await page.getByTestId("multi-stops").locator("button[aria-controls]").count(), 4, "start + 3 stops");
-    await page.getByRole("button", { name: "احذف هذه الوجهة ٣" }).click();
-    eq(await page.getByTestId("multi-stops").locator("button[aria-controls]").count(), 3, "back to 2 stops");
-    await page.fill('form#search input[name="date"]', inDaysUTC(3));
-    await page.selectOption('form#search select[name="time"]', "10:00");
+    await pickPlace(page, 2, "منطقة مكة المكرمة", "مكة المكرمة", "مكة المكرمة (الفنادق)");
+    await pickPlace(page, 3, "منطقة المدينة المنورة", "المدينة المنورة", "المدينة المنورة (الفنادق)");
+    for (const [n, d, t] of [[1, d1, "10:00"], [2, d2, "09:00"]]) {
+      await page.getByTestId(`leg-${n}`).locator('input[type="date"]').fill(d);
+      await page.getByTestId(`leg-${n}`).locator("select").selectOption(t);
+    }
+    // a third trip starts where the last one ended; it can be removed again
+    await page.getByRole("button", { name: /أضف مشوارًا/ }).click();
+    assert((await page.getByTestId("leg-3").innerText()).includes("المدينة المنورة (الفنادق)"), "starts where trip 2 ended");
+    await page.getByRole("button", { name: "احذف هذا المشوار ٣" }).click();
+    eq(await page.locator('[data-testid^="leg-"]').count(), 2, "back to two");
     await page.getByRole("button", { name: "اعرض الأسعار" }).click();
-    await page.waitForURL(/\/ar\/multi\?stops=jeddah-airport%2Cmakkah%2Cmadinah&date=.*&time=10/, { waitUntil: "commit" });
+    await page.waitForURL(/\/ar\/multi\?l1=jeddah-airport%2Cmakkah%2C.*&l2=makkah%2Cmadinah%2C/, { waitUntil: "commit" });
     await page.waitForLoadState("networkidle");
-    eq(await page.getByTestId("multi-legs").locator("li").count(), 2, "two legs");
+    eq(await page.getByTestId("multi-legs").locator("li").count(), 2, "two trips");
+    eq(await page.locator('input[name="stopDate_2"]').inputValue(), d2, "trip 2's date carried");
     // the Camry price is the two fixed-route prices added up
     const legPrice = (from, to) => Number(sql(`select t.price from trips t join routes r on r.id=t.route_id join vehicles v on v.id=t.vehicle_id
       join locations a on a.id=r.from_location_id join locations b on b.id=r.to_location_id
       where v.slug='toyota-camry' and ((a.slug='${from}' and b.slug='${to}') or (r.bidirectional and a.slug='${to}' and b.slug='${from}')) limit 1`));
     const want = legPrice("jeddah-airport", "makkah") + legPrice("makkah", "madinah");
     assert(want > 0, "fixed prices exist");
-    const ref = await makeBooking(page, { url: "/ar/multi?stops=jeddah-airport,makkah,madinah", vehicle: "تويوتا كامري" });
-    const [mode, subtotal, stops, title] = sql(`select pricing_mode, subtotal, stops::text, route_title from bookings where ref='${ref}'`).split("|");
+    const url = `/ar/multi?l1=jeddah-airport,makkah,${d1},10:00&l2=makkah,madinah,${d2},09:00`;
+    // trip 2 before trip 1 is refused
+    await fillBooking(page, { url: `/ar/multi?l1=jeddah-airport,makkah,${d2},10:00&l2=makkah,madinah,${d1},09:00`, vehicle: "تويوتا كامري", date: d2 });
+    await page.getByText("حدّد تاريخ ووقت كل مشوار").waitFor();
+    const ref = await makeBooking(page, { url, vehicle: "تويوتا كامري", date: d1 });
+    const [mode, subtotal, legs, title] = sql(`select pricing_mode, subtotal, legs::text, route_title from bookings where ref='${ref}'`).split("|");
     eq(mode, "multi", "mode");
-    eq(Number(subtotal), want, "sum of the legs");
-    eq(JSON.parse(stops).length, 3, "three places kept");
-    assert(title.split("←").length === 3, "title through every stop: " + title);
-    // a forged list (same place twice in a row, or one stop only) is refused
-    for (const q of ["stops=makkah,makkah,madinah", "stops=makkah,madinah", "stops=makkah,nowhere,madinah"]) {
+    eq(Number(subtotal), want, "sum of the trips");
+    const L = JSON.parse(legs);
+    eq(L.length, 2, "two trips kept");
+    eq(L[1].at, `${d2} 09:00`, "trip 2's own time");
+    assert(title.includes("،"), "title lists both trips: " + title);
+    // forged lists are refused
+    for (const q of ["l1=makkah,makkah&l2=makkah,madinah", "l1=makkah,madinah", "l1=makkah,nowhere&l2=makkah,madinah"]) {
       await page.goto(`${BASE}/ar/multi?${q}`, { waitUntil: "networkidle" });
       await page.getByText("لا يمكن حساب هذه الرحلة").waitFor();
     }
+    await page.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("summary-stops").locator("li").count(), 2, "customer sees both trips");
+    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
+    eq(await a.getByTestId("admin-stops").locator("li").count(), 2, "admin sees both trips");
     await payInBrowser(page, ref, "pay");
     eq(sql(`select status from bookings where ref='${ref}'`), "paid", "paid");
-  });
-  await check("multi-stop trip: from the third stop on, each stop has its own date and time (home, trip page, booking, driver)", async () => {
-    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    await page.getByRole("tab", { name: "رحلة متعددة" }).click();
-    eq(await page.getByTestId("stop-at-3").count(), 0, "two stops: no extra times");
-    await page.getByRole("button", { name: /أضف وجهة/ }).click();
-    await page.locator("#search-panel").getByRole("button", { name: "إغلاق" }).click();
-    await page.getByTestId("stop-at-3").waitFor();
-    // the trip page shows a date and time for stop 3, filled from the link
-    const t3 = `${inDaysUTC(4)}T09:00`;
-    await page.goto(`${BASE}/ar/multi?stops=jeddah-airport,makkah,madinah,madinah-airport&t3=${t3}`, { waitUntil: "networkidle" });
-    eq(await page.locator('input[name="stopDate_3"]').inputValue(), inDaysUTC(4), "date filled");
-    eq(await page.locator('input[name="stopTime_3"]').inputValue(), "09:00", "time filled");
-    // before the start is refused
-    await fillBooking(page, { url: `/ar/multi?stops=jeddah-airport,makkah,madinah,madinah-airport&t3=${inDaysUTC(1)}T09:00`, vehicle: "تويوتا كامري", date: inDaysUTC(3) });
-    await page.getByText("حدّد تاريخ ووقت كل وجهة من الثالثة").waitFor();
-    const ref = await makeBooking(page, { url: `/ar/multi?stops=jeddah-airport,makkah,madinah,madinah-airport&t3=${t3}`, vehicle: "تويوتا كامري", date: inDaysUTC(3) });
-    eq(sql(`select stop_times::text from bookings where ref='${ref}'`), `[null, null, null, "${inDaysUTC(4)} 09:00"]`, "stored");
-    await page.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
-    eq(await page.getByTestId("summary-stops").locator("li").count(), 4, "customer sees every place");
-    assert((await page.getByTestId("summary-stops").locator("li").nth(3).innerText()).includes("٩:٠٠"), "with the stop's time");
-    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
-    eq(await a.getByTestId("admin-stops").locator("li").count(), 4, "admin sees every place");
   });
   await check("vehicle hourly prices are editable in admin", async () => {
     const id = sql("select id from vehicles where slug='toyota-camry'");
@@ -2019,23 +2030,21 @@ if (!ONLY || ONLY === "features") {
     const bg = page.getByTestId("hero-bg");
     eq(await bg.count(), 1, "background shown");
     eq(await page.locator("section").filter({ has: bg }).locator("form#search").count(), 1, "behind the booking sign's section");
-    eq(await bg.locator("[data-overlay]").getAttribute("data-overlay"), "light", "light veil by default");
+    eq(await bg.locator("[data-overlay]").count(), 0, "the photo as uploaded: no veil over it");
     const src = await bg.locator("img").getAttribute("src");
     const r = await fetch(BASE + src);
     eq(r.headers.get("content-type"), "image/jpeg", "served");
     assert(r.headers.get("content-security-policy").includes("sandbox"), "sandboxed");
     eq(await page.locator("section").nth(1).getByTestId("hero-bg").count(), 0, "rest of the page unchanged");
   });
-  await check("hero background: veil strength, hide and show again, then delete — from the admin panel", async () => {
-    await saveDisplay(() => a.check('input[name="hero_bg_overlay"][value="strong"]'));
-    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    eq(await page.getByTestId("hero-bg").locator("[data-overlay]").getAttribute("data-overlay"), "strong", "strong veil");
+  await check("hero background: hide and show again, then delete — from the admin panel", async () => {
+    eq(await a.locator('input[name="hero_bg_overlay"]').count(), 0, "no veil options any more");
     await saveDisplay(() => a.uncheck('input[name="hero_bg_enabled"]'));
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     eq(await page.getByTestId("hero-bg").count(), 0, "hidden");
     await a.goto(`${BASE}/admin/banners`, { waitUntil: "networkidle" });
     await heroCard().getByText("مخفية عن الموقع").waitFor();
-    await saveDisplay(async () => { await a.check('input[name="hero_bg_enabled"]'); await a.check('input[name="hero_bg_overlay"][value="light"]'); });
+    await saveDisplay(async () => { await a.check('input[name="hero_bg_enabled"]'); });
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     eq(await page.getByTestId("hero-bg").count(), 1, "shown again");
     await a.goto(`${BASE}/admin/banners`, { waitUntil: "networkidle" });
@@ -2054,12 +2063,9 @@ if (!ONLY || ONLY === "features") {
     // the preview changes as soon as a photo and a veil are picked, before anything is saved
     await heroCard().locator('input[name="hero"]').setInputFiles({ name: "one.jpg", mimeType: "image/jpeg", buffer: JPG });
     await heroCard().getByTestId("hero-preview").locator('[data-preview-src="new"]').waitFor();
-    await heroCard().locator('input[name="preview_overlay"][value="strong"]').check();
-    eq(await heroCard().locator("[data-preview-veil]").getAttribute("data-preview-veil"), "strong", "veil previewed");
     eq(sql("select count(*) from assets where key like 'hero%'"), "0", "nothing saved yet");
     await submit(a, "رفع الخلفية");
     await a.waitForURL(/hero=added/, { waitUntil: "commit" });
-    eq(sql("select value from settings where key='hero_bg_overlay'"), "strong", "the previewed veil is kept");
     // a second photo
     await heroCard().locator('input[name="hero"]').setInputFiles({ name: "two.jpg", mimeType: "image/jpeg", buffer: Buffer.concat([JPG, Buffer.from([1])]) });
     await submit(a, "حفظ الخلفية");
@@ -2079,7 +2085,7 @@ if (!ONLY || ONLY === "features") {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     eq(await page.getByTestId("hero-bg").locator("[data-animate]").getAttribute("data-animate"), "0", "still");
     eq(await page.getByTestId("home-banners").getAttribute("data-effect"), "fade", "fade effect");
-    await saveDisplay(async () => { await a.check('input[name="hero_bg_animate"]'); await a.check('input[name="banners_effect"][value="slide"]'); await a.check('input[name="hero_bg_overlay"][value="light"]'); });
+    await saveDisplay(async () => { await a.check('input[name="hero_bg_animate"]'); await a.check('input[name="banners_effect"][value="slide"]'); });
     // remove the photos again
     await a.goto(`${BASE}/admin/banners`, { waitUntil: "networkidle" });
     await a.getByRole("button", { name: "حذف الصورة 2" }).click();
@@ -2547,16 +2553,28 @@ if (!ONLY || ONLY === "drivers") {
     await card.getByTestId("driver-money-admin").locator("summary").click();
     const pf = card.locator("form").filter({ has: a.getByRole("button", { name: "تسجيل الدفعة" }) });
     await pf.locator('input[name="amount"]').fill("100");
-    await pf.locator('input[name="note"]').fill("تحويل بنكي");
+    await pf.locator('input[name="note"]').fill("حوالة الراجحي");
+    // a bank transfer needs its receipt; cash needs nothing
+    await pf.getByRole("button", { name: "تسجيل الدفعة" }).click();
+    eq(await pf.locator('input[name="receipt"]:invalid').count(), 1, "receipt required for a transfer");
+    await pf.locator('select[name="method"]').selectOption("cash");
+    eq(await pf.locator('input[name="receipt"]').count(), 0, "no upload for cash");
+    await pf.locator('select[name="method"]').selectOption("transfer");
+    await pf.locator('input[name="receipt"]').setInputFiles({ name: "receipt.png", mimeType: "image/png", buffer: PHOTO });
     await pf.getByRole("button", { name: "تسجيل الدفعة" }).click();
     await a.waitForURL(/paid=/, { waitUntil: "commit" });
     await a.locator(`[data-driver="${driverId}"]`).getByText("تم تسجيل الدفعة.").waitFor();
-    eq(sql(`select amount, note from driver_payouts where driver_id=${driverId}`), "10000|تحويل بنكي", "payout stored");
+    eq(sql(`select amount, note, method, receipt is not null from driver_payouts where driver_id=${driverId}`), "10000|حوالة الراجحي|transfer|t", "payout stored with its receipt");
+    const pid = sql(`select id from driver_payouts where driver_id=${driverId}`);
+    eq((await a.request.get(`${BASE}/api/payouts/${pid}/receipt`)).status(), 200, "staff sees the receipt");
+    eq((await drv.request.get(`${BASE}/api/payouts/${pid}/receipt`)).status(), 200, "the driver sees his receipt");
+    eq((await fetch(`${BASE}/api/payouts/${pid}/receipt`)).status, 404, "not public");
     await drv.reload({ waitUntil: "networkidle" });
     const [earned, paid, left] = await money();
     assert(earned.includes("١٥٠") && paid.includes("١٠٠") && left.includes("٥٠"), `earned ${earned}, paid ${paid}, left ${left}`);
     await drv.getByTestId("driver-money").getByText("الدفعات التي استلمتها").click();
-    await drv.getByTestId("my-payouts").getByText("تحويل بنكي").waitFor();
+    await drv.getByTestId("my-payouts").getByText("حوالة الراجحي", { exact: false }).waitFor();
+    await drv.getByTestId("my-payouts").getByRole("link", { name: "الإيصال" }).waitFor();
     // the driver adds his bank account; the admin sees it
     await drv.getByTestId("my-bank").locator("summary").click();
     await drv.getByTestId("my-bank").locator("textarea").fill("مصرف الإنماء SA4405000068201234567000 فهد الحربي");
@@ -2570,6 +2588,24 @@ if (!ONLY || ONLY === "drivers") {
     await a.waitForURL(/unpaid=/, { waitUntil: "commit" });
     eq(sql(`select count(*) from driver_payouts where driver_id=${driverId}`), "0", "payout removed");
     sql(`delete from bookings where ref='${r1}'`);
+  });
+
+  await check("driver documents from the panel: the same photos as the join page (ID, licence, registration, car, IBAN), cropped, replaced one by one", async () => {
+    sql(`delete from driver_documents where driver_id=${driverId}`);
+    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    const card = a.locator(`[data-driver="${driverId}"]`);
+    await card.getByText("تعديل بيانات السائق").click();
+    const f = card.locator("form").filter({ has: a.getByRole("button", { name: "حفظ", exact: true }) }).first();
+    eq(await f.getByTestId("driver-docs-fields").locator('input[type="file"]').count(), 6, "ID, licence, registration, inside, outside, IBAN");
+    await f.locator('input[name="license"]').setInputFiles({ name: "l.png", mimeType: "image/png", buffer: PHOTO });
+    await a.getByTestId("card-cropper").getByRole("button", { name: "اعتماد" }).click();
+    await a.getByTestId("card-cropper").waitFor({ state: "detached" });
+    await f.locator('input[name="iban"]').setInputFiles({ name: "iban.png", mimeType: "image/png", buffer: PHOTO });
+    await f.getByRole("button", { name: "حفظ", exact: true }).click();
+    await card.getByText("تم حفظ بيانات السائق و", { exact: false }).waitFor();
+    eq(sql(`select string_agg(kind::text || ':' || mime, ',' order by kind) from driver_documents where driver_id=${driverId}`), "license:image/jpeg,iban:image/png", "saved");
+    eq((await a.request.get(`${BASE}/api/admin/drivers/${driverId}/doc/iban`)).status(), 200, "IBAN photo for staff");
+    eq((await fetch(`${BASE}/api/admin/drivers/${driverId}/doc/iban`)).status, 404, "not public");
   });
 
   await check("bookings list downloads as Excel and PDF, with the page's filters; staff only", async () => {
@@ -2650,6 +2686,22 @@ if (!ONLY || ONLY === "drivers") {
     eq((await fetch(BASE + src)).status, 404, "not public");
     await a.getByTestId("avatar-card").getByRole("button", { name: "حذف الصورة" }).click();
     await a.getByText("تم حذف الصورة.").waitFor();
+  });
+
+  await check("bookings revenue: totals before and after VAT for the filtered list; show one or both", async () => {
+    const r1 = paidBooking({ name: "إيراد الفلتر", status: "confirmed" });
+    await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد الفلتر")}`, { waitUntil: "networkidle" });
+    const rev = a.getByTestId("bookings-revenue");
+    assert((await rev.locator('[data-revenue="net"]').innerText()).includes("٢٠٠"), "before VAT");
+    assert((await rev.locator('[data-revenue="vat"]').innerText()).includes("٣٠"), "VAT");
+    assert((await rev.locator('[data-revenue="gross"]').innerText()).includes("٢٣٠"), "after VAT");
+    await rev.getByRole("link", { name: "قبل الضريبة", exact: true }).click();
+    await a.waitForURL(/amounts=net/, { waitUntil: "commit" });
+    await a.waitForLoadState("networkidle");
+    eq(await a.locator('[data-revenue="gross"]').count(), 0, "after-VAT total hidden");
+    eq(await a.locator('[data-col="amount"]').count(), 0, "after-VAT column hidden");
+    assert(await a.locator('[data-col="subtotal"]').count() > 0, "before-VAT column shown");
+    sql(`delete from bookings where ref='${r1}'`);
   });
 
   await check("staff account: only the sections it was given, in the menu and on the server", async () => {

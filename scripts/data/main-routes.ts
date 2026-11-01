@@ -54,3 +54,27 @@ export async function addMainRoutes(sql: postgres.Sql) {
   }
   return { added, priced };
 }
+
+/** sample hourly prices per city: each car's own hourly prices, a bit higher or lower by city */
+const CITY_FACTOR: Record<string, number> = { makkah: 1, madinah: 1, jeddah: 0.95, taif: 0.9, riyadh: 1.1, dammam: 1.05, alula: 1.25 };
+
+export async function addCityHourlyPrices(sql: postgres.Sql) {
+  const cities = await sql<{ slug: string }[]>`select slug from cities where active`;
+  const vehicles = await sql<{ id: number; h10: number; h12: number; h24: number }[]>`select id, hourly_10 as h10, hourly_12 as h12, hourly_24 as h24 from vehicles where active`;
+  let added = 0;
+  for (const c of cities) {
+    const f = CITY_FACTOR[c.slug] ?? 1;
+    for (const v of vehicles)
+      for (const [hours, base] of [
+        [10, v.h10],
+        [12, v.h12],
+        [24, v.h24],
+      ] as const) {
+        const done = await sql`
+          insert into city_hourly_prices (city, vehicle_id, hours, price) values (${c.slug}, ${v.id}, ${hours}, ${Math.round((base * f) / 1000) * 1000})
+          on conflict (city, vehicle_id, hours) do nothing returning id`;
+        added += done.length;
+      }
+  }
+  return added;
+}

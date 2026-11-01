@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 
 /**
- * The background photos behind the home page's top section: they take turns with a soft cross-fade,
- * each slowly zooming in ("Ken Burns"). With one photo it only zooms; with animation off it stays still.
- * Reduced-motion users get still photos.
+ * The background photos behind the home page's top section, shown exactly as uploaded (no veil, no zoom).
+ * With more than one, they take turns with a soft cross-fade; with animation off the first one stays.
+ * Reduced-motion users get a still photo.
  */
 export function HeroSlides({ urls, animate, seconds }: { urls: string[]; animate: boolean; seconds: number }) {
   const [i, setI] = useState(0);
@@ -25,8 +25,7 @@ export function HeroSlides({ urls, animate, seconds }: { urls: string[]; animate
           alt=""
           fetchPriority={n === 0 ? "high" : "low"}
           loading={n === 0 ? "eager" : "lazy"}
-          className={`absolute inset-0 size-full object-cover transition-opacity duration-[1500ms] ${n === i ? "opacity-100" : "opacity-0"} ${animate && n === i ? "hero-zoom" : ""}`}
-          style={animate ? { animationDuration: `${seconds + 2}s` } : undefined}
+          className={`absolute inset-0 size-full object-cover transition-opacity duration-[1500ms] ${n === i ? "opacity-100" : "opacity-0"}`}
         />
       ))}
     </div>

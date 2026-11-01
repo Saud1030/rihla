@@ -110,7 +110,7 @@ async function Detail({
 
   const rows: [string, React.ReactNode][] = [
     ["الرحلة", b.routeTitle],
-    ...(b.stops?.length
+    ...(b.stops?.length || b.legs?.length
       ? ([
           [
             "المسار",

@@ -16,7 +16,11 @@ const Phone = ({ n }: { n?: string | null }) =>
   );
 
 /** Bookings, one piece of information per column */
-export function BookingsTable({ rows, empty = "لا توجد حجوزات." }: { rows: TableBooking[]; empty?: string }) {
+export type AmountsView = "both" | "net" | "gross";
+
+export function BookingsTable({ rows, empty = "لا توجد حجوزات.", amounts = "both" }: { rows: TableBooking[]; empty?: string; amounts?: AmountsView }) {
+  const net = amounts !== "gross";
+  const gross = amounts !== "net";
   if (!rows.length) return <p className="p-8 text-center text-muted">{empty}</p>;
   const th = "text-start font-medium px-3 py-3 whitespace-nowrap";
   const td = "px-3 py-3 align-top";
@@ -35,8 +39,8 @@ export function BookingsTable({ rows, empty = "لا توجد حجوزات." }: {
             <th className={th}>جوال العميل</th>
             <th className={th}>السائق</th>
             <th className={th}>جوال السائق</th>
-            <th className={th}>قبل الضريبة</th>
-            <th className={th}>بعد الضريبة</th>
+            {net && <th className={th}>قبل الضريبة</th>}
+            {gross && <th className={th}>بعد الضريبة</th>}
             <th className={th}>أجرة السائق</th>
             <th className={th}>الحالة</th>
           </tr>
@@ -62,8 +66,16 @@ export function BookingsTable({ rows, empty = "لا توجد حجوزات." }: {
               <td className={`${td} whitespace-nowrap`}>
                 <Phone n={b.driverPhone} />
               </td>
-              <td className={`${td} whitespace-nowrap tabular`} data-col="subtotal">{formatSAR(b.subtotal, "ar")}</td>
-              <td className={`${td} whitespace-nowrap tabular font-medium`} data-col="amount">{formatSAR(b.amount, "ar")}</td>
+              {net && (
+                <td className={`${td} whitespace-nowrap tabular`} data-col="subtotal">
+                  {formatSAR(b.subtotal, "ar")}
+                </td>
+              )}
+              {gross && (
+                <td className={`${td} whitespace-nowrap tabular font-medium`} data-col="amount">
+                  {formatSAR(b.amount, "ar")}
+                </td>
+              )}
               <td className={`${td} whitespace-nowrap tabular`} data-col="driver-fare">
                 {b.driverFare != null ? formatSAR(b.driverFare, "ar") : <span className="text-muted">—</span>}
               </td>

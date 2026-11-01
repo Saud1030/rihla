@@ -902,3 +902,34 @@ export async function saveBankSettings(_prev: ActionState, formData: FormData): 
   revalidatePath("/admin/settings");
   return { ok: true, message: "تم حفظ بيانات التحويل البنكي." };
 }
+
+/* ---------- Hourly prices by city ---------- */
+
+/** Save one city's hourly prices: p_<vehicleId>_<hours> = SAR; empty = use the car's own hourly price */
+export async function saveCityHourlyPrices(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("catalog");
+  const city = String(formData.get("city") ?? "");
+  const [c] = await db.select({ slug: s.cities.slug, nameAr: s.cities.nameAr }).from(s.cities).where(eq(s.cities.slug, city)).limit(1);
+  if (!c) return { error: "المدينة غير موجودة." };
+  const rows: { vehicleId: number; hours: number; price: number | null }[] = [];
+  for (const [k, v] of formData.entries()) {
+    const m = /^p_(\d{1,9})_(10|12|24)$/.exec(k);
+    if (!m) continue;
+    const raw = String(v).trim().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace("٫", ".");
+    if (raw && !/^\d{1,6}(\.\d{1,2})?$/.test(raw)) return { error: "الأسعار أرقام بالريال، مثل 550 أو 550.50" };
+    rows.push({ vehicleId: Number(m[1]), hours: Number(m[2]), price: raw ? Math.round(Number(raw) * 100) : null });
+  }
+  await db.transaction(async (tx) => {
+    for (const r of rows) {
+      if (r.price == null)
+        await tx.delete(s.cityHourlyPrices).where(and(eq(s.cityHourlyPrices.city, c.slug), eq(s.cityHourlyPrices.vehicleId, r.vehicleId), eq(s.cityHourlyPrices.hours, r.hours)));
+      else
+        await tx
+          .insert(s.cityHourlyPrices)
+          .values({ city: c.slug, vehicleId: r.vehicleId, hours: r.hours, price: r.price })
+          .onConflictDoUpdate({ target: [s.cityHourlyPrices.city, s.cityHourlyPrices.vehicleId, s.cityHourlyPrices.hours], set: { price: r.price } });
+    }
+  });
+  revalidatePath("/admin/hourly-prices");
+  return { ok: true, message: `تم حفظ أسعار مدينة ${c.nameAr}.` };
+}

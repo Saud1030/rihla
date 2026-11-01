@@ -23,7 +23,7 @@ export async function sendDriverAssigned(b: Booking, d: Driver) {
   const driverBody = [
     `مرحبًا ${d.name}، لديك رحلة جديدة رقم ${bookingNo(b.number)}.`,
     `الرحلة: ${b.routeTitle}`,
-    ...(b.stops?.length ? ["المسار:", ...stopLines(b, "ar").map((l, i) => `${i + 1}. ${l}`)] : []),
+    ...(b.stops?.length || b.legs?.length ? [b.legs?.length ? "المشاوير:" : "المسار:", ...stopLines(b, "ar").map((l, i) => `${i + 1}. ${l}`)] : []),
     `العميل: ${b.customerName}`,
     `جوال العميل (واتساب): ${b.customerPhone}`,
     `الموعد: ${when(b, "ar")}`,

@@ -118,6 +118,8 @@ export function DriverJoinForm({ lang, t, vehicles, years }: { lang: Locale; t: 
           {(["photo", ...DOC_KINDS] as const).map((k) => (
             <PhotoField key={k} name={k} label={L(k)} t={t} invalid={!!state.missing?.includes(k)} />
           ))}
+          {/* optional: helps us pay the driver to the right account */}
+          <PhotoField name="iban" label={`${L("iban")} (${lang === "ar" ? "اختياري" : "optional"})`} t={t} required={false} />
         </div>
         {err("photo")}
       </section>

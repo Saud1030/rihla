@@ -4,9 +4,13 @@
 export const DRIVER_PHOTO_MAX = 1024 * 1024; // 1 MB
 
 export const DOC_KINDS = ["id_card", "license", "registration", "car_inside", "car_outside"] as const;
-export type DocKind = (typeof DOC_KINDS)[number];
+/** optional: a photo of the bank account / IBAN certificate, for paying the driver */
+export const OPTIONAL_DOCS = ["iban"] as const;
+export const ALL_DOC_KINDS = [...DOC_KINDS, ...OPTIONAL_DOCS] as const;
+export type DocKind = (typeof ALL_DOC_KINDS)[number];
 
 export const DOC_LABELS: Record<DocKind | "photo", { ar: string; en: string }> = {
+  iban: { ar: "صورة الآيبان أو شهادة الحساب البنكي", en: "IBAN / bank account certificate" },
   photo: { ar: "صورتك الشخصية", en: "Your photo" },
   id_card: { ar: "صورة الهوية أو الإقامة", en: "ID card or iqama" },
   license: { ar: "صورة رخصة القيادة", en: "Driving licence" },

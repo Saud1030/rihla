@@ -37,7 +37,7 @@ export default async function HomePage() {
             <HeroText lang={lang} t={t} />
           </Suspense>
 
-          <div className="booking-box sign-reveal p-4 md:p-5 w-full max-w-4xl" data-testid="booking-box">
+          <div className="booking-box sign-reveal p-4 md:p-5 w-full max-w-[50rem]" data-testid="booking-box">
             <Suspense fallback={<SearchFormSkeleton />}>
               <TripSearch lang={lang} t={t} id="search" />
             </Suspense>
@@ -208,13 +208,10 @@ async function HomeBanners({ lang, t }: { lang: Locale; t: Dictionary }) {
 async function HeroBackground() {
   const bg = await getHeroBackground();
   if (!bg) return null;
-  const veil = { light: "bg-paper/45", medium: "bg-paper/65", strong: "bg-paper/80" }[bg.overlay];
+  // the photos exactly as uploaded: no veil, no zoom, full resolution and colours
   return (
     <div className="absolute inset-0 -z-10" aria-hidden="true" data-testid="hero-bg">
       <HeroSlides urls={bg.images.map((x) => x.url)} animate={bg.animate} seconds={bg.seconds} />
-      <div className={`absolute inset-0 ${veil}`} data-overlay={bg.overlay} />
-      {/* a bit more veil on the headline's side (start), so the text stays crisp on busy photos */}
-      <div className="absolute inset-y-0 start-0 hidden lg:block w-3/5 from-paper/75 to-transparent ltr:bg-gradient-to-r rtl:bg-gradient-to-l" />
     </div>
   );
 }

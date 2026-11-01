@@ -128,10 +128,8 @@ export async function uploadHero(_prev: ActionState, formData: FormData): Promis
     .insert(s.assets)
     .values({ key, mime: kind.mime, data: buf, updatedAt: now })
     .onConflictDoUpdate({ target: s.assets.key, set: { mime: kind.mime, data: buf, updatedAt: now } });
-  // uploading a new image also switches the background on, with the veil chosen in the preview
-  const overlay = String(formData.get("preview_overlay") ?? "");
-  const settings: [string, string][] = [["hero_bg_enabled", "1"], ...(["light", "medium", "strong"].includes(overlay) ? ([["hero_bg_overlay", overlay]] as [string, string][]) : [])];
-  for (const [k, value] of settings) await db.insert(s.settings).values({ key: k, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
+  // uploading a new image also switches the background on
+  await db.insert(s.settings).values({ key: "hero_bg_enabled", value: "1" }).onConflictDoUpdate({ target: s.settings.key, set: { value: "1" } });
   invalidateCatalogCache();
   revalidatePath("/admin/banners");
   redirect("/admin/banners?hero=added#hero-card");
@@ -149,7 +147,6 @@ export async function removeHero(_prev: ActionState, formData: FormData): Promis
 
 const displaySchema = z.object({
   hero_bg_enabled: z.enum(["0", "1"]),
-  hero_bg_overlay: z.enum(["light", "medium", "strong"]),
   hero_bg_animate: z.enum(["0", "1"]),
   hero_bg_seconds: z.enum(["5", "7", "10", "15"]),
   banners_enabled: z.enum(["0", "1"]),
@@ -163,7 +160,6 @@ export async function saveHomeDisplay(_prev: ActionState, formData: FormData): P
   await requireSection("appearance");
   const parsed = displaySchema.safeParse({
     hero_bg_enabled: formData.get("hero_bg_enabled") === "on" ? "1" : "0",
-    hero_bg_overlay: formData.get("hero_bg_overlay") ?? "light",
     banners_enabled: formData.get("banners_enabled") === "on" ? "1" : "0",
     hero_bg_animate: formData.get("hero_bg_animate") === "on" ? "1" : "0",
     hero_bg_seconds: formData.get("hero_bg_seconds") ?? "7",

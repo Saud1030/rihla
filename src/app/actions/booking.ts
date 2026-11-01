@@ -10,7 +10,8 @@ import { maxBookingDate, newBookingRef, todayInRiyadh } from "@/lib/booking";
 import { distancePrice, driveMinutes, parseVatConfig, roadKm, withVat } from "@/lib/pricing";
 import { hourlyPrice, isHourPackage } from "@/lib/policy";
 import { normalizePhone } from "@/lib/phone";
-import { multiTitle, parseStops, quoteMultiTrip } from "@/lib/multi";
+import { multiTitle, parseLegs, quoteMultiTrip } from "@/lib/multi";
+import { cityHourlyPrices } from "@/lib/hourly";
 
 export type BookingFormState = {
   errors?: Partial<Record<FieldName, true>>;
@@ -65,7 +66,8 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
   const hourlyFrom = String(formData.get("hourlyFrom") ?? "").slice(0, 80);
   const hourlyTo = String(formData.get("hourlyTo") ?? "").slice(0, 80);
   const hours = Number(formData.get("hours") ?? 0);
-  const stops = parseStops(String(formData.get("stops") ?? ""));
+  const hourlyCity = String(formData.get("hourlyCity") ?? "").slice(0, 80);
+  const legSlugs = parseLegs(String(formData.get("legs") ?? ""));
 
   const parsed = schema.safeParse(values);
   if (!parsed.success) {
@@ -79,25 +81,30 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
   const resolved = d.tripId.startsWith("d:")
     ? await resolveDistanceTrip(Number(d.tripId.slice(2)), fromSlug, toSlug, locale)
     : d.tripId.startsWith("h:")
-      ? await resolveHourlyTrip(Number(d.tripId.slice(2)), hourlyFrom, hourlyTo, hours, locale)
+      ? hourlyCity
+        ? await resolveCityHourlyTrip(Number(d.tripId.slice(2)), hourlyCity, hours, locale)
+        : await resolveHourlyTrip(Number(d.tripId.slice(2)), hourlyFrom, hourlyTo, hours, locale)
       : d.tripId.startsWith("m:")
-        ? await resolveMultiTrip(Number(d.tripId.slice(2)), stops, locale)
+        ? await resolveMultiTrip(Number(d.tripId.slice(2)), legSlugs, locale)
         : await resolveFixedTrip(Number(d.tripId), d.reversed === "1", locale);
   if (!resolved) return { formError: "trip", values };
 
-  // multi-stop: from the third destination on, each has its own date and time, in order, after the start
-  let stopTimes: (string | null)[] | null = null;
-  if (resolved.mode === "multi" && resolved.stops) {
-    stopTimes = resolved.stops.map(() => null);
-    let last = `${d.date} ${d.time}`;
-    for (let k = 3; k < resolved.stops.length; k++) {
-      const sd = String(formData.get(`stopDate_${k}`) ?? "");
-      const stt = String(formData.get(`stopTime_${k}`) ?? "");
-      values[`stopDate_${k}`] = sd;
-      values[`stopTime_${k}`] = stt;
-      const at = `${sd} ${stt}`;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(sd) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(stt) || sd > maxBookingDate() || at <= last) return { formError: "stops", values };
-      stopTimes[k] = at;
+  // multi-trip: each trip after the first has its own date and time, in order, after the first one
+  let legs: { from: string; to: string; at: string }[] | null = null;
+  if (resolved.mode === "multi" && resolved.legNames) {
+    legs = [];
+    let last = "";
+    for (const [n, leg] of resolved.legNames.entries()) {
+      let at = `${d.date} ${d.time}`;
+      if (n > 0) {
+        const sd = String(formData.get(`stopDate_${n + 1}`) ?? "");
+        const stt = String(formData.get(`stopTime_${n + 1}`) ?? "");
+        values[`stopDate_${n + 1}`] = sd;
+        values[`stopTime_${n + 1}`] = stt;
+        at = `${sd} ${stt}`;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(sd) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(stt) || sd > maxBookingDate() || at <= last) return { formError: "stops", values };
+      }
+      legs.push({ ...leg, at });
       last = at;
     }
   }
@@ -126,8 +133,8 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
         vehicleId: resolved.vehicle.id,
         distanceKm: resolved.km,
         hours: resolved.hours,
-        stops: resolved.stops ?? null,
-        stopTimes,
+        legs,
+        hourlyCity: resolved.hourlyCity ?? null,
         durationMin: resolved.durationMin,
         routeTitle: resolved.title,
         vehicleName: locale === "ar" ? resolved.vehicle.nameAr : resolved.vehicle.nameEn,
@@ -164,7 +171,8 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
 
 type Resolved = {
   mode: "fixed" | "distance" | "hourly" | "multi";
-  stops?: string[] | null;
+  legNames?: { from: string; to: string }[];
+  hourlyCity?: string;
   hours?: number | null;
   tripId: number | null;
   vehicle: typeof s.vehicles.$inferSelect;
@@ -261,22 +269,41 @@ async function resolveHourlyTrip(vehicleId: number, placeSlug: string, toSlug: s
   };
 }
 
-async function resolveMultiTrip(vehicleId: number, stops: string[] | null, locale: Locale): Promise<Resolved | null> {
-  if (!stops) return null;
-  const q = await quoteMultiTrip(stops);
+async function resolveMultiTrip(vehicleId: number, legSlugs: [string, string][] | null, locale: Locale): Promise<Resolved | null> {
+  if (!legSlugs) return null;
+  const q = await quoteMultiTrip(legSlugs);
   const opt = q?.options.find((o) => o.vehicle.id === vehicleId);
   if (!q || !opt) return null;
+  const name = (p: { nameAr: string; nameEn: string }) => (locale === "ar" ? p.nameAr : p.nameEn);
   return {
     mode: "multi",
-    stops: q.places.map((p) => (locale === "ar" ? p.nameAr : p.nameEn)),
+    legNames: q.legs.map((l) => ({ from: name(l.from), to: name(l.to) })),
     tripId: null,
     vehicle: opt.vehicle,
     price: opt.price,
-    title: multiTitle(q.places, locale),
+    title: multiTitle(q.legs, locale),
     reversed: false,
-    fromId: q.places[0].id,
-    toId: q.places[q.places.length - 1].id,
+    fromId: q.legs[0].from.id,
+    toId: q.legs[0].to.id,
     km: q.km || null,
-    durationMin: q.minutes || null,
+    durationMin: q.legs[0].minutes,
   };
+}
+
+/** a car with a driver for N hours in a city */
+async function resolveCityHourlyTrip(vehicleId: number, citySlug: string, hours: number, locale: Locale): Promise<Resolved | null> {
+  if (!isHourPackage(hours)) return null;
+  const [setting] = await db.select().from(s.settings).where(eq(s.settings.key, "hourly_enabled")).limit(1);
+  if (setting?.value === "0") return null;
+  const [vehicle] = await db.select().from(s.vehicles).where(and(eq(s.vehicles.id, vehicleId), eq(s.vehicles.active, true))).limit(1);
+  const [city] = await db.select().from(s.cities).where(and(eq(s.cities.slug, citySlug), eq(s.cities.active, true))).limit(1);
+  if (!vehicle || !city) return null;
+  // a place in the city, so the booking shows up when filtering by city or destination
+  const [place] = await db.select({ id: s.locations.id }).from(s.locations).where(and(eq(s.locations.city, city.slug), eq(s.locations.active, true))).orderBy(s.locations.sortOrder).limit(1);
+  const price = (await cityHourlyPrices(city.slug, hours, [vehicle])).get(vehicle.id)!;
+  const title =
+    locale === "ar"
+      ? `سيارة مع سائق ${hours === 10 ? "١٠ ساعات" : hours === 12 ? "١٢ ساعة" : "٢٤ ساعة"} – مدينة ${city.nameAr}`
+      : `Car with driver, ${hours} hours – ${city.nameEn}`;
+  return { mode: "hourly", hours, hourlyCity: city.slug, tripId: null, vehicle, price, title, reversed: false, fromId: place?.id ?? null, toId: null, km: null, durationMin: hours * 60 };
 }

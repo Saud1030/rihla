@@ -94,7 +94,6 @@ async function Banners({ searchParams }: { searchParams: Promise<Record<string, 
           <ActionForm action={uploadHero} submitLabel={hero ? "حفظ الخلفية" : "رفع الخلفية"} pendingLabel="جارٍ الرفع…">
             <HeroUploader
               current={hero?.url ?? null}
-              overlay={(["light", "medium", "strong"].includes(st.hero_bg_overlay) ? st.hero_bg_overlay : "light") as "light" | "medium" | "strong"}
               title={brand.hero.title.ar || t.hero.title}
               lead={brand.hero.lead.ar || t.hero.lead}
             />
@@ -115,28 +114,11 @@ async function Banners({ searchParams }: { searchParams: Promise<Record<string, 
               <span className="block text-sm text-muted">أخفِها مؤقتًا بدون حذفها.</span>
             </span>
           </label>
-          <fieldset>
-            <legend className="text-sm font-medium mb-2">طبقة فوق الخلفية لوضوح النص</legend>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ["light", "خفيفة"],
-                  ["medium", "متوسطة"],
-                  ["strong", "قوية"],
-                ] as const
-              ).map(([v, label]) => (
-                <label key={v} className="flex items-center gap-2 rounded-lg border border-line px-3 py-2 has-[:checked]:border-sign has-[:checked]:bg-sign-soft">
-                  <input type="radio" name="hero_bg_overlay" value={v} defaultChecked={(st.hero_bg_overlay || "light") === v} className="accent-sign" />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
           <label className="flex items-start gap-3">
             <input type="checkbox" name="hero_bg_animate" defaultChecked={st.hero_bg_animate !== "0"} className="size-4 mt-1 accent-sign" />
             <span>
               <span className="block font-medium">تحريك الخلفية تلقائيًا</span>
-              <span className="block text-sm text-muted">تكبير بطيء للصورة، والصور تتبدّل بتلاشٍ ناعم إذا كانت أكثر من صورة.</span>
+              <span className="block text-sm text-muted">إذا كانت أكثر من صورة تتبدّل بتلاشٍ ناعم. الصور تظهر كما رفعتها بنفس الدقة والألوان.</span>
             </span>
           </label>
           <Field label="مدة كل صورة خلفية">

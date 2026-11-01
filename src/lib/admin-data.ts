@@ -152,8 +152,19 @@ export async function listBookings(f: BookingFilters, opts: { all?: boolean } = 
   }
   const cond = where.length ? and(...where) : undefined;
   const page = Math.max(1, f.page ?? 1);
+  // revenue of the bookings that match: paid ones only (paid, confirmed, completed)
+  const totalsQuery = db
+    .select({
+      n: sql<number>`count(*)::int`,
+      subtotal: sql<number>`coalesce(sum(${s.bookings.subtotal}), 0)::bigint`,
+      vat: sql<number>`coalesce(sum(${s.bookings.vatAmount}), 0)::bigint`,
+      amount: sql<number>`coalesce(sum(${s.bookings.amount}), 0)::bigint`,
+      driverFares: sql<number>`coalesce(sum(${s.bookings.driverFare}), 0)::bigint`,
+    })
+    .from(s.bookings)
+    .where(and(cond, inArray(s.bookings.status, [...PAID_STATES])));
 
-  const [rows, [{ n }]] = await Promise.all([
+  const [rows, [{ n }], [totals]] = await Promise.all([
     db
       .select()
       .from(s.bookings)
@@ -162,6 +173,7 @@ export async function listBookings(f: BookingFilters, opts: { all?: boolean } = 
       .limit(opts.all ? EXPORT_MAX : PAGE_SIZE)
       .offset(opts.all ? 0 : (page - 1) * PAGE_SIZE),
     db.select({ n: count() }).from(s.bookings).where(cond),
+    totalsQuery,
   ]);
   // which of these bookings have a transfer receipt uploaded
   const ids = rows.map((r) => r.id);
@@ -173,6 +185,7 @@ export async function listBookings(f: BookingFilters, opts: { all?: boolean } = 
   return {
     rows: await withTableInfo(rows.map((r) => ({ ...r, hasReceipt: withReceipt.has(r.id) }))),
     total: n,
+    revenue: { count: totals.n, subtotal: Number(totals.subtotal), vat: Number(totals.vat), amount: Number(totals.amount), driverFares: Number(totals.driverFares) },
     page,
     pages: Math.max(1, Math.ceil(n / PAGE_SIZE)),
   };

@@ -4,7 +4,7 @@ import { isLocale } from "@/i18n/dictionaries";
 import { findRoute, getCatalog, getLocations, getSettings } from "@/lib/catalog";
 import { isHourPackage } from "@/lib/policy";
 import { isClock, isDay } from "@/lib/timespan";
-import { parseStops } from "@/lib/multi";
+import { legsFromParams } from "@/lib/multi";
 
 /**
  * Search from the green sign (home page and routes page):
@@ -32,17 +32,19 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/[lang]/search">)
     return seeOther(path, out);
   };
 
-  // several stops: start + 2..5 destinations, priced leg by leg
+  // several separate trips, each from -> to with its own date and time (l1=a,b,date,time ...)
   if (q.get("mode") === "multi") {
-    const stops = parseStops([from, ...(q.get("stops") ?? "").split(",")].filter(Boolean).join(","));
-    if (!stops) return back();
-    // dates and times of stops 3+ (t3=2026-11-03T10:00 ...)
-    const at: Record<string, string> = {};
-    for (let k = 3; k < stops.length; k++) {
-      const v = q.get(`t${k}`) ?? "";
-      if (/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/.test(v)) at[`t${k}`] = v;
-    }
-    return go(`/${locale}/multi`, { stops: stops.join(","), ...at });
+    const params = Object.fromEntries([...q.entries()].filter(([k]) => /^l\d$/.test(k)));
+    if (!legsFromParams(params)) return back();
+    return seeOther(`/${locale}/multi`, new URLSearchParams(params));
+  }
+
+  // car with a driver by the hour, in a city
+  if (q.get("mode") === "hourly" && q.get("city")) {
+    const city = (q.get("city") ?? "").slice(0, 80);
+    const hours = Number(q.get("hours"));
+    if (/^[a-z0-9-]{1,80}$/.test(city) && isHourPackage(hours) && (await getSettings()).hourly_enabled !== "0") return go(`/${locale}/hourly`, { city, hours: String(hours) });
+    return back();
   }
 
   const locations = await getLocations();

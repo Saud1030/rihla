@@ -2,13 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { getSession } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { DOC_KINDS, type DocKind } from "@/lib/driver-docs";
+import { ALL_DOC_KINDS, type DocKind } from "@/lib/driver-docs";
 
 /** A driver's document (ID, registration, car photos). Drivers section only; never cached. */
 export async function GET(_req: Request, ctx: RouteContext<"/api/admin/drivers/[id]/doc/[kind]">) {
   const { id, kind } = await ctx.params;
   const driverId = Number(id);
-  if (!can(await getSession(), "drivers") || !Number.isInteger(driverId) || !DOC_KINDS.includes(kind as DocKind)) return new Response("Not found", { status: 404 });
+  if (!can(await getSession(), "drivers") || !Number.isInteger(driverId) || !ALL_DOC_KINDS.includes(kind as DocKind)) return new Response("Not found", { status: 404 });
   const [d] = await db
     .select({ mime: s.driverDocuments.mime, data: s.driverDocuments.data })
     .from(s.driverDocuments)

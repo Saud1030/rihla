@@ -14,7 +14,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import * as s from "../src/db/schema";
 import { CITIES as ALL_CITIES, PLACES as ALL_PLACES } from "./data/saudi-places";
 import { MAIN_CITIES, MAIN_PLACES } from "./data/main-places";
-import { addMainRoutes } from "./data/main-routes";
+import { addCityHourlyPrices, addMainRoutes } from "./data/main-routes";
 
 /** The company's seven cities by default; SEED_CATALOG=full loads every Saudi city (used by the tests) */
 const FULL = process.env.SEED_CATALOG === "full";
@@ -199,7 +199,10 @@ async function main() {
   );
   await db.insert(s.trips).values(tripValues).onConflictDoNothing();
   // the company catalog's own routes, with prices from the distance
-  if (!FULL) await addMainRoutes(client);
+  if (!FULL) {
+    await addMainRoutes(client);
+    await addCityHourlyPrices(client);
+  }
 
   // Settings
   await db

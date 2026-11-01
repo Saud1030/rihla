@@ -179,15 +179,9 @@ h3 {
   .sign-reveal > *:nth-child(4) { animation-delay: 0.36s; }
 }
 
-/* slow zoom on the home background photo */
-@keyframes hero-zoom {
-  from { transform: scale(1); }
-  to { transform: scale(1.08); }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .hero-zoom {
-    animation: hero-zoom 8s ease-out both;
-  }
+/* text over the home background photo stays readable without darkening the photo */
+section:has([data-testid="hero-bg"]) [data-testid="hero-text"] {
+  text-shadow: 0 0 18px var(--color-paper), 0 0 4px var(--color-paper);
 }
 
 @keyframes sign-in {

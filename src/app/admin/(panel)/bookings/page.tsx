@@ -11,9 +11,9 @@ import { asc } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { LocationOptions } from "@/components/admin/route-fields";
 import { getDictionary } from "@/i18n/dictionaries";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatSAR } from "@/lib/format";
 import { Card, PageHeader, Pager, Skeleton } from "@/components/admin/ui";
-import { BookingsTable } from "@/components/admin/bookings-table";
+import { BookingsTable, type AmountsView } from "@/components/admin/bookings-table";
 
 const t = getDictionary("ar");
 const STATUSES = s.bookingStatus.enumValues;
@@ -39,8 +39,9 @@ async function Bookings({
   await requireSection("bookings");
   const sp = await searchParams;
   const filters: BookingFilters = parseBookingFilters(sp);
+  const amounts: AmountsView = sp.amounts === "net" || sp.amounts === "gross" ? sp.amounts : "both";
   const [
-    { rows, total, page, pages },
+    { rows, total, page, pages, revenue },
     counts,
     cities,
     locations,
@@ -80,6 +81,7 @@ async function Bookings({
     place: filters.place,
     driver: filters.driver,
     vehicle: filters.vehicle,
+    amounts: amounts === "both" ? undefined : amounts,
   };
   const qs = (patch: Record<string, string | number | undefined>) => {
     const p = new URLSearchParams();
@@ -88,7 +90,7 @@ async function Bookings({
     const str = p.toString();
     return `/admin/bookings${str ? `?${str}` : ""}`;
   };
-  const active = Object.entries(kept).some(([k, v]) => k !== "status" && v);
+  const active = Object.entries(kept).some(([k, v]) => k !== "status" && k !== "amounts" && v);
   // the same filters, for the PDF / Excel download
   const exportHref = (format: "pdf" | "xlsx") => {
     const p = new URLSearchParams({ format });
@@ -280,11 +282,54 @@ async function Bookings({
         </div>
       </form>
 
+      {/* revenue of the bookings that match the filters (paid ones), before and after VAT */}
+      <section className="rounded-xl border border-line bg-paper p-4 space-y-3" data-testid="bookings-revenue" aria-label="الإيرادات">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-semibold">الإيرادات {active || filters.status ? "(حسب الفلاتر)" : ""}</h2>
+          <nav className="flex flex-wrap gap-1.5" aria-label="عرض المبالغ">
+            {(
+              [
+                ["both", "قبل وبعد الضريبة"],
+                ["net", "قبل الضريبة"],
+                ["gross", "بعد الضريبة"],
+              ] as const
+            ).map(([v, label]) => (
+              <Link
+                key={v}
+                href={qs({ amounts: v === "both" ? undefined : v, page: page > 1 ? page : undefined })}
+                aria-current={amounts === v ? "page" : undefined}
+                className={`rounded-full px-3 py-1 text-sm border ${amounts === v ? "bg-ink text-white border-ink" : "bg-paper border-line hover:border-sign"}`}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <dl className="grid gap-3 grid-cols-2 md:grid-cols-5 text-sm">
+          {(
+            [
+              ["حجوزات مدفوعة", formatNumber(revenue.count, "ar"), "count", true],
+              ["قبل الضريبة", formatSAR(revenue.subtotal, "ar"), "net", amounts !== "gross"],
+              ["الضريبة", formatSAR(revenue.vat, "ar"), "vat", amounts === "both"],
+              ["بعد الضريبة", formatSAR(revenue.amount, "ar"), "gross", amounts !== "net"],
+              ["أجور السائقين", formatSAR(revenue.driverFares, "ar"), "fares", true],
+            ] as const
+          )
+            .filter((x) => x[3])
+            .map(([k, v, id]) => (
+              <div key={id} className="rounded-lg bg-stone px-3 py-2" data-revenue={id}>
+                <dt className="text-xs text-muted">{k}</dt>
+                <dd className="font-semibold tabular text-[15px]">{v}</dd>
+              </div>
+            ))}
+        </dl>
+      </section>
+
       <p className="text-sm text-muted tabular">
         {formatNumber(total, "ar")} حجز
       </p>
       <Card>
-        <BookingsTable rows={rows} />
+        <BookingsTable rows={rows} amounts={amounts} />
       </Card>
       <Pager page={page} pages={pages} href={(p) => qs({ page: p })} />
     </div>

@@ -120,6 +120,20 @@
       "when": 1793534501313,
       "tag": "0016_stop_times",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793538661834,
+      "tag": "0017_iban_payout_receipt",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793538844783,
+      "tag": "0018_city_hourly_legs",
+      "breakpoints": true
     }
   ]
 }

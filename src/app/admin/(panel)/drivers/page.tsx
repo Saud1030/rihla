@@ -5,8 +5,8 @@ import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { driverRatings } from "@/lib/ratings";
 import { formatDate, formatNumber, formatSAR } from "@/lib/format";
-import { driverMoney, type DriverMoney } from "@/lib/driver-money";
-import type { DriverPayout } from "@/db/schema";
+import { driverMoney, payoutColumns, type DriverMoney, type PayoutRow } from "@/lib/driver-money";
+
 import {
   addDriverPayout,
   deleteDriverPayout,
@@ -20,9 +20,10 @@ import {
   removeDriverPhoto,
   saveDriver,
 } from "../../driver-actions";
-import { CARD_CM, CARD_DOCS, DOC_KINDS, DOC_LABELS, modelYears } from "@/lib/driver-docs";
+import { ALL_DOC_KINDS, CARD_CM, CARD_DOCS, DOC_LABELS, modelYears } from "@/lib/driver-docs";
 import { ColorSelect, PlateFields } from "@/components/plate-fields";
 import { PhotoField } from "@/components/site/photo-field";
+import { PayoutFields } from "@/components/admin/payout-fields";
 import { formatDateTime } from "@/lib/format";
 import { daysLabel, driverHold, SUSPEND_DAYS, upcomingTrips } from "@/lib/driver-hold";
 import { todayInRiyadh } from "@/lib/booking";
@@ -139,7 +140,7 @@ async function Drivers({
   // money: what each driver earned, was paid and is still owed
   const [money, payoutRows] = await Promise.all([
     driverMoney(team.map((d) => d.id)),
-    team.length ? db.select().from(s.driverPayouts).where(inArray(s.driverPayouts.driverId, team.map((d) => d.id))).orderBy(desc(s.driverPayouts.paidOn), desc(s.driverPayouts.id)) : Promise.resolve([]),
+    team.length ? db.select(payoutColumns).from(s.driverPayouts).where(inArray(s.driverPayouts.driverId, team.map((d) => d.id))).orderBy(desc(s.driverPayouts.paidOn), desc(s.driverPayouts.id)) : Promise.resolve([]),
   ]);
   const paidKey = typeof sp.paid === "string" ? sp.paid : typeof sp.unpaid === "string" ? sp.unpaid : "";
   const holdKey = (["suspended", "resumed", "blocked", "unblocked"] as const).find((k) => typeof sp[k] === "string");
@@ -399,10 +400,8 @@ async function Drivers({
                       تعديل بيانات السائق
                     </summary>
                     <div className="px-4 pb-5 space-y-4">
-                      <DriverFields d={d} vehicles={vehicleRows} />
-                      {docsOf(d.id).length > 0 && (
-                        <DocGallery id={d.id} kinds={docsOf(d.id)} />
-                      )}
+                      <DriverFields d={d} vehicles={vehicleRows} docs={docsOf(d.id)} />
+                      <DocGallery id={d.id} kinds={docsOf(d.id)} />
                       {d.hasPhoto && (
                         <ActionForm
                           action={removeDriverPhoto}
@@ -466,7 +465,7 @@ async function Drivers({
 }
 
 /** Earned / paid / remaining, the payouts, and a form to record a new one */
-function MoneyPanel({ d, m, payouts, open, notice }: { d: Row; m: DriverMoney; payouts: DriverPayout[]; open: boolean; notice: string | null }) {
+function MoneyPanel({ d, m, payouts, open, notice }: { d: Row; m: DriverMoney; payouts: PayoutRow[]; open: boolean; notice: string | null }) {
   return (
     <details className="border-t border-line" open={open} data-testid="driver-money-admin">
       <summary className="cursor-pointer px-4 py-3 text-sm text-sign flex flex-wrap gap-x-4 gap-y-1">
@@ -499,25 +498,22 @@ function MoneyPanel({ d, m, payouts, open, notice }: { d: Row; m: DriverMoney; p
           <p className="text-muted mb-1">الحساب البنكي</p>
           <p className="whitespace-pre-line rounded-lg border border-line px-3 py-2 min-h-10">{d.bankAccount || "لم يضف حسابًا بنكيًا بعد."}</p>
         </div>
-        <ActionForm action={addDriverPayout} submitLabel="تسجيل الدفعة" submitClassName="btn btn-primary !min-h-10 text-sm" className="grid gap-3 sm:grid-cols-[1fr_1fr_2fr] items-end">
+        <ActionForm action={addDriverPayout} submitLabel="تسجيل الدفعة" submitClassName="btn btn-primary !min-h-10 text-sm" className="space-y-3">
           <input type="hidden" name="driverId" value={d.id} />
-          <Field label="المبلغ المدفوع (ر.س)">
-            <input name="amount" inputMode="decimal" required dir="ltr" className="field text-start tabular" placeholder="500" />
-          </Field>
-          <Field label="تاريخ الدفع">
-            <input name="paidOn" type="date" required defaultValue={todayInRiyadh()} className="field" />
-          </Field>
-          <Field label="ملاحظة (اختياري)">
-            <input name="note" maxLength={200} className="field" placeholder="تحويل بنكي، نقدًا…" />
-          </Field>
+          <PayoutFields today={todayInRiyadh()} />
         </ActionForm>
         {payouts.length > 0 && (
           <ul className="divide-y divide-line border border-line rounded-lg text-sm" data-testid="payout-list">
             {payouts.map((p) => (
               <li key={p.id} className="px-3 py-2 flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  {formatDate(p.paidOn, "ar")}
+                  {formatDate(p.paidOn, "ar")} · {p.method === "cash" ? "نقدًا" : "تحويل بنكي"}
                   {p.note && <span className="text-muted"> · {p.note}</span>}
+                  {p.hasReceipt && (
+                    <a href={`/api/payouts/${p.id}/receipt`} target="_blank" rel="noopener noreferrer" className="ms-2 text-sign hover:underline">
+                      الإيصال
+                    </a>
+                  )}
                 </span>
                 <span className="flex items-center gap-3">
                   <span className="font-medium tabular">{formatSAR(p.amount, "ar")}</span>
@@ -614,8 +610,8 @@ function HoldControls({ d, hold }: { d: Row; hold: ReturnType<typeof driverHold>
 /** The application photos; each opens full size in a new tab */
 function DocGallery({ id, kinds }: { id: number; kinds: string[] }) {
   return (
-    <div className="grid gap-3 grid-cols-2 sm:grid-cols-5 items-start">
-      {DOC_KINDS.map((k) => (
+    <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 items-start">
+      {ALL_DOC_KINDS.map((k) => (
         <figure key={k} className="text-xs">
           {kinds.includes(k) ? (
             <a
@@ -656,7 +652,7 @@ const PHOTO_LABELS = {
   crop: { cropTitle: "قص الصورة", cropHint: "اسحب الصورة وكبّرها حتى يملأ الوجه الإطار.", zoom: "تكبير", rotate: "تدوير", cropOk: "اعتماد", cancel: "إلغاء" },
 };
 
-function DriverFields({ d, vehicles }: { d?: Row; vehicles: VehicleOption[] }) {
+function DriverFields({ d, vehicles, docs }: { d?: Row; vehicles: VehicleOption[]; docs?: string[] }) {
   return (
     <ActionForm action={saveDriver} submitLabel={d ? "حفظ" : "إضافة السائق"}>
       {d && <input type="hidden" name="id" value={d.id} />}
@@ -728,6 +724,15 @@ function DriverFields({ d, vehicles }: { d?: Row; vehicles: VehicleOption[] }) {
           <PhotoField name="photo" label={d?.hasPhoto ? "صورة شخصية جديدة (اختياري)" : "الصورة الشخصية"} t={PHOTO_LABELS} required={false} />
           <p className="text-xs text-muted mt-1">تظهر للعميل في صفحة حجزه.</p>
         </div>
+        {/* the same documents as the driver's own application page */}
+        <fieldset className="sm:col-span-2 space-y-2" data-testid="driver-docs-fields">
+          <legend className="text-sm font-medium mb-1">المستندات والصور {d ? "(اختر صورة فقط لما تبي تستبدلها)" : "(اختياري)"}</legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {ALL_DOC_KINDS.map((k) => (
+              <PhotoField key={k} name={k} label={`${DOC_LABELS[k].ar}${d && docs?.includes(k) ? " ✓ موجودة" : ""}`} t={PHOTO_LABELS} required={false} />
+            ))}
+          </div>
+        </fieldset>
         <Field label="الحساب البنكي للسائق" hint="اسم البنك والآيبان واسم صاحب الحساب. السائق يقدر يعدّله من حسابه" className="sm:col-span-2">
           <textarea name="bankAccount" rows={2} maxLength={300} defaultValue={d?.bankAccount ?? ""} className="field" />
         </Field>

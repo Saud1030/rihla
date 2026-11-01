@@ -203,6 +203,10 @@ export const bookings = pgTable(
     stops: jsonb("stops").$type<string[]>(),
     /** multi-destination trip: when the car is at each place ("YYYY-MM-DD HH:MM"), null where not set (stops 3+ have one) */
     stopTimes: jsonb("stop_times").$type<(string | null)[]>(),
+    /** multi-trip made of separate trips: each with its own start, end and time ("YYYY-MM-DD HH:MM"), names in the booking's language */
+    legs: jsonb("legs").$type<{ from: string; to: string; at: string }[]>(),
+    /** hourly bookings by city: the city's slug */
+    hourlyCity: text("hourly_city"),
     /** how long the booking lasts in minutes (hourly package, or estimated drive), for the end time */
     durationMin: integer("duration_min"),
     /** null until the customer picks a payment method on the checkout page */
@@ -343,7 +347,7 @@ export const drivers = pgTable("drivers", {
 });
 
 /** Documents a driver uploads when applying: ID, car registration (istimara), car inside and outside */
-export const driverDocKind = pgEnum("driver_doc_kind", ["id_card", "license", "registration", "car_inside", "car_outside"]);
+export const driverDocKind = pgEnum("driver_doc_kind", ["id_card", "license", "registration", "car_inside", "car_outside", "iban"]);
 export const driverDocuments = pgTable(
   "driver_documents",
   {
@@ -432,12 +436,35 @@ export const driverPayouts = pgTable(
     amount: integer("amount").notNull(),
     paidOn: date("paid_on").notNull(),
     note: text("note").notNull().default(""),
+    /** bank transfer (needs the transfer receipt) or cash */
+    method: text("method").notNull().default("transfer"),
+    receipt: bytea("receipt"),
+    receiptMime: text("receipt_mime"),
     createdBy: text("created_by").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("driver_payouts_driver_idx").on(t.driverId)],
 );
 export type DriverPayout = typeof driverPayouts.$inferSelect;
+
+/** Car with a driver by the hour, priced per city (Admin -> Hourly prices). Missing -> the car's own hourly price. */
+export const cityHourlyPrices = pgTable(
+  "city_hourly_prices",
+  {
+    id: serial("id").primaryKey(),
+    city: text("city")
+      .notNull()
+      .references(() => cities.slug, { onDelete: "cascade", onUpdate: "cascade" }),
+    vehicleId: integer("vehicle_id")
+      .notNull()
+      .references(() => vehicles.id, { onDelete: "cascade" }),
+    /** 10, 12 or 24 */
+    hours: integer("hours").notNull(),
+    /** halalas, before VAT */
+    price: integer("price").notNull(),
+  },
+  (t) => [uniqueIndex("city_hourly_prices_uq").on(t.city, t.vehicleId, t.hours)],
+);
 
 /** Simple key/value store for editable site settings */
 export const settings = pgTable("settings", {

@@ -19,7 +19,7 @@ export function StatusBadge({ status, t }: { status: Booking["status"]; t: Dicti
 export function BookingSummary({ b, lang, t, vatNumber }: { b: Booking; lang: Locale; t: Dictionary; vatNumber?: string }) {
   const rows: [string, React.ReactNode][] = [
     [t.checkout.route, b.routeTitle],
-    ...(b.stops?.length
+    ...(b.stops?.length || b.legs?.length
       ? ([
           [
             lang === "ar" ? "المسار" : "Stops",

@@ -10,6 +10,7 @@ export const LINKS = [
   { href: "/admin/messages", label: "رسائل واتساب والبريد" },
   { href: "/admin/chat", label: "المحادثات والبوت" },
   { href: "/admin/prices", label: "الأسعار" },
+  { href: "/admin/hourly-prices", label: "أسعار الساعات بالمدن" },
   { href: "/admin/routes", label: "الرحلات الثابتة" },
   { href: "/admin/destinations", label: "الوجهات والمدن" },
   { href: "/admin/vehicles", label: "السيارات" },

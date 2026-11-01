@@ -8,7 +8,7 @@ import { db, schema as s } from "@/db";
 import { detectFile, IMAGE_TYPES } from "@/lib/files";
 import { normalizePhone } from "@/lib/phone";
 import { allow, clientIp } from "@/lib/rate-limit";
-import { DOC_KINDS, DRIVER_PHOTO_MAX, modelYears } from "@/lib/driver-docs";
+import { ALL_DOC_KINDS, DRIVER_PHOTO_MAX, modelYears, OPTIONAL_DOCS } from "@/lib/driver-docs";
 import { isCarColor, plateFromForm } from "@/lib/plate";
 
 export type JoinField = "name" | "phone" | "password" | "vehicle" | "model" | "plate" | "color" | "photo" | "agree";
@@ -56,10 +56,11 @@ export async function applyAsDriver(_prev: JoinState, formData: FormData): Promi
   // photos: every one required, a real image, under 1 MB
   const files: Record<string, { mime: string; data: Buffer }> = {};
   const missing: string[] = [];
-  for (const kind of ["photo", ...DOC_KINDS]) {
+  for (const kind of ["photo", ...ALL_DOC_KINDS]) {
     const f = formData.get(kind);
     if (!(f instanceof File) || f.size === 0) {
-      missing.push(kind);
+      // the IBAN photo is optional
+      if (!(OPTIONAL_DOCS as readonly string[]).includes(kind)) missing.push(kind);
       continue;
     }
     if (f.size > DRIVER_PHOTO_MAX) return { formError: "tooBig", errors, missing: [kind], values };
@@ -111,7 +112,9 @@ export async function applyAsDriver(_prev: JoinState, formData: FormData): Promi
         const [row] = await tx.insert(s.drivers).values(driverValues).returning({ id: s.drivers.id });
         driverId = row.id;
       }
-      await tx.insert(s.driverDocuments).values(DOC_KINDS.map((kind) => ({ driverId, kind, mime: files[kind].mime, size: files[kind].data.length, data: files[kind].data })));
+      await tx
+        .insert(s.driverDocuments)
+        .values(ALL_DOC_KINDS.filter((kind) => files[kind]).map((kind) => ({ driverId, kind, mime: files[kind].mime, size: files[kind].data.length, data: files[kind].data })));
       // the sign-in account exists from now on, but stays switched off until the application is approved
       if (account) await tx.update(s.adminUsers).set({ name: d.name, passwordHash, active: false }).where(eq(s.adminUsers.id, account.id));
       else await tx.insert(s.adminUsers).values({ email: phone, name: d.name, passwordHash, role: "driver", driverId, active: false });

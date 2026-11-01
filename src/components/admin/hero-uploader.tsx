@@ -2,16 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-type Overlay = "light" | "medium" | "strong";
-const VEIL: Record<Overlay, string> = { light: "bg-paper/45", medium: "bg-paper/65", strong: "bg-paper/80" };
 
 /**
- * Pick a photo and see how the top of the home page will look with it (headline, booking box, veil)
+ * Pick a photo and see how the top of the home page will look with it (headline, booking box; the photo as it is)
  * before uploading. Nothing changes on the site until "save" is pressed.
  */
-export function HeroUploader({ current, overlay, title, lead }: { current: string | null; overlay: Overlay; title: string; lead: string }) {
+export function HeroUploader({ current, title, lead }: { current: string | null; title: string; lead: string }) {
   const [file, setFile] = useState<string | null>(null);
-  const [veil, setVeil] = useState<Overlay>(overlay);
   useEffect(() => () => void (file && URL.revokeObjectURL(file)), [file]);
   const src = file ?? current;
 
@@ -33,23 +30,6 @@ export function HeroUploader({ current, overlay, title, lead }: { current: strin
         />
       </label>
 
-      <fieldset>
-        <legend className="text-sm font-medium mb-2">الطبقة فوق الصورة لوضوح النص</legend>
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              ["light", "خفيفة"],
-              ["medium", "متوسطة"],
-              ["strong", "قوية"],
-            ] as const
-          ).map(([v, label]) => (
-            <label key={v} className="flex items-center gap-2 rounded-lg border border-line px-3 py-1.5 text-sm has-[:checked]:border-sign has-[:checked]:bg-sign-soft">
-              <input type="radio" name="preview_overlay" value={v} checked={veil === v} onChange={() => setVeil(v)} className="accent-sign" />
-              {label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
 
       {/* the preview: a small copy of the top of the home page */}
       <figure className="space-y-1" data-testid="hero-preview">
@@ -59,7 +39,6 @@ export function HeroUploader({ current, overlay, title, lead }: { current: strin
             <>
               {/* eslint-disable-next-line @next/next/no-img-element -- local preview or our own API route */}
               <img src={src} alt="" className="absolute inset-0 -z-10 size-full object-cover" data-preview-src={file ? "new" : "current"} />
-              <div className={`absolute inset-0 -z-10 ${VEIL[veil]}`} data-preview-veil={veil} />
             </>
           ) : (
             <div className="absolute inset-0 -z-10 grid place-items-center text-sm text-muted">اختر صورة لترى المعاينة</div>

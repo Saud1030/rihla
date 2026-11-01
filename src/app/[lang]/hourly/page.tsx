@@ -5,8 +5,8 @@ import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
 import { getCities, getLocations, getSettings, getVatConfig, getVehicles } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
-import { HOUR_PACKAGES, hourlyPrice, isHourPackage } from "@/lib/policy";
-import { KIND_LABELS } from "@/lib/regions";
+import { HOUR_PACKAGES, isHourPackage } from "@/lib/policy";
+import { cityHourlyPrices } from "@/lib/hourly";
 import { isClock, isDay } from "@/lib/timespan";
 import { BookingForm, type FormTrip } from "@/components/site/booking-form";
 import { createBooking } from "@/app/actions/booking";
@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: getDictionary(lang).hourly.title };
 }
 
-/** Car with a driver for 10, 12 or 24 hours, from any destination. /ar/hourly?from=makkah&hours=12 */
+/** Car with a driver for 10, 12 or 24 hours in a city. /ar/hourly?city=makkah&hours=12 (old links: ?from=<place>) */
 export default async function HourlyPage({ searchParams }: PageProps<"/[lang]/hourly">) {
   const lang = await getLocale();
   const t = getDictionary(lang);
@@ -44,15 +44,14 @@ async function HourlyContent({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const from = typeof sp.from === "string" ? sp.from : "";
-  const toSlug = typeof sp.to === "string" ? sp.to : "";
   const hours = Number(sp.hours);
   const [locations, cities, vehicles, vat, settings] = await Promise.all([getLocations(), getCities(), getVehicles(), getVatConfig(), getSettings()]);
-  const place = locations.find((l) => l.slug === from);
-  // where the customer is heading (optional on old links; required by the chooser)
-  const dest = toSlug && toSlug !== from ? (locations.find((l) => l.slug === toSlug) ?? null) : null;
+  // the city; old links name a place instead
+  const fromPlace = typeof sp.from === "string" ? locations.find((l) => l.slug === sp.from) : undefined;
+  const citySlug = typeof sp.city === "string" ? sp.city : (fromPlace?.city ?? "");
+  const city = cities.find((c) => c.slug === citySlug);
 
-  if (!place || !isHourPackage(hours) || settings.hourly_enabled === "0" || !vehicles.length) {
+  if (!city || !isHourPackage(hours) || settings.hourly_enabled === "0" || !vehicles.length) {
     return (
       <div className="mt-6 bg-paper border border-line rounded-xl p-10 text-center">
         <h1 className="text-2xl font-semibold">{t.hourly.unavailableTitle}</h1>
@@ -64,11 +63,11 @@ async function HourlyContent({
     );
   }
 
-  const city = cities.find((c) => c.slug === place.city);
-  const name = lang === "ar" ? place.nameAr : place.nameEn;
+  const prices = await cityHourlyPrices(city.slug, hours, vehicles);
+  const cityName = lang === "ar" ? `مدينة ${city.nameAr}` : city.nameEn;
   const trips: FormTrip[] = vehicles.map((v) => ({
     id: `h:${v.id}`,
-    price: hourlyPrice(v, hours),
+    price: prices.get(v.id)!,
     compareAtPrice: null,
     name: lang === "ar" ? v.nameAr : v.nameEn,
     category: v.category,
@@ -84,21 +83,15 @@ async function HourlyContent({
         <h1 className="text-3xl md:text-4xl font-semibold">
           {t.hourly.heading} · {t.search.hours[hours]}
         </h1>
-        <p className="mt-2 text-muted">
-          {t.hourly.from}: {name}
-          {city ? ` — ${KIND_LABELS[place.kind][lang]} · ${lang === "ar" ? `مدينة ${city.nameAr}` : city.nameEn}` : ""}
+        <p className="mt-2 text-muted" data-testid="hourly-city">
+          {cityName}
         </p>
-        {dest && (
-          <p className="text-muted">
-            {t.hourly.to}: {lang === "ar" ? dest.nameAr : dest.nameEn}
-          </p>
-        )}
         {/* switch package without going back */}
         <nav className="mt-4 flex flex-wrap gap-2" aria-label={t.search.duration}>
           {HOUR_PACKAGES.map((h) => (
             <Link
               key={h}
-              href={`/${lang}/hourly?from=${place.slug}${dest ? `&to=${dest.slug}` : ""}&hours=${h}${isDay(sp.date) ? `&date=${sp.date}` : ""}${isClock(sp.time) ? `&time=${sp.time}` : ""}`}
+              href={`/${lang}/hourly?city=${city.slug}&hours=${h}${isDay(sp.date) ? `&date=${sp.date}` : ""}${isClock(sp.time) ? `&time=${sp.time}` : ""}`}
               aria-current={h === hours ? "page" : undefined}
               className={`rounded-full border px-4 py-1.5 text-sm ${h === hours ? "bg-sign text-white border-sign" : "bg-paper border-line hover:border-sign"}`}
             >
@@ -114,7 +107,7 @@ async function HourlyContent({
         trips={trips}
         initialTripId={trips[0].id}
         vat={vat}
-        hidden={{ hourlyFrom: place.slug, hourlyTo: dest?.slug ?? "", hours: String(hours) }}
+        hidden={{ hourlyCity: city.slug, hours: String(hours) }}
         directions={null}
         initialReversed="0"
         minDate={todayInRiyadh()}

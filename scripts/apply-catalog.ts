@@ -10,7 +10,7 @@ import "dotenv/config";
 import postgres from "postgres";
 import { requireDatabaseUrl } from "../src/db/url";
 import { MAIN_CITIES, MAIN_PLACES } from "./data/main-places";
-import { addMainRoutes } from "./data/main-routes";
+import { addCityHourlyPrices, addMainRoutes } from "./data/main-routes";
 
 const sql = postgres(requireDatabaseUrl(), { max: 1, onnotice: () => {} });
 
@@ -36,6 +36,7 @@ async function main() {
     console.log(`Removed ${cities.length} cities, ${places.length} destinations, ${gone.length} routes`);
   });
   const r = await addMainRoutes(sql);
+  await addCityHourlyPrices(sql);
   console.log(`Catalog: ${MAIN_CITIES.length} cities, ${MAIN_PLACES.length} destinations, ${r.added} new routes, ${r.priced} new prices`);
   await sql.end();
 }

@@ -5,8 +5,8 @@ import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
 import { getVatConfig } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
-import { formatDuration, formatNumber, formatSAR } from "@/lib/format";
-import { multiTitle, parseStops, quoteMultiTrip } from "@/lib/multi";
+import { formatDate, formatNumber, formatSAR, formatTime } from "@/lib/format";
+import { legsFromParams, quoteMultiTrip } from "@/lib/multi";
 import { displayPrice } from "@/lib/pricing";
 import { isClock, isDay } from "@/lib/timespan";
 import { BookingForm, type FormTrip } from "@/components/site/booking-form";
@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: getDictionary(lang).multi.title };
 }
 
-/** One car through several stops, in order. /ar/multi?stops=jeddah-airport,makkah,madinah */
+/** Several trips in one booking. /ar/multi?l1=jeddah-airport,makkah,2026-11-03,10:00&l2=makkah,madinah,2026-11-05,09:00 */
 export default async function MultiPage({ searchParams }: PageProps<"/[lang]/multi">) {
   const lang = await getLocale();
   const t = getDictionary(lang);
@@ -37,9 +37,9 @@ export default async function MultiPage({ searchParams }: PageProps<"/[lang]/mul
 
 async function Content({ lang, t, searchParams }: { lang: Locale; t: Dictionary; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
-  const stops = parseStops(sp.stops);
-  const [quote, vat] = await Promise.all([stops ? quoteMultiTrip(stops) : null, getVatConfig()]);
-  if (!quote || !quote.options.length) {
+  const asked = legsFromParams(sp);
+  const [quote, vat] = await Promise.all([asked ? quoteMultiTrip(asked.map((l) => [l.from, l.to])) : null, getVatConfig()]);
+  if (!asked || !quote || !quote.options.length) {
     return (
       <div className="mt-6 bg-paper border border-line rounded-xl p-10 text-center">
         <h1 className="text-2xl font-semibold">{t.multi.unavailableTitle}</h1>
@@ -64,43 +64,32 @@ async function Content({ lang, t, searchParams }: { lang: Locale; t: Dictionary;
   }));
   const first = quote.options[0];
   const name = (p: { nameAr: string; nameEn: string }) => (lang === "ar" ? p.nameAr : p.nameEn);
+  const arrow = lang === "ar" ? "←" : "→";
 
   return (
     <>
       <header className="mt-4 mb-6">
         <p className="text-sm text-sign font-medium">{t.multi.title}</p>
-        <h1 className="text-3xl md:text-4xl font-semibold text-balance">{multiTitle(quote.places, lang)}</h1>
-        <p className="mt-2 text-muted flex flex-wrap gap-x-5">
-          {quote.km > 0 && (
-            <span className="tabular">
-              {t.multi.total}: {t.trip.about} {formatNumber(quote.km, lang)} {t.routes.km}
-            </span>
-          )}
-          {quote.minutes > 0 && (
-            <span>
-              {t.routes.duration}: {t.trip.about} {formatDuration(quote.minutes, lang)}
-            </span>
-          )}
-        </p>
+        <h1 className="text-3xl md:text-4xl font-semibold text-balance">
+          {formatNumber(quote.legs.length, lang)} {t.multi.legs}: {quote.legs.map((l) => `${name(l.from)} ${arrow} ${name(l.to)}`).join(lang === "ar" ? "، " : ", ")}
+        </h1>
         <p className="mt-3 text-sm bg-sign-soft border border-sign/15 rounded-lg px-4 py-2.5 max-w-[70ch]">{t.multi.lead}</p>
       </header>
 
-      <section className="mb-8" aria-labelledby="legs-title">
-        <h2 id="legs-title" className="font-semibold mb-3">
-          {t.multi.legs}
-        </h2>
+      <section className="mb-8" aria-label={t.multi.legs}>
         <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="multi-legs">
           {quote.legs.map((l, i) => (
             <li key={i} className="rounded-lg border border-line bg-paper px-4 py-3 text-sm">
               <span className="block text-xs text-muted">
                 {t.multi.leg} {formatNumber(i + 1, lang)}
+                {asked[i].date && ` · ${formatDate(asked[i].date, lang, { weekday: false })}${asked[i].time ? ` ${formatTime(asked[i].time, lang)}` : ""}`}
               </span>
               <span className="block font-medium">
-                {name(l.from)} {lang === "ar" ? "←" : "→"} {name(l.to)}
+                {name(l.from)} {arrow} {name(l.to)}
               </span>
               <span className="block text-muted tabular">
                 {l.km != null && `${t.trip.about} ${formatNumber(l.km, lang)} ${t.routes.km} · `}
-                {first.vehicle && formatSAR(displayPrice(first.legPrices[i], vat), lang)}
+                {formatSAR(displayPrice(first.legPrices[i], vat), lang)}
                 {` (${lang === "ar" ? first.vehicle.nameAr : first.vehicle.nameEn})`}
               </span>
             </li>
@@ -114,20 +103,21 @@ async function Content({ lang, t, searchParams }: { lang: Locale; t: Dictionary;
         trips={trips}
         initialTripId={trips[0].id}
         vat={vat}
-        hidden={{ stops: quote.places.map((p) => p.slug).join(",") }}
+        hidden={{ legs: quote.legs.map((l) => `${l.from.slug}>${l.to.slug}`).join("|") }}
         directions={null}
         initialReversed="0"
         minDate={todayInRiyadh()}
         maxDate={maxBookingDate()}
-        initialDate={isDay(sp.date) ? sp.date : ""}
-        initialTime={isClock(sp.time) ? sp.time : ""}
-        span={quote.minutes ? { minutes: quote.minutes, kind: "arrives" } : null}
+        initialDate={asked[0].date || (isDay(sp.date) ? sp.date : "")}
+        initialTime={asked[0].time || (isClock(sp.time) ? sp.time : "")}
+        span={quote.legs[0].minutes ? { minutes: quote.legs[0].minutes, kind: "arrives" } : null}
         action={createBooking.bind(null, lang)}
-        schedule={quote.places.slice(3).map((p, n) => {
-          const k = n + 3;
-          const at = typeof sp[`t${k}`] === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(sp[`t${k}`] as string) ? (sp[`t${k}`] as string).split("T") : ["", ""];
-          return { index: k, label: `${t.multi.stopAt} ${formatNumber(k, lang)}: ${name(p)}`, date: at[0], time: at[1] };
-        })}
+        schedule={quote.legs.slice(1).map((l, n) => ({
+          index: n + 2,
+          label: `${t.multi.leg} ${formatNumber(n + 2, lang)}: ${name(l.from)} ${arrow} ${name(l.to)}`,
+          date: asked[n + 1].date,
+          time: asked[n + 1].time,
+        }))}
       />
     </>
   );

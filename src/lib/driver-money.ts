@@ -38,9 +38,21 @@ export async function driverMoney(driverIds: number[]): Promise<Map<number, Driv
   return out;
 }
 
-export async function driverPayoutList(driverId: number, limit = 50) {
+/** payouts without the receipt file itself */
+export const payoutColumns = {
+  id: s.driverPayouts.id,
+  driverId: s.driverPayouts.driverId,
+  amount: s.driverPayouts.amount,
+  paidOn: s.driverPayouts.paidOn,
+  note: s.driverPayouts.note,
+  method: s.driverPayouts.method,
+  hasReceipt: sql<boolean>`${s.driverPayouts.receipt} is not null`,
+};
+export type PayoutRow = { id: number; driverId: number; amount: number; paidOn: string; note: string; method: string; hasReceipt: boolean };
+
+export async function driverPayoutList(driverId: number, limit = 50): Promise<PayoutRow[]> {
   return db
-    .select()
+    .select(payoutColumns)
     .from(s.driverPayouts)
     .where(eq(s.driverPayouts.driverId, driverId))
     .orderBy(sql`${s.driverPayouts.paidOn} desc, ${s.driverPayouts.id} desc`)

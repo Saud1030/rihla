@@ -70,6 +70,8 @@ export async function signSearchProps(
       chooseStop: t.search.chooseStop,
       stopDate: t.search.stopDate,
       stopTime: t.search.stopTime,
+      city: t.search.city,
+      chooseCity: t.search.chooseCity,
       cities: t.search.cities,
       cityPrefix: t.search.cityPrefix,
       back: t.search.back,
