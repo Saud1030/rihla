@@ -1,4 +1,5 @@
 import "server-only";
+import { parseLeadHours } from "./lead-time";
 import { cache } from "react";
 import { asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -80,6 +81,11 @@ export const getSettings = cache(
       return Object.fromEntries(rows.map((r) => [r.key, r.value]));
     }),
 );
+
+/** book at least this many hours before the pickup */
+export async function getLeadHours() {
+  return parseLeadHours((await getSettings()).min_lead_hours);
+}
 
 export async function getVatConfig() {
   return parseVatConfig(await getSettings());

@@ -1273,6 +1273,48 @@ if (!ONLY || ONLY === "features") {
     await payInBrowser(page, ref, "pay");
     eq(sql(`select status from bookings where ref='${ref}'`), "paid", "paid");
   });
+  await check("bookings must be made at least 6 hours ahead: the search box offers times from now + 6h; the server refuses sooner; the admin can change the hours", async () => {
+    const setLead = (v) => sql(v == null ? "delete from settings where key='min_lead_hours'" : `insert into settings(key,value) values('min_lead_hours','${v}') on conflict (key) do update set value=excluded.value`);
+    const riyadh = (ms) => { const d = new Date(ms + 3 * 3600e3).toISOString(); return { date: d.slice(0, 10), time: d.slice(11, 16) }; };
+    const q = 15 * 60e3;
+    setLead(null); // default 6 hours
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    const earliest = riyadh(Math.ceil((Date.now() + 60e3 + 6 * 3600e3 + 3 * 3600e3) / q) * q - 3 * 3600e3);
+    await page.getByTestId("search-earliest").waitFor();
+    eq(await page.locator('form#search input[name="date"]').getAttribute("min"), earliest.date, "earliest day");
+    await page.locator('form#search input[name="date"]').fill(earliest.date);
+    const first = (await page.locator('form#search select[name="time"] option').allTextContents())[1];
+    const firstVal = await page.locator('form#search select[name="time"] option').nth(1).getAttribute("value");
+    const mins = (x) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3));
+    const diff = Math.abs(mins(firstVal) - mins(earliest.time));
+    assert(diff <= 15 || diff >= 24 * 60 - 15, `first time offered is now + 6h: ${firstVal} (${first}), expected about ${earliest.time}`);
+    // the same in the multiple-trips box
+    await page.getByRole("tab", { name: "رحلات متعددة" }).click();
+    eq(await page.getByTestId("leg-1").locator('input[type="date"]').getAttribute("min"), earliest.date, "trips: earliest day");
+    // the server refuses a pickup sooner than 6 hours (2 hours from now)
+    const soon = riyadh(Math.ceil((Date.now() + 2 * 3600e3) / q) * q);
+    await page.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
+    await page.getByTestId("earliest-pickup").waitFor();
+    await fillBooking(page, { date: soon.date, before: (p) => p.fill("#time", soon.time) });
+    await page.getByText("الحجز لازم يكون قبل موعد الرحلة بـ ٦ ساعات على الأقل").waitFor();
+    eq(sql("select count(*) from bookings where customer_name='عميل الاختبار' and pickup_date='" + soon.date + "' and pickup_time='" + soon.time + "'"), "0", "not booked");
+    // the admin changes it to 2 hours: 3 hours ahead is then fine
+    await a.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+    eq(await a.getByTestId("lead-hours").locator("input").inputValue(), "6", "6 by default");
+    await a.getByTestId("lead-hours").locator("input").fill("2");
+    await a.getByTestId("lead-hours").locator("input").press("Enter");
+    await a.getByText("تم حفظ سياسة الإلغاء").waitFor();
+    eq(sql("select value from settings where key='min_lead_hours'"), "2", "saved");
+    const later = riyadh(Math.ceil((Date.now() + 3 * 3600e3) / q) * q);
+    const ref = await makeBooking(page, { date: later.date, before: (p) => p.fill("#time", later.time) });
+    assert(ref, "3 hours ahead is fine with 2");
+    sql(`delete from bookings where ref='${ref}'`);
+    setLead(null);
+    await a.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+    await a.getByTestId("lead-hours").locator("input").fill("6");
+    await a.getByTestId("lead-hours").locator("input").press("Enter");
+    await a.getByText("تم حفظ سياسة الإلغاء").waitFor();
+  });
   await check("multiple trips: more than 10 trips in one booking (up to 20)", async () => {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     await page.getByRole("tab", { name: "رحلات متعددة" }).click();

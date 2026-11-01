@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { MAX_LEAD_HOURS, parseLeadHours } from "@/lib/lead-time";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
 import {
@@ -123,8 +124,15 @@ async function Content() {
               <label className="flex items-start gap-2 sm:col-span-2">
                 <input type="checkbox" name="multi_enabled" defaultChecked={values.multi_enabled !== "0"} className="size-4 mt-1 accent-sign" />
                 <span>
-                  تفعيل الرحلات متعددة الوجهات (من ٢ إلى ٥ وجهات في حجز واحد)
+                  تفعيل الرحلات المتعددة (من ٢ إلى ٢٠ مشوارًا في حجز واحد)
                   <span className="block text-xs text-muted">السعر مجموع أسعار المراحل: السعر الثابت إن وُجد، وإلا حسب المسافة.</span>
+                </span>
+              </label>
+              <label className="block sm:col-span-2" data-testid="lead-hours">
+                <span className="block text-sm font-medium mb-1">أقل مدة بين الحجز وموعد الرحلة (بالساعات)</span>
+                <input name="min_lead_hours" type="number" min={0} max={MAX_LEAD_HOURS} required defaultValue={parseLeadHours(values.min_lead_hours)} dir="ltr" className="field w-32 text-start" />
+                <span className="block text-xs text-muted mt-1">
+                  مثلًا ٦: لو الساعة الحين ١٢ الظهر، أقرب موعد يقدر العميل يحجزه ٦ المغرب. صفر = يحجز لأي وقت قادم.
                 </span>
               </label>
               <label className="flex items-start gap-2 sm:col-span-2">

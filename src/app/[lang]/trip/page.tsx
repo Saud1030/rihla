@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
-import { findRoute, getCatalog, getCities, getVatConfig, pairTitle, quoteDistanceTrip } from "@/lib/catalog";
+import { findRoute, getCatalog, getCities, getVatConfig, pairTitle, quoteDistanceTrip, getLeadHours } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { formatDuration, formatNumber } from "@/lib/format";
 import { KIND_LABELS } from "@/lib/regions";
@@ -108,6 +108,7 @@ async function TripContent({
         <p className="mt-3 text-sm bg-sign-soft border border-sign/15 rounded-lg px-4 py-2.5 max-w-[70ch]">{t.trip.estimateNote}</p>
       </header>
       <BookingForm
+        leadHours={await getLeadHours()}
         lang={lang}
         t={{ route: t.route, form: t.form }}
         trips={trips}

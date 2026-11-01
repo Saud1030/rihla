@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
-import { getVatConfig } from "@/lib/catalog";
+import { getVatConfig, getLeadHours } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { formatDate, formatNumber, formatSAR, formatTime } from "@/lib/format";
 import { legsFromParams, quoteMultiTrip } from "@/lib/multi";
@@ -98,6 +98,7 @@ async function Content({ lang, t, searchParams }: { lang: Locale; t: Dictionary;
       </section>
 
       <BookingForm
+        leadHours={await getLeadHours()}
         lang={lang}
         t={{ route: t.route, form: t.form }}
         trips={trips}

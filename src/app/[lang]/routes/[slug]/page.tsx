@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
-import { getRouteBySlug, getVatConfig, routeTitle } from "@/lib/catalog";
+import { getRouteBySlug, getVatConfig, routeTitle, getLeadHours } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { formatDuration, formatNumber } from "@/lib/format";
 import { isClock, isDay } from "@/lib/timespan";
@@ -101,6 +101,7 @@ async function RouteContent({
         </p>
       </header>
       <BookingForm
+        leadHours={await getLeadHours()}
         lang={lang}
         t={{ route: t.route, form: t.form }}
         trips={trips}

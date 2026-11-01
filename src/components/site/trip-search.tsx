@@ -1,6 +1,7 @@
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
 import { getPickerOptions, getSettings } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
+import { parseLeadHours } from "@/lib/lead-time";
 import { KIND_LABELS, REGIONS } from "@/lib/regions";
 import { SignSearch, type ChoiceOption } from "./sign-search";
 import type { ComponentProps } from "react";
@@ -46,6 +47,7 @@ export async function signSearchProps(
     hourlyEnabled: settings.hourly_enabled !== "0",
     multiEnabled: settings.multi_enabled !== "0",
     minDate: todayInRiyadh(),
+    leadHours: parseLeadHours(settings.min_lead_hours),
     maxDate: maxBookingDate(),
     labels: {
       transfer: t.search.transfer,
@@ -70,6 +72,8 @@ export async function signSearchProps(
       chooseStop: t.search.chooseStop,
       stopDate: t.search.stopDate,
       stopTime: t.search.stopTime,
+      earliest: t.search.earliest,
+      tooSoon: t.search.tooSoon,
       city: t.search.city,
       chooseCity: t.search.chooseCity,
       cities: t.search.cities,

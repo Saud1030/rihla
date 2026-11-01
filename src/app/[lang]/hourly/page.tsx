@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
-import { getCities, getLocations, getSettings, getVatConfig, getVehicles } from "@/lib/catalog";
+import { getCities, getLocations, getSettings, getVatConfig, getVehicles, getLeadHours } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { HOUR_PACKAGES, isHourPackage } from "@/lib/policy";
 import { cityHourlyPrices } from "@/lib/hourly";
@@ -102,6 +102,7 @@ async function HourlyContent({
         <p className="mt-4 text-sm bg-sign-soft border border-sign/15 rounded-lg px-4 py-2.5 max-w-[75ch]">{t.hourly.note}</p>
       </header>
       <BookingForm
+        leadHours={await getLeadHours()}
         lang={lang}
         t={{ route: t.route, form: t.form }}
         trips={trips}

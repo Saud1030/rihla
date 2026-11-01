@@ -4,10 +4,12 @@ import { useActionState, useState } from "react";
 import Image from "next/image";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
 import type { BookingFormState } from "@/app/actions/booking";
-import { formatNumber, formatSAR, vatNote } from "@/lib/format";
+import { formatDate, formatNumber, formatSAR, formatTime, vatNote } from "@/lib/format";
 import { displayPrice, withVat, type VatConfig } from "@/lib/pricing";
 import { PersonIcon, BagIcon, CheckIcon, LockIcon } from "@/components/icons";
 import { addToClock, formatEnd, isClock } from "@/lib/timespan";
+import { farEnough } from "@/lib/lead-time";
+import { useEarliest } from "./use-earliest";
 
 export type FormTrip = {
   /** trip id for fixed routes, "d:<vehicleId>" for distance-priced trips */
@@ -42,9 +44,11 @@ type Props = {
   action: (state: BookingFormState, formData: FormData) => Promise<BookingFormState>;
   /** multi-stop trips: from the third stop on, each stop has its own date and time */
   schedule?: { index: number; label: string; date: string; time: string }[];
+  /** book at least this many hours before the pickup (admin setting) */
+  leadHours?: number;
 };
 
-export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action, schedule = [] }: Props) {
+export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action, schedule = [], leadHours = 0 }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const v = state.values ?? {};
   const [tripId, setTripId] = useState<string>(v.tripId || initialTripId);
@@ -54,6 +58,9 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
   const E = t.form.errors;
   const [date, setDate] = useState(v.date ?? initialDate);
   const [time, setTime] = useState(v.time ?? initialTime);
+  const earliest = useEarliest(leadHours);
+  const earliestText = earliest ? `${formatDate(earliest.date, lang)} - ${formatTime(earliest.time, lang)}` : "";
+  const tooSoon = !!earliest && !!date && isClock(time) && !farEnough(date, time, earliest);
   const end = span && isClock(time) ? addToClock(date || null, time, span.minutes) : null;
   const endText = end && span ? `${span.kind === "ends" ? t.form.endsAt : t.form.arrivesAround} ${formatEnd(end.time, end.dayOffset, lang)}` : null;
 
@@ -160,10 +167,20 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
             {field(
               "date",
               t.form.date,
-              <input type="date" min={minDate} max={maxDate} value={date} onChange={(e) => setDate(e.target.value)} required className="field" {...a11y("date")} />,
+              <input type="date" min={earliest && earliest.date > minDate ? earliest.date : minDate} max={maxDate} value={date} onChange={(e) => setDate(e.target.value)} required className="field" {...a11y("date")} />,
               E.date,
             )}
-            {field("time", t.form.time, <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required className="field" {...a11y("time")} />, E.time)}
+            {field(
+              "time",
+              t.form.time,
+              <input type="time" value={time} min={earliest && date === earliest.date ? earliest.time : undefined} onChange={(e) => setTime(e.target.value)} required className="field" {...a11y("time")} />,
+              state.tooSoon != null ? E.tooSoon.replace("{hours}", formatNumber(state.tooSoon, lang)) : E.time,
+            )}
+            {leadHours > 0 && earliest && (
+              <p className={`sm:col-span-2 -mt-2 text-sm ${tooSoon ? "text-danger" : "text-muted"}`} data-testid="earliest-pickup" role={tooSoon ? "alert" : undefined}>
+                {t.form.earliest} <bdi className="font-medium">{earliestText}</bdi>
+              </p>
+            )}
             {endText && (
               <p className="sm:col-span-2 -mt-2 text-sm bg-sign-soft border border-sign/15 rounded-lg px-3 py-2" data-testid="form-end">
                 {endText}

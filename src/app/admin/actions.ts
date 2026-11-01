@@ -763,6 +763,7 @@ const policySchema = z.object({
   cancel_enabled: z.enum(["0", "1"]),
   cancel_full_hours: z.coerce.number().int().min(0).max(720),
   cancel_partial_percent: z.coerce.number().int().min(0).max(100),
+  min_lead_hours: z.coerce.number().int().min(0).max(72),
   refund_auto: z.enum(["0", "1"]),
 });
 
@@ -777,8 +778,10 @@ export async function savePolicySettings(_prev: ActionState, formData: FormData)
     refund_auto: raw.refund_auto === "on" ? "1" : "0",
     cancel_full_hours: digits(raw.cancel_full_hours),
     cancel_partial_percent: digits(raw.cancel_partial_percent),
+    min_lead_hours: digits(raw.min_lead_hours),
   });
-  if (!parsed.success) return { error: "الساعات رقم بين ٠ و ٧٢٠، والنسبة رقم بين ٠ و ١٠٠." };
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.path[0] === "min_lead_hours" ? "أقل مدة قبل الرحلة رقم بين ٠ و ٧٢ ساعة." : "الساعات رقم بين ٠ و ٧٢٠، والنسبة رقم بين ٠ و ١٠٠." };
   await db.transaction(async (tx) => {
     for (const [key, v] of Object.entries(parsed.data)) {
       const value = String(v);
@@ -787,7 +790,7 @@ export async function savePolicySettings(_prev: ActionState, formData: FormData)
   });
   invalidateCatalogCache();
   revalidatePath("/admin/settings");
-  return { ok: true, message: "تم حفظ سياسة الإلغاء والحجز بالساعة." };
+  return { ok: true, message: "تم حفظ سياسة الإلغاء والحجز بالساعة ومدة الحجز المسبق." };
 }
 
 /* ---------- Destinations: quick and bulk hide / show / delete ---------- */

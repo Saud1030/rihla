@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatTime } from "@/lib/format";
+import { formatDate, formatTime } from "@/lib/format";
+import { farEnough } from "@/lib/lead-time";
+import { useEarliest } from "./use-earliest";
 import { addToClock, formatEnd, TIME_SLOTS } from "@/lib/timespan";
 
 export type ChoiceOption = {
@@ -36,6 +38,10 @@ export type SignSearchLabels = {
   chooseStop: string;
   stopDate: string;
   stopTime: string;
+  /** "أقرب موعد متاح للحجز:" */
+  earliest: string;
+  /** "اختر موعدًا بعد {at} ..." */
+  tooSoon: string;
   city: string;
   chooseCity: string;
   cities: string;
@@ -61,6 +67,8 @@ type Props = {
   multiEnabled: boolean;
   minDate: string;
   maxDate: string;
+  /** book at least this many hours before the pickup (admin setting) */
+  leadHours?: number;
   /** form id; the home page uses "search" so links can jump to it */
   id?: string;
 };
@@ -74,7 +82,7 @@ const emptyLeg = (): Leg => ({ from: "", to: "", date: "", time: "" });
 /** which trip and which end a target is, for multi-trip targets */
 const legOf = (t: string | null) => (t && /^p[ft]\d+$/.test(t) ? { i: Number(t.slice(2)), end: t[1] === "f" ? ("from" as const) : ("to" as const) } : null);
 type Nav = { region?: string; city?: string };
-type Field = "from" | "to" | "date" | "time";
+type Field = "from" | "to" | "date" | "time" | "soon";
 const PACKAGES = [10, 12, 24] as const;
 
 export function SignSearch({
@@ -87,6 +95,7 @@ export function SignSearch({
   multiEnabled,
   minDate,
   maxDate,
+  leadHours = 0,
   id = "search",
 }: Props) {
   const [mode, setMode] = useState<Mode>("transfer");
@@ -101,6 +110,11 @@ export function SignSearch({
   const [open, setOpen] = useState<Target | null>(null);
   const [nav, setNav] = useState<Nav>({});
   const [missing, setMissing] = useState<Field[]>([]);
+  // the nearest pickup that can be booked (now + the admin's hours); earlier days and times aren't offered
+  const earliest = useEarliest(leadHours);
+  const dayMin = earliest && earliest.date > minDate ? earliest.date : minDate;
+  const slotsFor = (d: string) => (!earliest || !d || d > earliest.date ? TIME_SLOTS : d < earliest.date ? [] : TIME_SLOTS.filter((x) => x >= earliest.time));
+  const earliestText = earliest ? `${formatDate(earliest.date, lang)} - ${formatTime(earliest.time, lang)}` : "";
   const headingRef = useRef<HTMLHeadingElement>(null);
   const num = (n: number) =>
     n.toLocaleString(lang === "ar" ? "ar-SA" : "en-US");
@@ -140,7 +154,8 @@ export function SignSearch({
     if (open) headingRef.current?.focus();
   }, [open, nav]);
 
-  const clear = (f: Field) => setMissing((m) => m.filter((x) => x !== f));
+  // changing the date or time also clears the "too soon" message
+  const clear = (f: Field) => setMissing((m) => m.filter((x) => x !== f && !(x === "soon" && (f === "date" || f === "time"))));
 
   function openFor(t: Target) {
     if (open === t) return close();
@@ -330,7 +345,11 @@ export function SignSearch({
     );
   };
 
-  const errorText = missing.length ? L.missing[missing[0]] : null;
+  const errorText = !missing.length
+    ? null
+    : missing[0] === "soon"
+      ? L.tooSoon.replace("{at}", earliestText).replace("{hours}", num(leadHours))
+      : L.missing[missing[0]];
 
   const panel = (
     <div
@@ -490,11 +509,13 @@ export function SignSearch({
           if (legs.some((l) => !l.to)) m.push("to");
           if (legs.some((l) => !l.date)) m.push("date");
           if (legs.some((l) => !l.time)) m.push("time");
+          if (earliest && legs.some((l) => l.date && l.time && !farEnough(l.date, l.time, earliest))) m.push("soon");
         } else {
           if (mode === "hourly" ? !city : !from) m.push("from");
           if (mode === "transfer" && !to) m.push("to");
           if (!date) m.push("date");
           if (!time) m.push("time");
+          if (earliest && date && time && !farEnough(date, time, earliest)) m.push("soon");
         }
         if (m.length) {
           e.preventDefault();
@@ -583,11 +604,13 @@ export function SignSearch({
                 <div className="grid grid-cols-2 gap-2 -mt-2">
                   <input
                     type="date"
-                    min={minDate}
+                    min={dayMin}
                     max={maxDate}
                     value={l.date}
                     onChange={(e) => {
-                      setLeg(i, { date: e.target.value });
+                      const d = e.target.value;
+                      // a time that's too soon for the new day is cleared
+                      setLeg(i, { date: d, ...(l.time && !slotsFor(d).includes(l.time) ? { time: "" } : {}) });
                       clear("date");
                     }}
                     aria-label={`${L.stopDate} ${num(i + 1)}`}
@@ -603,7 +626,7 @@ export function SignSearch({
                     className={`field ${l.time ? "" : "text-muted"} ${missing.includes("time") && !l.time ? "!border-danger ring-2 ring-danger/40" : ""}`}
                   >
                     <option value="">{L.chooseTime}</option>
-                    {TIME_SLOTS.map((x) => (
+                    {slotsFor(l.date).map((x) => (
                       <option key={x} value={x}>
                         {formatTime(x, lang)}
                       </option>
@@ -691,11 +714,13 @@ export function SignSearch({
           <input
             type="date"
             name="date"
-            min={minDate}
+            min={dayMin}
             max={maxDate}
             value={date}
             onChange={(e) => {
-              setDate(e.target.value);
+              const d = e.target.value;
+              setDate(d);
+              if (time && !slotsFor(d).includes(time)) setTime("");
               clear("date");
             }}
             aria-invalid={missing.includes("date") || undefined}
@@ -715,7 +740,7 @@ export function SignSearch({
             className={`field ${time ? "" : "text-muted"} ${missing.includes("time") ? "!border-danger ring-2 ring-danger/40" : ""}`}
           >
             <option value="">{L.chooseTime}</option>
-            {TIME_SLOTS.map((s) => (
+            {slotsFor(date).map((s) => (
               <option key={s} value={s}>
                 {formatTime(s, lang)}
               </option>
@@ -735,6 +760,12 @@ export function SignSearch({
           <span className="font-semibold">
             {formatEnd(end.time, end.dayOffset, lang)}
           </span>
+        </p>
+      )}
+
+      {leadHours > 0 && earliest && (
+        <p className="text-sm text-white/85" data-testid="search-earliest">
+          {L.earliest} <bdi className="font-semibold">{earliestText}</bdi>
         </p>
       )}
 

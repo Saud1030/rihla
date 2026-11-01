@@ -7,6 +7,7 @@ import { db, schema as s } from "@/db";
 import { isLocale, type Locale } from "@/i18n/dictionaries";
 import { pairTitle, routeTitle } from "@/lib/catalog";
 import { maxBookingDate, newBookingRef, todayInRiyadh } from "@/lib/booking";
+import { earliestPickup, farEnough, parseLeadHours } from "@/lib/lead-time";
 import { distancePrice, driveMinutes, parseVatConfig, roadKm, withVat } from "@/lib/pricing";
 import { hourlyPrice, isHourPackage } from "@/lib/policy";
 import { normalizePhone } from "@/lib/phone";
@@ -16,6 +17,8 @@ import { cityHourlyPrices } from "@/lib/hourly";
 export type BookingFormState = {
   errors?: Partial<Record<FieldName, true>>;
   formError?: "generic" | "trip" | "stops";
+  /** the pickup is sooner than the admin allows: book at least this many hours ahead */
+  tooSoon?: number;
   values?: Record<string, string>;
 };
 
@@ -111,6 +114,12 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
 
   const errors: BookingFormState["errors"] = {};
   if (d.date < todayInRiyadh() || d.date > maxBookingDate()) errors.date = true;
+  // booked far enough ahead (a few minutes' grace for the time spent filling the form)
+  const leadHours = parseLeadHours((await db.query.settings.findFirst({ where: eq(s.settings.key, "min_lead_hours") }))?.value);
+  if (!errors.date && !farEnough(d.date, d.time, earliestPickup(leadHours, Date.now() - 10 * 60_000))) {
+    errors.time = true;
+    return { errors, tooSoon: leadHours, values };
+  }
   if (d.passengers > resolved.vehicle.passengers) errors.passengers = true;
   if (d.bags > resolved.vehicle.bags) errors.bags = true;
   if (Object.keys(errors).length) return { errors, values };
