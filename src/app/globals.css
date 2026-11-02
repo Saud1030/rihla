@@ -12,6 +12,9 @@
 @import "@fontsource/almarai/700.css";
 @import "@fontsource-variable/cairo/index.css";
 @import "@fontsource-variable/noto-kufi-arabic/index.css";
+/* the default design (luxury): Naskh headings, Noto Sans body */
+@import "@fontsource-variable/noto-naskh-arabic/index.css";
+@import "@fontsource-variable/noto-sans-arabic/index.css";
 
 /*
   Visual language: Saudi highway signage.
@@ -19,21 +22,22 @@
   that needs attention, on a cool stone ground.
 */
 @theme {
-  --color-sign: #0b5d45;
-  --color-sign-deep: #07402f;
-  --color-sign-soft: #e3efe9;
-  --color-amber: #f2b53a;
-  --color-amber-deep: #a86f00;
-  --color-stone: #eef1ec;
+  /* the default design: luxury black + gold (the admin's choice in Appearance overrides these) */
+  --color-sign: #1c1917;
+  --color-sign-deep: #131110;
+  --color-sign-soft: #e4e3e3;
+  --color-amber: #c9a24a;
+  --color-amber-deep: #74602d;
+  --color-stone: #fafaf9;
   --color-paper: #ffffff;
-  --color-ink: #17201d;
-  --color-muted: #56645e;
-  --color-line: #d3dad5;
+  --color-ink: #1c1917;
+  --color-muted: #57534e;
+  --color-line: #e2e0dd;
   --color-danger: #b42318;
   --color-danger-soft: #fdecea;
 
-  --font-display: "Country Flags", "Readex Pro Variable", "IBM Plex Sans Arabic", system-ui, sans-serif;
-  --font-sans: "Country Flags", "IBM Plex Sans Arabic", "Readex Pro Variable", system-ui, sans-serif;
+  --font-display: "Country Flags", "Noto Naskh Arabic Variable", "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --font-sans: "Country Flags", "Noto Sans Arabic Variable", "IBM Plex Sans Arabic", system-ui, sans-serif;
 
   --radius-sign: 14px;
   --radius-field: 8px;

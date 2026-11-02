@@ -2,7 +2,7 @@
 
 import { startTransition, useActionState, useMemo, useState } from "react";
 import type { ActionState } from "@/app/admin/actions";
-import { CORNERS, FONTS, PRESETS, isHex, themeCss, themeWarnings, type CornerKey, type FontKey, type Theme } from "@/lib/theme";
+import { CORNERS, DEFAULT_THEME, FONTS, PRESETS, isHex, themeCss, themeWarnings, type CornerKey, type FontKey, type Theme } from "@/lib/theme";
 
 type Texts = Record<
   "company_name_ar" | "company_name_en" | "logo_text_ar" | "logo_text_en" | "hero_title_ar" | "hero_title_en" | "hero_lead_ar" | "hero_lead_en",
@@ -227,7 +227,7 @@ export function AppearanceForm({ action, initialTheme, initialTexts, placeholder
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={() => setTheme({ preset: PRESETS[0].key, primary: PRESETS[0].primary, accent: PRESETS[0].accent, background: PRESETS[0].background, font: "readex", corners: "medium" })}
+            onClick={() => setTheme({ preset: PRESETS[0].key, primary: PRESETS[0].primary, accent: PRESETS[0].accent, background: PRESETS[0].background, font: DEFAULT_THEME.font, corners: DEFAULT_THEME.corners })}
           >
             الرجوع للتصميم الافتراضي
           </button>

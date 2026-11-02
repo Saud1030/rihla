@@ -16,7 +16,9 @@ export type Theme = {
 };
 
 export const PRESETS: { key: string; ar: string; en: string; primary: string; accent: string; background: string }[] = [
-  { key: "road-sign", ar: "لوحات الطرق (الافتراضي)", en: "Road sign", primary: "#0b5d45", accent: "#f2b53a", background: "#eef1ec" },
+  // chosen with the ui-ux-pro-max design guide: "Luxury / premium brand" palette (black + gold), minimal style, full RTL support
+  { key: "luxury", ar: "فاخر: أسود وذهبي (الافتراضي)", en: "Luxury black & gold", primary: "#1c1917", accent: "#c9a24a", background: "#fafaf9" },
+  { key: "road-sign", ar: "لوحات الطرق (الأخضر)", en: "Road sign", primary: "#0b5d45", accent: "#f2b53a", background: "#eef1ec" },
   { key: "maroon", ar: "عنابي وذهبي", en: "Maroon & gold", primary: "#7a1f2b", accent: "#d9a93c", background: "#f6f1ee" },
   { key: "navy", ar: "كحلي بحري", en: "Navy", primary: "#123f6b", accent: "#41c2b2", background: "#edf2f6" },
   { key: "desert", ar: "صحراوي", en: "Desert", primary: "#6b4423", accent: "#e7a740", background: "#f5efe6" },
@@ -25,7 +27,8 @@ export const PRESETS: { key: string; ar: string; en: string; primary: string; ac
 ];
 
 export const FONTS = {
-  readex: { ar: "ريدكس + بلكس (الافتراضي)", display: '"Readex Pro Variable"', body: '"IBM Plex Sans Arabic"' },
+  naskh: { ar: "نسخ أنيق + نوتو (الافتراضي)", display: '"Noto Naskh Arabic Variable"', body: '"Noto Sans Arabic Variable"' },
+  readex: { ar: "ريدكس + بلكس", display: '"Readex Pro Variable"', body: '"IBM Plex Sans Arabic"' },
   tajawal: { ar: "تجوال", display: '"Tajawal"', body: '"Tajawal"' },
   cairo: { ar: "القاهرة", display: '"Cairo Variable"', body: '"Cairo Variable"' },
   almarai: { ar: "المراعي", display: '"Almarai"', body: '"Almarai"' },
@@ -42,11 +45,11 @@ export const CORNERS = {
 export type CornerKey = keyof typeof CORNERS;
 
 export const DEFAULT_THEME: Theme = {
-  preset: "road-sign",
+  preset: "luxury",
   primary: PRESETS[0].primary,
   accent: PRESETS[0].accent,
   background: PRESETS[0].background,
-  font: "readex",
+  font: "naskh",
   corners: "medium",
 };
 
@@ -116,8 +119,9 @@ export function themeCss(t: Theme) {
     "--color-amber-deep": mix(t.accent, "#000000", 0.42),
     "--color-stone": t.background,
     "--color-line": mix(t.background, "#17201d", 0.13),
-    "--font-display": `${f.display}, "IBM Plex Sans Arabic", system-ui, sans-serif`,
-    "--font-sans": `${f.body}, "IBM Plex Sans Arabic", system-ui, sans-serif`,
+    // "Country Flags" first: draws 🇸🇦 flags on Windows (see globals.css)
+    "--font-display": `"Country Flags", ${f.display}, "IBM Plex Sans Arabic", system-ui, sans-serif`,
+    "--font-sans": `"Country Flags", ${f.body}, "IBM Plex Sans Arabic", system-ui, sans-serif`,
     "--radius-md": c.md,
     "--radius-lg": c.lg,
     "--radius-xl": c.xl,

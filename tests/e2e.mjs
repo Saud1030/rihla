@@ -1041,7 +1041,7 @@ if (!ONLY || ONLY === "features") {
     await a.getByText("تم حفظ المظهر").waitFor();
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     eq(await page.getByTestId("hero-text").count(), 0, "no text above the booking box");
-    eq(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-sign").trim()), "#0b5d45", "default colour");
+    eq(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-sign").trim()), "#1c1917", "default colour (luxury black & gold)");
     await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
     await a.check('input[name="hero_text_mode"][value="default"]');
     await a.getByRole("button", { name: "حفظ المظهر" }).click();
