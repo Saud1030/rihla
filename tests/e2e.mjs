@@ -1424,6 +1424,30 @@ if (!ONLY || ONLY === "features") {
     assert(Math.abs(boxes[0].w - boxes[0].h) <= 2, "square: " + JSON.stringify(boxes[0]));
   });
 
+  await check("admin glass look: dark glass by default with charts on the home; the sun button switches to light (remembered); the menu shows icons, names on request", async () => {
+    await a.goto(`${BASE}/admin`, { waitUntil: "networkidle" });
+    await a.evaluate(() => { localStorage.removeItem("admin-theme"); localStorage.removeItem("admin-menu"); });
+    await a.reload({ waitUntil: "networkidle" });
+    eq(await a.evaluate(() => document.documentElement.getAttribute("data-admin-theme")), "glass", "glass by default");
+    eq(await a.evaluate(() => getComputedStyle(document.querySelector(".admin-shell")).colorScheme), "dark", "dark controls");
+    await a.getByTestId("revenue-chart").waitFor();
+    eq(await a.getByTestId("revenue-chart").locator("ol > li").count(), 14, "14 days of revenue");
+    await a.getByTestId("status-chart").waitFor();
+    // narrow menu: icons, names as tooltips (still read by screen readers)
+    const w = async () => Math.round((await a.locator(".admin-side").boundingBox()).width);
+    assert((await w()) < 90, "narrow menu " + (await w()));
+    assert((await a.locator("nav[aria-label='لوحة التحكم'] a").first().innerText()).includes("الرئيسية"), "names still there for screen readers");
+    await a.getByTestId("admin-menu-toggle").click();
+    await a.waitForTimeout(400);
+    assert((await w()) > 200, "wide menu " + (await w()));
+    await a.getByTestId("admin-theme-toggle").click();
+    eq(await a.evaluate(() => document.documentElement.getAttribute("data-admin-theme")), "light", "light now");
+    await a.reload({ waitUntil: "networkidle" });
+    eq(await a.evaluate(() => [document.documentElement.getAttribute("data-admin-theme"), document.documentElement.getAttribute("data-admin-menu")].join()), "light,wide", "remembered");
+    eq(await a.evaluate(() => getComputedStyle(document.querySelector(".admin-shell")).colorScheme), "normal", "light controls");
+    await a.evaluate(() => { localStorage.removeItem("admin-theme"); localStorage.removeItem("admin-menu"); });
+  });
+
   await check("animation: the home sections appear as they scroll into view; nothing is hidden for people who turn motion off", async () => {
     const pg = await ctx.newPage();
     await pg.goto(`${BASE}/ar`, { waitUntil: "networkidle" });

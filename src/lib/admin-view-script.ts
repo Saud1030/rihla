@@ -1,0 +1,2 @@
+/** Runs before the admin page paints: applies the look saved in this browser (glass or light, narrow or wide menu). */
+export const ADMIN_VIEW_SCRIPT = `try{var d=document.documentElement,t=localStorage.getItem("admin-theme"),m=localStorage.getItem("admin-menu");d.setAttribute("data-admin-theme",t==="light"?"light":"glass");d.setAttribute("data-admin-menu",m==="wide"?"wide":"narrow")}catch(e){}`;

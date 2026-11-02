@@ -272,3 +272,171 @@ section:has([data-testid="hero-bg"]) [data-testid="hero-text"] {
   unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
   font-display: swap;
 }
+
+/* ---------- Admin panel ---------- */
+/* small round icon buttons in the admin top bar */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  transition: background-color 0.2s ease-out, transform 0.15s ease-out;
+}
+.icon-btn:hover { background: var(--color-stone); }
+.icon-btn:active { transform: scale(0.94); }
+.admin-pill {
+  border: 1px solid var(--color-line);
+  border-radius: 9999px;
+  padding: 0.2rem 0.75rem 0.2rem 0.2rem;
+  color: var(--color-muted);
+}
+.admin-backdrop { display: none; }
+
+/* narrow menu (icons only) on wider screens; the names show as tooltips */
+@media (min-width: 768px) {
+  .admin-side { width: 232px; transition: width 0.25s cubic-bezier(0.2, 0.7, 0.2, 1); }
+  :root:not([data-admin-menu="wide"]) .admin-side { width: 4.25rem; }
+  /* names stay readable to screen readers (visually hidden, not removed) */
+  :root:not([data-admin-menu="wide"]) .admin-side .nav-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  :root:not([data-admin-menu="wide"]) .admin-side .nav-link { justify-content: center; padding-inline: 0; }
+  :root:not([data-admin-menu="wide"]) .admin-side-scroll { overflow: visible; }
+  :root:not([data-admin-menu="wide"]) .admin-side .nav-link::after {
+    content: attr(data-tip);
+    position: absolute;
+    inset-inline-start: calc(100% + 0.6rem);
+    top: 50%;
+    translate: 0 -50%;
+    white-space: nowrap;
+    padding: 0.3rem 0.6rem;
+    border-radius: 0.5rem;
+    background: #1c1917;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 8px 20px -8px rgb(0 0 0 / 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease-out;
+    z-index: 40;
+  }
+  :root:not([data-admin-menu="wide"]) .admin-side .nav-link:is(:hover, :focus-visible)::after { opacity: 1; }
+}
+
+/* ---------- Admin glass look (default; the sun button switches to light) ---------- */
+:root:not([data-admin-theme="light"]) .admin-shell {
+  color-scheme: dark;
+  --color-paper: rgb(28 25 23 / 0.58);
+  --color-stone: rgb(255 255 255 / 0.07);
+  --color-ink: #f5f5f4;
+  --color-muted: #bdb7b0;
+  --color-line: rgb(255 255 255 / 0.13);
+  --color-sign: #d9b86e;
+  --color-sign-deep: rgb(12 10 9 / 0.62);
+  --color-sign-soft: rgb(217 184 110 / 0.16);
+  --color-amber: #d9b86e;
+  --color-amber-deep: #e9cd8c;
+  --color-danger: #fca5a5;
+  --color-danger-soft: rgb(248 113 113 / 0.16);
+  color: var(--color-ink);
+  background: #0c0a09;
+}
+:root:not([data-admin-theme="light"]) .admin-shell .admin-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(60% 50% at 80% 10%, rgb(201 162 74 / 0.22), transparent 70%),
+    radial-gradient(50% 60% at 10% 90%, rgb(120 72 40 / 0.35), transparent 70%),
+    linear-gradient(160deg, #2a211b, #0c0a09 70%);
+  background-size: cover;
+  background-position: center;
+}
+/* a photo behind: dimmed and softened so the panels stay readable */
+:root:not([data-admin-theme="light"]) .admin-shell .admin-backdrop[style] { filter: brightness(0.42) saturate(0.9) blur(2px); transform: scale(1.03); }
+:root:not([data-admin-theme="light"]) .admin-shell :is(.bg-paper, .admin-side, .admin-top) {
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+}
+:root:not([data-admin-theme="light"]) .admin-shell .admin-side { border: 1px solid rgb(255 255 255 / 0.1); }
+:root:not([data-admin-theme="light"]) .admin-shell .bg-paper { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 10px 30px -18px rgb(0 0 0 / 0.6); }
+/* gold surfaces carry dark text */
+:root:not([data-admin-theme="light"]) .admin-shell :is(.btn-primary, .bg-sign, .bg-sign.text-white, .bg-amber) { color: #1c1917; }
+:root:not([data-admin-theme="light"]) .admin-shell .btn-primary:hover { background: #e6c784; }
+:root:not([data-admin-theme="light"]) .admin-shell :is(.bg-ink, .bg-ink.text-white) { background: rgb(255 255 255 / 0.92); color: #1c1917; }
+:root:not([data-admin-theme="light"]) .admin-shell .bg-white { background: rgb(255 255 255 / 0.92); }
+:root:not([data-admin-theme="light"]) .admin-shell .field { background: rgb(255 255 255 / 0.06); border-color: rgb(255 255 255 / 0.16); }
+:root:not([data-admin-theme="light"]) .admin-shell .field:focus { border-color: var(--color-sign); box-shadow: 0 0 0 3px rgb(217 184 110 / 0.25); }
+:root:not([data-admin-theme="light"]) .admin-shell .field::placeholder { color: rgb(255 255 255 / 0.38); }
+:root:not([data-admin-theme="light"]) .admin-shell :is(select.field, select) option { background: #1c1917; color: #f5f5f4; }
+:root:not([data-admin-theme="light"]) .admin-shell .btn-ghost { background: rgb(255 255 255 / 0.06); }
+:root:not([data-admin-theme="light"]) .admin-shell .icon-btn { background: rgb(255 255 255 / 0.06); }
+:root:not([data-admin-theme="light"]) .admin-shell .admin-side .nav-link[aria-current="page"] { background: #f5f5f4; color: #1c1917; }
+:root:not([data-admin-theme="light"]) .admin-shell img { color-scheme: normal; }
+
+/* admin charts and cards: grow in once */
+.chart-tip {
+  position: absolute;
+  bottom: calc(100% + 0.25rem);
+  inset-inline-start: 50%;
+  translate: 50% 0;
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.4rem;
+  background: #1c1917;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+  z-index: 5;
+}
+[dir="ltr"] .chart-tip { translate: -50% 0; }
+li:hover > .chart-tip { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .chart-bar { transform-origin: bottom; animation: bar-grow 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .donut-seg { animation: donut-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .dash-in > * { animation: rise-in 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .dash-in > *:nth-child(2) { animation-delay: 0.06s; }
+  .dash-in > *:nth-child(3) { animation-delay: 0.12s; }
+  .dash-in > *:nth-child(4) { animation-delay: 0.18s; }
+  .dash-in > *:nth-child(5) { animation-delay: 0.24s; }
+  .dash-in > *:nth-child(n + 6) { animation-delay: 0.3s; }
+}
+@keyframes bar-grow { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes donut-in { from { stroke-dasharray: 0 400; } }
+/* the main figure on the admin home: warm gold glass */
+.stat-hero {
+  background: linear-gradient(140deg, color-mix(in srgb, var(--color-amber) 55%, transparent), color-mix(in srgb, var(--color-amber) 22%, transparent)) !important;
+  border-color: color-mix(in srgb, var(--color-amber) 60%, transparent) !important;
+}
+.chg-up { background: rgb(16 185 129 / 0.16); color: #047857; }
+.chg-down { background: rgb(239 68 68 / 0.14); color: #b91c1c; }
+:root:not([data-admin-theme="light"]) .admin-shell .chg-up { color: #a7f3d0; }
+:root:not([data-admin-theme="light"]) .admin-shell .chg-down { color: #fecaca; }
+:root:not([data-admin-theme="light"]) .admin-shell .stat-hero { color: #fff; }
+/* previews of the public site inside the admin keep the site's own light colours */
+:root:not([data-admin-theme="light"]) .admin-shell .site-island {
+  color-scheme: light;
+  --color-paper: #ffffff;
+  --color-ink: #1c1917;
+  --color-muted: #57534e;
+  --color-line: #e2e0dd;
+  --color-danger: #b42318;
+  color: var(--color-ink);
+}
+:root:not([data-admin-theme="light"]) .admin-shell .site-island :is(.bg-paper) { backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+:root:not([data-admin-theme="light"]) .admin-shell .site-island :is(.btn-primary, .bg-sign) { color: #fff; }
+/* links inside sentences are underlined, not told apart by colour alone */
+:root:not([data-admin-theme="light"]) .admin-shell :is(p, li, td, span, dd) > a.text-sign { text-decoration: underline; text-underline-offset: 3px; }

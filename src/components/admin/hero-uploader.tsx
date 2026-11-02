@@ -32,7 +32,7 @@ export function HeroUploader({ current, title, lead }: { current: string | null;
 
 
       {/* the preview: a small copy of the top of the home page */}
-      <figure className="space-y-1" data-testid="hero-preview">
+      <figure className="site-island space-y-1" data-testid="hero-preview">
         <figcaption className="text-sm font-medium">{file ? "معاينة قبل الحفظ" : "معاينة"}</figcaption>
         <div className="relative isolate overflow-hidden rounded-lg border border-line bg-paper aspect-[16/7] text-ink" dir="rtl">
           {src ? (

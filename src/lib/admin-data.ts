@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, ilike, lte, or, sql, sum, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, lt, lte, or, sql, sum, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { todayInRiyadh } from "@/lib/booking";
 import type { Booking } from "@/db/schema";
@@ -49,10 +49,43 @@ export async function getDashboardStats() {
   ]);
   const todayCount = (st: string) => todayByStatus.find((x) => x.status === st)?.n ?? 0;
 
+  // for the charts: last month's revenue (to compare), money taken per day for the last 14 days, this month's bookings by status
+  const lastMonthStart = (() => {
+    const [y, m] = monthStart.split("-").map(Number);
+    return m === 1 ? `${y - 1}-12-01` : `${y}-${String(m - 1).padStart(2, "0")}-01`;
+  })();
+  const since14 = new Date(Date.parse(`${today}T00:00:00+03:00`) - 13 * 864e5);
+  const [[lastMonth], daily, byStatus] = await Promise.all([
+    db
+      .select({ total: sum(s.bookings.amount) })
+      .from(s.bookings)
+      .where(
+        and(
+          inArray(s.bookings.status, [...PAID_STATES]),
+          gte(s.bookings.paidAt, new Date(`${lastMonthStart}T00:00:00+03:00`)),
+          lt(s.bookings.paidAt, new Date(`${monthStart}T00:00:00+03:00`)),
+        ),
+      ),
+    db
+      .select({ day: sql<string>`to_char(${s.bookings.paidAt} at time zone 'Asia/Riyadh', 'YYYY-MM-DD')`, total: sql<number>`coalesce(sum(${s.bookings.amount}), 0)::bigint` })
+      .from(s.bookings)
+      .where(and(inArray(s.bookings.status, [...PAID_STATES]), gte(s.bookings.paidAt, since14)))
+      .groupBy(sql`1`),
+    db
+      .select({ status: s.bookings.status, n: count() })
+      .from(s.bookings)
+      .where(gte(s.bookings.createdAt, new Date(`${monthStart}T00:00:00+03:00`)))
+      .groupBy(s.bookings.status),
+  ]);
+  const days = Array.from({ length: 14 }, (_, i) => new Date(since14.getTime() + i * 864e5 + 3 * 3600e3).toISOString().slice(0, 10));
+
   return {
     pendingPayment: pendingPay.n,
     toConfirm: toConfirm.n,
     monthRevenue: Number(monthRevenue.total ?? 0),
+    lastMonthRevenue: Number(lastMonth.total ?? 0),
+    revenueByDay: days.map((day) => ({ day, total: Number(daily.find((x) => x.day === day)?.total ?? 0) })),
+    monthByStatus: Object.fromEntries(byStatus.map((x) => [x.status, x.n])) as Partial<Record<Booking["status"], number>>,
     monthPaidCount: monthRevenue.n,
     today: {
       total: todayByStatus.reduce((a, x) => a + x.n, 0),

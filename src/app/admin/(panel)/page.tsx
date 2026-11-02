@@ -14,17 +14,32 @@ import { bookingNo, formatDateTime, formatNumber, formatSAR } from "@/lib/format
 import { todayInRiyadh } from "@/lib/booking";
 import { getDictionary } from "@/i18n/dictionaries";
 import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
+import { RevenueBars, StatusDonut } from "@/components/admin/charts";
 
 const t = getDictionary("ar");
 
 export default function DashboardPage({ searchParams }: PageProps<"/admin">) {
   return (
     <>
-      <PageHeader title="الرئيسية" />
+      <Suspense fallback={<PageHeader title="الرئيسية" />}>
+        <Greeting />
+      </Suspense>
       <Suspense fallback={<Skeleton h="h-96" />}>
         <Dashboard searchParams={searchParams} />
       </Suspense>
     </>
+  );
+}
+
+/** "Hello, name" and what the page shows */
+async function Greeting() {
+  const me = await requireAdmin();
+  const month = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-arab", { month: "long", year: "numeric", timeZone: "Asia/Riyadh" }).format(new Date());
+  return (
+    <div className="mb-6">
+      <h1 className="text-2xl md:text-3xl font-semibold">أهلًا، {me.name}</h1>
+      <p className="text-muted mt-1">هذا ملخص أعمالك لشهر {month}.</p>
+    </div>
   );
 }
 
@@ -73,7 +88,14 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Record<string
       href: `/admin/bookings?from=${today}&to=${today}`,
       id: "today",
     },
-    { label: "إيراد هذا الشهر (شامل الضريبة)", value: formatSAR(d.monthRevenue, "ar"), sub: `${formatNumber(d.monthPaidCount, "ar")} حجز مدفوع`, href: "#payments" },
+    {
+      label: "إيراد هذا الشهر (شامل الضريبة)",
+      value: formatSAR(d.monthRevenue, "ar"),
+      sub: `${formatNumber(d.monthPaidCount, "ar")} حجز مدفوع`,
+      href: "#payments",
+      id: "revenue",
+      change: d.lastMonthRevenue > 0 ? Math.round(((d.monthRevenue - d.lastMonthRevenue) / d.lastMonthRevenue) * 100) : null,
+    },
     {
       label: "عدد السائقين",
       value: formatNumber(d.drivers.total, "ar"),
@@ -117,17 +139,34 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Record<string
   return (
     <div className="space-y-8">
       {denied}
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="dash-in grid gap-3 grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         {stats.map((s) => {
+          const change = "change" in s ? s.change : null;
+          const hero = "id" in s && s.id === "revenue";
           const body = (
             <>
-              <p className="text-sm text-muted">{s.label}</p>
+              <p className={`text-sm ${hero ? "text-ink/80" : "text-muted"}`}>{s.label}</p>
               <p className={`mt-1 font-display text-2xl font-semibold tabular ${s.strong ? "text-amber-deep" : ""}`}>{s.value}</p>
-              {s.sub && <p className="text-xs text-muted mt-0.5">{s.sub}</p>}
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {s.sub && <p className={`text-xs ${hero ? "text-ink/75" : "text-muted"}`}>{s.sub}</p>}
+                {change != null && (
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tabular ${change >= 0 ? "chg-up" : "chg-down"}`}
+                    data-testid="revenue-change"
+                  >
+                    {change >= 0 ? "▲" : "▼"} {formatNumber(Math.abs(change), "ar")}٪ عن الشهر الماضي
+                  </span>
+                )}
+              </div>
             </>
           );
           return s.href ? (
-            <Link key={s.label} href={s.href} data-stat={"id" in s ? s.id : undefined} className={`block bg-paper border rounded-xl p-4 hover:border-sign ${s.strong ? "border-amber border-2" : "border-line"}`}>
+            <Link
+              key={s.label}
+              href={s.href}
+              data-stat={"id" in s ? s.id : undefined}
+              className={`lift block bg-paper border rounded-2xl p-4 hover:border-sign ${hero ? "stat-hero" : ""} ${s.strong ? "border-amber border-2" : "border-line"}`}
+            >
               {body}
             </Link>
           ) : (
@@ -136,6 +175,16 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Record<string
             </Card>
           );
         })}
+      </div>
+
+      {/* charts */}
+      <div className="dash-in grid gap-3 lg:grid-cols-3">
+        <Card className="p-5 lg:col-span-2">
+          <RevenueBars data={d.revenueByDay} />
+        </Card>
+        <Card className="p-5">
+          <StatusDonut counts={d.monthByStatus} labels={t.booking.status} />
+        </Card>
       </div>
 
       <MonthPayments rows={d.monthPayments} />

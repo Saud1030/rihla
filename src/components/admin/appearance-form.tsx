@@ -242,7 +242,7 @@ export function AppearanceForm({ action, initialTheme, initialTexts, placeholder
       <aside className="xl:sticky xl:top-4">
         <p className="text-sm font-medium mb-2">معاينة مباشرة</p>
         <style>{previewCss}</style>
-        <div id="theme-preview" className="rounded-xl border border-line overflow-hidden shadow-sm" style={{ background: "var(--color-stone)", fontFamily: "var(--font-sans)" }}>
+        <div id="theme-preview" className="site-island rounded-xl border border-line overflow-hidden shadow-sm" style={{ background: "var(--color-stone)", fontFamily: "var(--font-sans)" }}>
           <div className="bg-amber text-ink text-center text-xs py-1">شريط التنبيه</div>
           <div className="bg-paper border-b border-line px-4 h-14 flex items-center gap-3">
             {logoUrl ? (
