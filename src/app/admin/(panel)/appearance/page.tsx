@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { requireSection } from "@/lib/auth";
-import { getBrand } from "@/lib/brand";
+import { customFontCss, customFontVersion, getBrand } from "@/lib/brand";
 import { getSettings } from "@/lib/catalog";
 import { getDictionary } from "@/i18n/dictionaries";
-import { removeLogo, saveAppearance, saveFooter, uploadLogo } from "../../actions";
+import { removeFont, removeLogo, saveAppearance, saveFooter, uploadFont, uploadLogo } from "../../actions";
 import { Field } from "@/components/admin/ui";
 import { ActionForm } from "@/components/admin/action-form";
 import { AppearanceForm } from "@/components/admin/appearance-form";
@@ -12,18 +12,19 @@ import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
 
 export const metadata: Metadata = { title: "المظهر" };
 
-export default function AppearancePage() {
+export default function AppearancePage({ searchParams }: PageProps<"/admin/appearance">) {
   return (
     <>
       <PageHeader title="المظهر والشعار" />
       <Suspense fallback={<Skeleton h="h-[700px]" />}>
-        <Content />
+        <Content searchParams={searchParams} />
       </Suspense>
     </>
   );
 }
 
-async function Content() {
+async function Content({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const fontRemoved = (await searchParams).font === "removed";
   await requireSection("appearance");
   const [brand, st] = await Promise.all([getBrand(), getSettings()]);
   const t = getDictionary("ar");
@@ -70,6 +71,7 @@ async function Content() {
       <AppearanceForm
         action={saveAppearance}
         initialTheme={brand.theme}
+        customFont={brand.customFont}
         logoUrl={brand.logoUrl}
         placeholders={{ heroTitle: t.hero.title, heroLead: t.hero.lead }}
         initialHeroMode={st.hero_text_mode === "custom" || st.hero_text_mode === "hidden" ? st.hero_text_mode : (st.hero_title_ar || st.hero_lead_ar) ? "custom" : "default"}
@@ -84,6 +86,42 @@ async function Content() {
           hero_lead_en: st.hero_lead_en ?? "",
         }}
       />
+
+      {/* the uploaded font, so the sample line and the preview can show it here too */}
+      <style>{customFontCss(await customFontVersion())}</style>
+      {/* a font file the owner has (e.g. Expo Arabic, which is sold under licence) */}
+      <Card className="p-6" data-testid="font-upload">
+        <h2 className="font-semibold mb-1">خط خاص (مثل خط إكسبو)</h2>
+        {fontRemoved && (
+          <p role="status" className="mb-3 rounded-lg bg-sign-soft border border-sign/20 px-4 py-2 text-sign">
+            تم حذف الخط المرفوع.
+          </p>
+        )}
+        <p className="text-sm text-muted mb-4 max-w-[75ch]">
+          ارفع ملف الخط اللي عندك رخصته (WOFF2 أو WOFF أو TTF أو OTF، حتى ٣ ميجابايت)، ثم اختر «خطي المرفوع» من قائمة الخط فوق واحفظ المظهر.
+          {brand.customFont && (
+            <>
+              {" "}
+              الخط الحالي: <strong className="text-ink">{brand.customFont}</strong>
+            </>
+          )}
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <ActionForm action={uploadFont} submitLabel="رفع الخط" pendingLabel="جارٍ الرفع…" className="flex flex-wrap items-end gap-3">
+            <Field label="اسم الخط">
+              <input name="font_name" maxLength={40} placeholder="Expo Arabic" defaultValue={brand.customFont ?? ""} className="field" />
+            </Field>
+            <Field label="ملف الخط">
+              <input name="font" type="file" required accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" className="field" />
+            </Field>
+          </ActionForm>
+          {brand.customFont && (
+            <ActionForm action={removeFont} submitLabel="حذف الخط" submitClassName="btn btn-ghost !min-h-9 !py-1 text-sm" className="">
+              {null}
+            </ActionForm>
+          )}
+        </div>
+      </Card>
 
       {/* the footer at the bottom of every page */}
       <Card className="p-6" data-testid="footer-settings">

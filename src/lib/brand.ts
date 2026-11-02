@@ -16,6 +16,8 @@ export type Brand = {
   logoUrl: string | null;
   theme: Theme;
   css: string;
+  /** name of the uploaded font, when there is one */
+  customFont: string | null;
   hero: { title: Record<Locale, string>; lead: Record<Locale, string>; mode: "default" | "custom" | "hidden" };
 };
 
@@ -26,9 +28,20 @@ const logoVersion = cache(() =>
   }),
 );
 
+/** the uploaded font file (e.g. Expo Arabic): its version, or null */
+export const customFontVersion = cache(() =>
+  cached("font-version", async () => {
+    const [row] = await db.select({ updatedAt: s.assets.updatedAt }).from(s.assets).where(eq(s.assets.key, "font-custom")).limit(1);
+    return row ? row.updatedAt.getTime().toString(36) : null;
+  }),
+);
+/** @font-face for the uploaded font; it is only downloaded by browsers when the theme uses it */
+export const customFontCss = (v: string | null) =>
+  v ? `@font-face{font-family:"Brand Font";src:url("/api/brand/font?v=${v}");font-display:swap}` : "";
+
 /** Company name, logo and look, as edited in Admin -> Appearance (falls back to src/config/site.ts) */
 export const getBrand = cache(async (): Promise<Brand> => {
-  const [st, v] = await Promise.all([getSettings(), logoVersion()]);
+  const [st, v, fv] = await Promise.all([getSettings(), logoVersion(), customFontVersion()]);
   const theme = parseTheme(st.theme);
   const val = (k: string, fallback: string) => (st[k]?.trim() ? st[k].trim() : fallback);
   return {
@@ -36,7 +49,8 @@ export const getBrand = cache(async (): Promise<Brand> => {
     mark: { ar: val("logo_text_ar", site.mark.ar), en: val("logo_text_en", site.mark.en) },
     logoUrl: v ? `/api/brand/logo?v=${v}` : null,
     theme,
-    css: themeCss(theme),
+    css: customFontCss(fv) + themeCss(theme),
+    customFont: fv ? st.font_custom_name?.trim() || "خطي المرفوع" : null,
     hero: {
       title: { ar: st.hero_title_ar ?? "", en: st.hero_title_en ?? "" },
       lead: { ar: st.hero_lead_ar ?? "", en: st.hero_lead_en ?? "" },

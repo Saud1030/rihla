@@ -1026,6 +1026,47 @@ if (!ONLY || ONLY === "features") {
     eq(style.radius, "1.5rem", "corners");
     assert((await page.title()).includes("شركة الاختبار للنقل"), "name in page title");
   });
+  await check("fonts: more Arabic fonts to choose from; an own font file (e.g. Expo Arabic) can be uploaded and used", async () => {
+    await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
+    const opts = await a.locator('select[name="font"] option').evaluateAll((os) => os.map((o) => o.value));
+    for (const k of ["alexandria", "rubik", "vazirmatn", "zain", "changa", "messiri", "reemkufi", "kufam", "baloo"]) assert(opts.includes(k), "font " + k);
+    eq(await a.locator('select[name="font"] option[value="custom"]').evaluate((o) => o.disabled), true, "own font needs a file first");
+    // not a font
+    const up = a.getByTestId("font-upload");
+    await up.locator('input[name="font"]').setInputFiles({ name: "x.ttf", mimeType: "font/ttf", buffer: Buffer.from("<html>nope</html>") });
+    await up.getByRole("button", { name: "رفع الخط" }).click();
+    await a.getByText("الملف ليس خطًا").waitFor();
+    // a real font file
+    const file = fs.readFileSync(require.resolve("@fontsource/zain/files/zain-arabic-400-normal.woff2"));
+    await up.locator('input[name="font_name"]').fill("Expo Arabic");
+    await up.locator('input[name="font"]').setInputFiles({ name: "expo.woff2", mimeType: "font/woff2", buffer: file });
+    await up.getByRole("button", { name: "رفع الخط" }).click();
+    await a.getByText("تم رفع الخط").waitFor();
+    await a.reload({ waitUntil: "networkidle" });
+    eq(await a.locator('select[name="font"] option[value="custom"]').evaluate((o) => o.disabled), false, "own font can be chosen");
+    assert((await a.locator('select[name="font"] option[value="custom"]').innerText()).includes("Expo Arabic"), "its name");
+    await a.selectOption('select[name="font"]', "custom");
+    await a.getByRole("button", { name: "حفظ المظهر" }).click();
+    await a.getByText("تم حفظ المظهر").waitFor();
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    assert((await page.evaluate(() => getComputedStyle(document.body).fontFamily)).includes("Brand Font"), "site uses it");
+    const v = await page.evaluate(() => [...document.querySelectorAll("style")].map((s) => s.textContent).join("").match(/\/api\/brand\/font\?v=[a-z0-9]+/)?.[0]);
+    const r = await fetch(BASE + v);
+    eq(`${r.status} ${r.headers.get("content-type")}`, "200 font/woff2", "font served");
+    // removing it puts the default font back
+    await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
+    await a.getByTestId("font-upload").getByRole("button", { name: "حذف الخط" }).click();
+    await a.getByText("تم حذف الخط المرفوع").waitFor();
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    assert(!(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).includes("Brand Font"), "back to a bundled font");
+    // a new bundled font
+    await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
+    await a.selectOption('select[name="font"]', "alexandria");
+    await a.getByRole("button", { name: "حفظ المظهر" }).click();
+    await a.getByText("تم حفظ المظهر").waitFor();
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    assert((await page.evaluate(() => getComputedStyle(document.body).fontFamily)).includes("Alexandria"), "Alexandria on the site");
+  });
   await check("appearance: unreadable colours show a warning; bad hex is refused", async () => {
     await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
     await a.fill("#primary", "#f5f5a0");

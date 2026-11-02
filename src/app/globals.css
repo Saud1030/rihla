@@ -15,6 +15,17 @@
 /* the default design (luxury): Naskh headings, Noto Sans body */
 @import "@fontsource-variable/noto-naskh-arabic/index.css";
 @import "@fontsource-variable/noto-sans-arabic/index.css";
+/* more Arabic fonts to choose from in Admin -> Appearance (each downloads only when used) */
+@import "@fontsource-variable/alexandria/index.css";
+@import "@fontsource-variable/rubik/index.css";
+@import "@fontsource-variable/vazirmatn/index.css";
+@import "@fontsource-variable/changa/index.css";
+@import "@fontsource-variable/el-messiri/index.css";
+@import "@fontsource-variable/reem-kufi/index.css";
+@import "@fontsource-variable/kufam/index.css";
+@import "@fontsource-variable/baloo-bhaijaan-2/index.css";
+@import "@fontsource/zain/400.css";
+@import "@fontsource/zain/700.css";
 
 /*
   Visual language: Saudi highway signage.

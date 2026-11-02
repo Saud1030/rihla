@@ -10,6 +10,8 @@ type Texts = Record<
 >;
 
 type Props = {
+  /** name of the uploaded font file, if any */
+  customFont?: string | null;
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   initialTheme: Theme;
   initialTexts: Texts;
@@ -59,7 +61,7 @@ function ColorField({ id, label, hint, value, onChange }: { id: string; label: s
   );
 }
 
-export function AppearanceForm({ action, initialTheme, initialTexts, placeholders, logoUrl, initialHeroMode = "default" }: Props) {
+export function AppearanceForm({ action, initialTheme, initialTexts, placeholders, logoUrl, initialHeroMode = "default", customFont = null }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const [heroMode, setHeroMode] = useState<HeroMode>(initialHeroMode);
   const [theme, setTheme] = useState<Theme>(initialTheme);
@@ -169,11 +171,15 @@ export function AppearanceForm({ action, initialTheme, initialTexts, placeholder
               <span className="block text-sm font-medium mb-1">الخط</span>
               <select name="font" value={theme.font} onChange={(e) => set({ font: e.target.value as FontKey, preset: theme.preset })} className="field">
                 {Object.entries(FONTS).map(([k, f]) => (
-                  <option key={k} value={k}>
-                    {f.ar}
+                  <option key={k} value={k} disabled={k === "custom" && !customFont}>
+                    {k === "custom" ? (customFont ? `${f.ar}: ${customFont}` : `${f.ar} (ارفع ملف الخط أولًا)`) : f.ar}
                   </option>
                 ))}
               </select>
+              {/* a line in the chosen font */}
+              <span className="block mt-2 rounded-lg border border-line px-3 py-2 text-[17px]" style={{ fontFamily: `${FONTS[theme.font].display}, sans-serif` }} data-testid="font-sample">
+                احجز سيارتك من المطار إلى الفندق ١٢٣ — Book your ride
+              </span>
             </label>
             <label className="block">
               <span className="block text-sm font-medium mb-1">شكل الزوايا</span>

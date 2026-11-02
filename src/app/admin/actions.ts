@@ -26,7 +26,7 @@ import { detectFile, IMAGE_TYPES, MB } from "@/lib/files";
 import { issueReceipt } from "@/lib/documents";
 import { driverHold } from "@/lib/driver-hold";
 import { formatDateTime } from "@/lib/format";
-import { CORNERS, FONTS, parseTheme, themeWarnings, type CornerKey, type FontKey } from "@/lib/theme";
+import { CORNERS, DEFAULT_THEME, FONTS, parseTheme, themeWarnings, type CornerKey, type FontKey } from "@/lib/theme";
 
 export type ActionState = { ok?: boolean; error?: string; message?: string };
 
@@ -636,6 +636,8 @@ export async function saveAppearance(_prev: ActionState, formData: FormData): Pr
   }
   const d = parsed.data;
   if (d.hero_text_mode === "custom" && !d.hero_title_ar) return { error: "اكتب العنوان بالعربي، أو اختر «النص الافتراضي» أو «بدون نص»." };
+  if (d.font === "custom" && !(await db.query.assets.findFirst({ where: eq(s.assets.key, "font-custom"), columns: { key: true } })))
+    return { error: "ارفع ملف الخط أولًا من قسم «خط خاص» ثم اختر «خطي المرفوع»." };
   const theme = { preset: d.preset, primary: d.primary.toLowerCase(), accent: d.accent.toLowerCase(), background: d.background.toLowerCase(), font: d.font, corners: d.corners };
   const rows: Record<string, string> = {
     company_name_ar: d.company_name_ar,
@@ -731,6 +733,54 @@ export async function removeLogo(_prev: ActionState, _formData: FormData): Promi
   invalidateCatalogCache();
   revalidatePath("/admin/appearance");
   return { ok: true, message: "تم حذف الشعار. سيظهر شعار النص بدلًا منه." };
+}
+
+/* ---------- Uploaded font (e.g. Expo Arabic) ---------- */
+
+/** woff2, woff, ttf or otf, recognised by the file's first bytes */
+function fontType(buf: Buffer): string | null {
+  const head = buf.subarray(0, 4).toString("latin1");
+  if (head === "wOF2") return "font/woff2";
+  if (head === "wOFF") return "font/woff";
+  if (head === "OTTO") return "font/otf";
+  if (buf.readUInt32BE(0) === 0x00010000 || head === "true") return "font/ttf";
+  return null;
+}
+
+export async function uploadFont(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("appearance");
+  const file = formData.get("font");
+  const name = String(formData.get("font_name") ?? "").trim().slice(0, 40);
+  if (!(file instanceof File) || file.size === 0) return { error: "اختر ملف الخط أولًا." };
+  if (file.size > 3 * 1024 * 1024) return { error: "حجم ملف الخط أكبر من ٣ ميجابايت." };
+  const buf = Buffer.from(await file.arrayBuffer());
+  const mime = buf.length > 4 ? fontType(buf) : null;
+  if (!mime) return { error: "الملف ليس خطًا. ارفع ملف WOFF2 أو WOFF أو TTF أو OTF." };
+  await db
+    .insert(s.assets)
+    .values({ key: "font-custom", mime, data: buf, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: s.assets.key, set: { mime, data: buf, updatedAt: new Date() } });
+  await db
+    .insert(s.settings)
+    .values({ key: "font_custom_name", value: name })
+    .onConflictDoUpdate({ target: s.settings.key, set: { value: name } });
+  invalidateCatalogCache();
+  revalidatePath("/admin/appearance");
+  return { ok: true, message: "تم رفع الخط. اختر «خطي المرفوع» من قائمة الخط ثم احفظ المظهر." };
+}
+
+export async function removeFont(_prev: ActionState, _formData: FormData): Promise<ActionState> {
+  await requireSection("appearance");
+  await db.delete(s.assets).where(eq(s.assets.key, "font-custom"));
+  // a theme that used it goes back to the default font
+  const t = parseTheme((await db.query.settings.findFirst({ where: eq(s.settings.key, "theme") }))?.value);
+  if (t.font === "custom") {
+    const value = JSON.stringify({ ...t, font: DEFAULT_THEME.font });
+    await db.update(s.settings).set({ value }).where(eq(s.settings.key, "theme"));
+  }
+  invalidateCatalogCache();
+  // the remove button disappears with the font, so the message is shown by the page
+  redirect("/admin/appearance?font=removed");
 }
 
 /* ---------- Cancellation & refunds ---------- */

@@ -34,6 +34,18 @@ export const FONTS = {
   almarai: { ar: "المراعي", display: '"Almarai"', body: '"Almarai"' },
   kufi: { ar: "نوتو كوفي + بلكس", display: '"Noto Kufi Arabic Variable"', body: '"IBM Plex Sans Arabic"' },
   plex: { ar: "بلكس العربي", display: '"IBM Plex Sans Arabic"', body: '"IBM Plex Sans Arabic"' },
+  // more Arabic fonts (free, Google Fonts) common on booking and transport sites
+  alexandria: { ar: "الإسكندرية (عصري ونظيف)", display: '"Alexandria Variable"', body: '"Alexandria Variable"' },
+  rubik: { ar: "روبيك (دائري ناعم)", display: '"Rubik Variable"', body: '"Rubik Variable"' },
+  vazirmatn: { ar: "وزيرمتن (واضح جدًا للقراءة)", display: '"Vazirmatn Variable"', body: '"Vazirmatn Variable"' },
+  zain: { ar: "زين (خفيف وحديث)", display: '"Zain"', body: '"Zain"' },
+  changa: { ar: "تشانجا للعناوين + بلكس", display: '"Changa Variable"', body: '"IBM Plex Sans Arabic"' },
+  messiri: { ar: "المسيري للعناوين (أنيق) + نوتو", display: '"El Messiri Variable"', body: '"Noto Sans Arabic Variable"' },
+  reemkufi: { ar: "ريم كوفي للعناوين (فاخر) + بلكس", display: '"Reem Kufi Variable"', body: '"IBM Plex Sans Arabic"' },
+  kufam: { ar: "كوفام للعناوين (جريء) + تجوال", display: '"Kufam Variable"', body: '"Tajawal"' },
+  baloo: { ar: "بالو بهيجان (ودود)", display: '"Baloo Bhaijaan 2 Variable"', body: '"Baloo Bhaijaan 2 Variable"' },
+  // a font file the admin uploads (e.g. Expo Arabic, which is sold under licence and can't be bundled)
+  custom: { ar: "خطي المرفوع", display: '"Brand Font"', body: '"Brand Font"' },
 } as const;
 export type FontKey = keyof typeof FONTS;
 
