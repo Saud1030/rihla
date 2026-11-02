@@ -139,6 +139,33 @@ h3 {
   transition: background-color 0.15s;
   cursor: pointer;
 }
+/* hover and press: a small lift, and a press-in on tap */
+.btn {
+  transition: background-color 0.2s ease-out, border-color 0.2s ease-out, box-shadow 0.2s ease-out, transform 0.15s ease-out;
+}
+.btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .btn:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px -8px rgb(0 0 0 / 0.35);
+  }
+}
+/* cards that can be clicked (cars, fleet, offers) rise a little under the pointer */
+.lift {
+  transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.25s ease-out, border-color 0.2s ease-out;
+}
+.lift:active {
+  transform: scale(0.98);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 28px -16px rgb(0 0 0 / 0.35);
+  }
+}
+
 .btn:disabled {
   opacity: 0.6;
   cursor: progress;
@@ -181,6 +208,38 @@ h3 {
   .sign-reveal > *:nth-child(2) { animation-delay: 0.12s; }
   .sign-reveal > *:nth-child(3) { animation-delay: 0.24s; }
   .sign-reveal > *:nth-child(4) { animation-delay: 0.36s; }
+
+  /* home: the booking box comes in from the left, the title and text rise after it */
+  .hero-enter .booking-box {
+    animation: box-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .hero-enter [data-testid="hero-text"] > * {
+    animation: rise-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .hero-enter [data-testid="hero-text"] > *:nth-child(1) { animation-delay: 0.15s; }
+  .hero-enter [data-testid="hero-text"] > *:nth-child(2) { animation-delay: 0.3s; }
+
+  /* sections further down appear as they scroll into view (the page script marks them) */
+  .reveal-on [data-reveal]:not([data-shown]) {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  .reveal-on [data-reveal] {
+    transition: opacity 0.6s ease-out, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  /* the items inside, one after another */
+  .reveal-on [data-reveal-items]:not([data-shown]) > * {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  .reveal-on [data-reveal-items] > * {
+    transition: opacity 0.5s ease-out, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .reveal-on [data-reveal-items] > *:nth-child(2) { transition-delay: 0.08s; }
+  .reveal-on [data-reveal-items] > *:nth-child(3) { transition-delay: 0.16s; }
+  .reveal-on [data-reveal-items] > *:nth-child(4) { transition-delay: 0.24s; }
+  .reveal-on [data-reveal-items] > *:nth-child(5) { transition-delay: 0.32s; }
+  .reveal-on [data-reveal-items] > *:nth-child(n + 6) { transition-delay: 0.4s; }
 }
 
 /* text over the home background photo stays readable without darkening the photo */
@@ -190,6 +249,14 @@ section:has([data-testid="hero-bg"]) [data-testid="hero-text"] {
 
 @keyframes sign-in {
   from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes box-in {
+  from { opacity: 0; transform: translateX(-28px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
 }
 @keyframes line-in {

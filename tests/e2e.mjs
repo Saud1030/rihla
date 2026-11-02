@@ -682,6 +682,9 @@ if (!ONLY || ONLY === "ux") {
     const problems = [];
     for (const p of pages) {
       await page.goto(BASE + p, { waitUntil: "networkidle" });
+      // as a reader sees it: every section shown and the entrance animations finished (half-faded text would read as low contrast)
+      await page.evaluate(() => document.querySelectorAll("[data-reveal],[data-reveal-items]").forEach((e) => e.setAttribute("data-shown", "")));
+      await page.waitForTimeout(1000);
       await page.addScriptTag({ content: axeSrc });
       const v = await page.evaluate(async () => (await window.axe.run(document, { resultTypes: ["violations"] })).violations.filter((x) => ["serious", "critical"].includes(x.impact)).map((x) => `${x.id}(${x.nodes.length}): ${x.nodes[0]?.target?.join(" ")}`));
       if (v.length) problems.push(`${p} → ${v.join("; ")}`);
@@ -1419,6 +1422,24 @@ if (!ONLY || ONLY === "features") {
     eq(boxes[0].top, boxes[1].top, "side by side");
     assert(boxes[0].w < 220, "small squares: " + boxes[0].w);
     assert(Math.abs(boxes[0].w - boxes[0].h) <= 2, "square: " + JSON.stringify(boxes[0]));
+  });
+
+  await check("animation: the home sections appear as they scroll into view; nothing is hidden for people who turn motion off", async () => {
+    const pg = await ctx.newPage();
+    await pg.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    await pg.waitForFunction(() => document.documentElement.classList.contains("reveal-on"));
+    const hiddenBelow = await pg.evaluate(() => [...document.querySelectorAll("[data-reveal],[data-reveal-items]")].filter((e) => !e.hasAttribute("data-shown")).length);
+    assert(hiddenBelow > 0, "sections below wait to appear");
+    await pg.locator("ol[data-reveal-items]").scrollIntoViewIfNeeded();
+    await pg.waitForFunction(() => document.querySelector("ol[data-reveal-items]")?.hasAttribute("data-shown"));
+    eq(await pg.evaluate(() => getComputedStyle(document.querySelector(".booking-box")).animationName), "box-in", "booking box comes in");
+    await pg.close();
+    const rctx = await browser.newContext({ reducedMotion: "reduce" });
+    const rp = await rctx.newPage();
+    await rp.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await rp.evaluate(() => document.documentElement.classList.contains("reveal-on")), false, "reduced motion: no hiding");
+    eq(await rp.evaluate(() => getComputedStyle(document.querySelector(".booking-box")).animationName), "none", "reduced motion: no entrance");
+    await rctx.close();
   });
 
   await check("promo codes: every Nth paid booking (set in the panel) sends the customer a code on WhatsApp and email; it takes its % off the next booking once; listed in the panel", async () => {

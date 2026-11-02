@@ -123,7 +123,7 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
               return (
                 <label
                   key={x.id}
-                  className={`relative flex flex-col items-center justify-between gap-1 rounded-xl border p-2.5 text-center text-sm cursor-pointer bg-paper aspect-square ${
+                  className={`lift relative flex flex-col items-center justify-between gap-1 rounded-xl border p-2.5 text-center text-sm cursor-pointer bg-paper aspect-square ${
                     active ? "border-sign ring-2 ring-sign" : "border-line hover:border-muted"
                   }`}
                 >

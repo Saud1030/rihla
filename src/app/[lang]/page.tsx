@@ -11,6 +11,7 @@ import { HeroSlides } from "@/components/site/hero-slides";
 import { formatNumber } from "@/lib/format";
 import { PersonIcon, BagIcon, WhatsAppIcon, PhoneIcon } from "@/components/icons";
 import { waLink } from "@/components/site/whatsapp-fab";
+import { ScrollReveal } from "@/components/site/scroll-reveal";
 import { ReviewsSection } from "@/components/site/reviews-section";
 
 export default async function HomePage() {
@@ -20,7 +21,8 @@ export default async function HomePage() {
   return (
     <>
       {/* Hero, with an optional background image set in the admin panel */}
-      <section className="relative isolate overflow-hidden bg-paper border-b border-line">
+      <ScrollReveal />
+      <section className="hero-enter relative isolate overflow-hidden bg-paper border-b border-line">
         <Suspense fallback={null}>
           <HeroBackground />
         </Suspense>
@@ -54,7 +56,9 @@ export default async function HomePage() {
 
       {/* Fleet by group size */}
       <section className="mx-auto max-w-6xl px-4 pt-16">
-        <h2 className="text-2xl md:text-3xl font-semibold mb-6">{t.home.fleetTitle}</h2>
+        <h2 className="text-2xl md:text-3xl font-semibold mb-6" data-reveal>
+          {t.home.fleetTitle}
+        </h2>
         <Suspense fallback={<div className="h-44 rounded-xl bg-paper border border-line" />}>
           <FleetStrip lang={lang} t={t} />
         </Suspense>
@@ -62,8 +66,10 @@ export default async function HomePage() {
 
       {/* How it works: a real sequence, so it's numbered */}
       <section className="mx-auto max-w-6xl px-4 pt-16">
-        <h2 className="text-2xl md:text-3xl font-semibold mb-6">{t.home.howTitle}</h2>
-        <ol className="grid gap-px bg-line border border-line rounded-xl overflow-hidden sm:grid-cols-2 lg:grid-cols-4">
+        <h2 className="text-2xl md:text-3xl font-semibold mb-6" data-reveal>
+          {t.home.howTitle}
+        </h2>
+        <ol className="grid gap-px bg-line border border-line rounded-xl overflow-hidden sm:grid-cols-2 lg:grid-cols-4" data-reveal-items>
           {t.home.steps.map((s, i) => (
             <li key={s.t} className="bg-paper p-5">
               <span className="grid place-items-center size-8 rounded-md bg-sign text-white font-display font-semibold tabular">
@@ -74,7 +80,7 @@ export default async function HomePage() {
             </li>
           ))}
         </ol>
-        <dl className="mt-8 grid gap-6 sm:grid-cols-3">
+        <dl className="mt-8 grid gap-6 sm:grid-cols-3" data-reveal-items>
           {t.home.trust.map((x) => (
             <div key={x.t} className="border-s-4 border-amber ps-4">
               <dt className="font-semibold">{x.t}</dt>
@@ -90,7 +96,7 @@ export default async function HomePage() {
       </Suspense>
 
       {/* Contact */}
-      <section className="mx-auto max-w-6xl px-4 pt-16">
+      <section className="mx-auto max-w-6xl px-4 pt-16" data-reveal>
         <Suspense fallback={null}>
           <ContactBand t={t} />
         </Suspense>
@@ -129,12 +135,12 @@ async function FleetStrip({ lang, t }: { lang: Locale; t: Dictionary }) {
   const seen = new Set<string>();
   const reps = vehicles.filter((v) => (seen.has(v.category) ? false : (seen.add(v.category), true)));
   return (
-    <ul className="grid gap-3 grid-cols-2 md:grid-cols-5">
+    <ul className="grid gap-3 grid-cols-2 md:grid-cols-5" data-reveal-items>
       {reps.map((v) => (
         <li key={v.id}>
           <Link
             href={`/${lang}/fleet`}
-            className="block h-full bg-paper border border-line rounded-xl p-4 hover:border-sign"
+            className="lift block h-full bg-paper border border-line rounded-xl p-4 hover:border-sign"
           >
             <Image src={v.imageUrl ?? `/vehicles/${v.category}.svg`} alt="" width={240} height={100} className="w-full h-auto rtl:-scale-x-100" unoptimized />
             <p className="mt-3 font-semibold">{t.fleet.category[v.category]}</p>
@@ -186,7 +192,7 @@ async function HomeBanners({ lang, t }: { lang: Locale; t: Dictionary }) {
   if (!banners.length) return null;
   const pick = (ar: string, en: string) => (lang === "ar" ? ar || en : en || ar);
   return (
-    <div className="mx-auto max-w-6xl px-4 pt-10">
+    <div className="mx-auto max-w-6xl px-4 pt-10" data-reveal>
       <BannerSlider
         labels={t.home.banners}
         autoplay={st.banners_autoplay !== "0"}

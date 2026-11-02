@@ -40,9 +40,9 @@ export async function ReviewsSection({ lang, t }: { lang: Locale; t: Dictionary 
           </ul>
         </div>
         {data.reviews.length > 0 && (
-          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-reveal-items>
             {data.reviews.slice(0, 6).map((r) => (
-              <li key={r.id} className="flex flex-col rounded-xl border border-line bg-paper p-5">
+              <li key={r.id} className="lift flex flex-col rounded-xl border border-line bg-paper p-5">
                 <Stars value={r.stars} size="sm" />
                 <blockquote dir="auto" className="mt-3 flex-1 text-[15px] leading-relaxed line-clamp-6 text-start">
                   {r.comment}
