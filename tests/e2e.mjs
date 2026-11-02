@@ -1149,6 +1149,7 @@ if (!ONLY || ONLY === "features") {
     await page.locator("form:has(#name) button[type=submit]").click();
     await page.waitForURL(/\/checkout\/[A-Z0-9]{8}$/, { waitUntil: "commit" });
     hourRef = page.url().split("/").pop();
+    await page.waitForLoadState("networkidle");
     eq(sql(`select pricing_mode||','||hours||','||duration_min||','||subtotal||','||vat_amount||','||amount||','||hourly_city from bookings where ref='${hourRef}'`), "hourly,12,720,60000,9000,69000,makkah", "stored hourly booking");
     assert(sql(`select route_title from bookings where ref='${hourRef}'`).includes("مدينة مكة المكرمة"), "title has the city");
     assert((await page.textContent("main")).includes("٨:٠٠ ص (اليوم التالي)"), "checkout shows 20:00 + 12h = 8 AM next day");

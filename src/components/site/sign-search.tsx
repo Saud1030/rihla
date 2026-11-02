@@ -431,7 +431,7 @@ export function SignSearch({
               <h4 className="text-xs font-semibold text-muted mb-2">
                 {L.regions}
               </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 @xl:grid-cols-3 gap-2">
                 {regionsWithPlaces.map((r) => (
                   <button
                     key={r.slug}
@@ -458,7 +458,7 @@ export function SignSearch({
                   {L.cities}
                 </h4>
               )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 @xl:grid-cols-3 gap-2">
               {cityList.map((c) => (
                 <button
                   key={c.slug}
@@ -529,7 +529,8 @@ export function SignSearch({
           close();
         }
       }}
-      className="space-y-3"
+      // the layout follows the box's own width (narrow on the home page, wide elsewhere)
+      className="@container space-y-3"
     >
       <input type="hidden" name="mode" value={mode} />
       {mode === "transfer" && (
@@ -548,7 +549,7 @@ export function SignSearch({
 
       {modes.length > 1 && (
         <div
-          className={`grid gap-1 rounded-lg bg-white/10 p-1 sm:max-w-xl ${modes.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}
+          className={`grid gap-1 rounded-lg bg-white/10 p-1 @xl:max-w-xl ${modes.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}
           role="tablist"
           aria-label={modes.map((m) => L[m]).join(" / ")}
         >
@@ -575,7 +576,7 @@ export function SignSearch({
         /* separate trips, each from -> to, with its own date and time */
         <div className="space-y-3" data-testid="multi-legs-form">
           {/* many trips (up to MAX_LEGS): the list scrolls so the box stays a sensible height */}
-          <div className={`grid gap-3 lg:grid-cols-2 ${legs.length > 4 ? "max-h-[26rem] overflow-y-auto overscroll-contain pe-1 pt-1" : ""}`} data-testid="multi-legs-list">
+          <div className={`grid gap-3 @3xl:grid-cols-2 ${legs.length > 4 ? "max-h-[26rem] overflow-y-auto overscroll-contain pe-1 pt-1" : ""}`} data-testid="multi-legs-list">
             {legs.map((l, i) => (
               <fieldset key={i} className="relative rounded-lg border border-white/25 p-3 space-y-2 min-w-0" data-testid={`leg-${i + 1}`}>
                 <legend className="px-1 text-sm font-semibold">
@@ -637,7 +638,7 @@ export function SignSearch({
             ))}
           </div>
           {open && open !== "hours" && panel}
-          <div className="grid gap-3 sm:grid-cols-2 items-center">
+          <div className="grid gap-3 @xl:grid-cols-2 items-center">
             {legs.length < MAX_LEGS ? (
               <button
                 type="button"
@@ -663,7 +664,7 @@ export function SignSearch({
         <div className="max-w-md">{fieldButton("city", L.city, allCities.find((c) => c.slug === city)?.name ? `${L.cityPrefix}${allCities.find((c) => c.slug === city)!.name}` : null, "")}</div>
       ) : (
       /* where from / where to */
-      <div className="relative grid gap-3 sm:grid-cols-2 sm:gap-x-10">
+      <div className="relative grid gap-3 @xl:grid-cols-2 @xl:gap-x-10">
         {placeField("from", L.from)}
         {/* swap from <-> to: in the flow on phones, between the two fields on wider screens */}
         <button
@@ -676,11 +677,11 @@ export function SignSearch({
           disabled={!from && !to}
           aria-label={L.swap}
           title={L.swap}
-          className="justify-self-center -my-2 sm:my-0 sm:absolute sm:start-1/2 sm:-translate-x-1/2 rtl:sm:translate-x-1/2 sm:top-[29px] z-10 grid place-items-center size-9 rounded-full bg-paper text-sign border border-line shadow-sm hover:border-sign disabled:opacity-60"
+          className="justify-self-center -my-2 @xl:my-0 @xl:absolute @xl:start-1/2 @xl:-translate-x-1/2 rtl:@xl:translate-x-1/2 @xl:top-[29px] z-10 grid place-items-center size-9 rounded-full bg-paper text-sign border border-line shadow-sm hover:border-sign disabled:opacity-60"
         >
           <svg
             viewBox="0 0 20 20"
-            className="size-4 rotate-90 sm:rotate-0"
+            className="size-4 rotate-90 @xl:rotate-0"
             aria-hidden="true"
           >
             <path
@@ -702,10 +703,10 @@ export function SignSearch({
       {/* duration (hourly), date and time */}
       {mode !== "multi" && (
       <div
-        className={`grid grid-cols-2 gap-3 items-end ${mode === "hourly" ? "sm:grid-cols-3 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,14rem)]" : "lg:grid-cols-[repeat(2,minmax(0,1fr))_minmax(0,14rem)]"}`}
+        className={`grid grid-cols-1 @sm:grid-cols-2 gap-3 items-end ${mode === "hourly" ? "@xl:grid-cols-3 @3xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,14rem)]" : "@3xl:grid-cols-[repeat(2,minmax(0,1fr))_minmax(0,14rem)]"}`}
       >
         {mode === "hourly" && (
-          <div className="col-span-2 sm:col-span-1">
+          <div className="@sm:col-span-2 @xl:col-span-1">
             {fieldButton("hours", L.duration, L.hoursLabel[hours], "")}
           </div>
         )}
@@ -747,7 +748,7 @@ export function SignSearch({
             ))}
           </select>
         </label>
-        <button type="submit" className="btn btn-amber w-full text-[17px] col-span-2 sm:col-span-full lg:col-span-1 lg:self-end">
+        <button type="submit" className="btn btn-amber w-full text-[17px] @sm:col-span-2 @xl:col-span-full @3xl:col-span-1 @3xl:self-end">
           {L.showPrices}
         </button>
       </div>
