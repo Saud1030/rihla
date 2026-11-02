@@ -65,7 +65,6 @@ export function PhoneCountryField({
           defaultValue={defaultValue}
           required
           className="field text-start min-w-0 flex-1"
-          placeholder={iso === "SA" ? "05XXXXXXXX" : ""}
           aria-invalid={!!error || undefined}
           aria-describedby={error ? "phone-error" : "phone-hint"}
         />

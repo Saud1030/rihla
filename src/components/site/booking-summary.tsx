@@ -63,6 +63,14 @@ export function BookingSummary({ b, lang, t, vatNumber }: { b: Booking; lang: Lo
         ))}
       </dl>
       <div className="px-5 py-4 border-t border-line bg-stone/60 rounded-b-xl space-y-1.5 tabular">
+        {b.discount > 0 && (
+          <div className="flex justify-between text-[15px] text-sign" data-testid="summary-discount">
+            <span>
+              {t.form.discount} <bdi dir="ltr">({b.promoCode})</bdi>
+            </span>
+            <span>-{formatSAR(b.discount, lang)}</span>
+          </div>
+        )}
         {b.vatAmount > 0 && (
           <>
             <div className="flex justify-between text-[15px]">

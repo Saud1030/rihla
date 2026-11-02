@@ -37,29 +37,52 @@ async function FooterContact({ lang, t }: { lang: Locale; t: Dictionary }) {
   );
 }
 
+/** the parts of the footer the admin can change (Admin -> Appearance -> footer) */
+async function FooterAbout({ lang, t }: { lang: Locale; t: Dictionary }) {
+  const s = await getSettings();
+  return <p className="text-sm text-white/70 mt-2 max-w-xs whitespace-pre-line">{s[`footer_about_${lang}`]?.trim() || t.meta.description}</p>;
+}
+async function FooterLinks({ lang, t }: { lang: Locale; t: Dictionary }) {
+  const s = await getSettings();
+  if (s.footer_links === "0") return null;
+  return (
+    <nav className="text-sm space-y-2" aria-label="Footer">
+      <Link href={`/${lang}/routes`} className="block text-white/80 hover:text-white">{t.nav.routes}</Link>
+      <Link href={`/${lang}/fleet`} className="block text-white/80 hover:text-white">{t.nav.fleet}</Link>
+      <Link href={`/${lang}/booking`} className="block text-white/80 hover:text-white">{t.nav.myBooking}</Link>
+      <Link href={`/${lang}/contact`} className="block text-white/80 hover:text-white">{t.nav.contact}</Link>
+      <Link href={`/${lang}/terms`} className="block text-white/80 hover:text-white">{t.footer.terms}</Link>
+      <Link href={`/${lang}/drivers/join`} className="block text-white/80 hover:text-white">{t.join.link}</Link>
+    </nav>
+  );
+}
+async function FooterRights({ lang, t, brand }: { lang: Locale; t: Dictionary; brand: Brand }) {
+  const s = await getSettings();
+  return <>{s[`footer_rights_${lang}`]?.trim() || `${t.footer.rights} ${brand.name[lang]}`}</>;
+}
+
 export function SiteFooter({ lang, t, brand }: { lang: Locale; t: Dictionary; brand: Brand }) {
   return (
     <footer className="bg-sign-deep text-white mt-20">
       <div className="mx-auto max-w-6xl px-4 py-12 grid gap-10 md:grid-cols-3">
         <div>
           <p className="font-display text-lg font-medium">{brand.name[lang]}</p>
-          <p className="text-sm text-white/70 mt-2 max-w-xs">{t.meta.description}</p>
+          <Suspense fallback={<p className="text-sm text-white/70 mt-2 max-w-xs">{t.meta.description}</p>}>
+            <FooterAbout lang={lang} t={t} />
+          </Suspense>
         </div>
-        <nav className="text-sm space-y-2" aria-label="Footer">
-          <Link href={`/${lang}/routes`} className="block text-white/80 hover:text-white">{t.nav.routes}</Link>
-          <Link href={`/${lang}/fleet`} className="block text-white/80 hover:text-white">{t.nav.fleet}</Link>
-          <Link href={`/${lang}/booking`} className="block text-white/80 hover:text-white">{t.nav.myBooking}</Link>
-          <Link href={`/${lang}/contact`} className="block text-white/80 hover:text-white">{t.nav.contact}</Link>
-          <Link href={`/${lang}/terms`} className="block text-white/80 hover:text-white">{t.footer.terms}</Link>
-          <Link href={`/${lang}/drivers/join`} className="block text-white/80 hover:text-white">{t.join.link}</Link>
-        </nav>
+        <Suspense fallback={null}>
+          <FooterLinks lang={lang} t={t} />
+        </Suspense>
         <Suspense fallback={null}>
           <FooterContact lang={lang} t={t} />
         </Suspense>
       </div>
       <div className="border-t border-white/10">
         <p className="mx-auto max-w-6xl px-4 py-4 text-xs text-white/60">
-          {t.footer.rights} {brand.name[lang]}
+          <Suspense fallback={`${t.footer.rights} ${brand.name[lang]}`}>
+            <FooterRights lang={lang} t={t} brand={brand} />
+          </Suspense>
         </p>
       </div>
     </footer>

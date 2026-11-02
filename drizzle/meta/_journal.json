@@ -141,6 +141,13 @@
       "when": 1793544214855,
       "tag": "0019_separate_email_phone",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793632278693,
+      "tag": "0020_promo_codes",
+      "breakpoints": true
     }
   ]
 }

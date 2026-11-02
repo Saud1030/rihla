@@ -18,7 +18,7 @@ import { waNumber } from "./phone";
  * (or the mail app) ready to send by hand. Nothing here ever throws into the booking flow.
  */
 
-export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked" | "payment_receipt" | "trip_invoice";
+export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked" | "payment_receipt" | "trip_invoice" | "promo_code";
 
 export const KIND_LABELS: Record<NotifyKind, string> = {
   driver_trip: "بيانات العميل للسائق",
@@ -31,6 +31,7 @@ export const KIND_LABELS: Record<NotifyKind, string> = {
   driver_blocked: "حظر سائق",
   payment_receipt: "سند الصرف للعميل",
   trip_invoice: "الفاتورة للعميل",
+  promo_code: "رمز ترويجي للعميل",
 };
 
 /** Template parameters in order ({{1}}, {{2}} ...) and a suggested Arabic template text to create in Meta */
@@ -56,6 +57,11 @@ export const TEMPLATES: Record<Exclude<NotifyKind, "rating_received" | "driver_a
     setting: "wa_tpl_payment_receipt",
     params: ["اسم العميل", "رقم الحجز", "المبلغ", "رابط سند الصرف"],
     suggested: "(رأس القالب: Document — يُرفق ملف سند الصرف PDF)\nمرحبًا {{1}}، استلمنا دفعتك لحجز رقم {{2}} بمبلغ {{3}}. مرفق سند الصرف، ورابطه: {{4}}\nتصلك الفاتورة الضريبية بعد انتهاء الرحلة.\nشكرًا لكم لاختياركم Mighty Hands Trans، سوف نتواصل معكم في أقرب وقت ممكن.",
+  },
+  promo_code: {
+    setting: "wa_tpl_promo_code",
+    params: ["اسم العميل", "الرمز", "نسبة الخصم", "عدد الحجوزات"],
+    suggested: "مرحبًا {{1}}، شكرًا لثقتك بنا! بمناسبة حجزك رقم {{4}} معنا، هذا رمز ترويجي خاص لك: {{2}}\nخصم {{3}} على حجزك القادم. اكتبه في خانة «الرمز الترويجي» وقت الحجز.\nشكرًا لكم لاختياركم Mighty Hands Trans.",
   },
   trip_invoice: {
     setting: "wa_tpl_trip_invoice",

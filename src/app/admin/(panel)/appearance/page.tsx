@@ -4,7 +4,8 @@ import { requireSection } from "@/lib/auth";
 import { getBrand } from "@/lib/brand";
 import { getSettings } from "@/lib/catalog";
 import { getDictionary } from "@/i18n/dictionaries";
-import { removeLogo, saveAppearance, uploadLogo } from "../../actions";
+import { removeLogo, saveAppearance, saveFooter, uploadLogo } from "../../actions";
+import { Field } from "@/components/admin/ui";
 import { ActionForm } from "@/components/admin/action-form";
 import { AppearanceForm } from "@/components/admin/appearance-form";
 import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
@@ -83,6 +84,44 @@ async function Content() {
           hero_lead_en: st.hero_lead_en ?? "",
         }}
       />
+
+      {/* the footer at the bottom of every page */}
+      <Card className="p-6" data-testid="footer-settings">
+        <h2 className="font-semibold mb-1">التذييل (أسفل الموقع)</h2>
+        <p className="text-sm text-muted mb-4">اترك النص فارغًا ليظهر النص الافتراضي.</p>
+        <ActionForm action={saveFooter} submitLabel="حفظ التذييل">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="نبذة عن الشركة (عربي)">
+              <textarea name="footer_about_ar" rows={3} maxLength={400} defaultValue={st.footer_about_ar ?? ""} placeholder={t.meta.description} className="field" />
+            </Field>
+            <Field label="نبذة عن الشركة (إنجليزي)">
+              <textarea name="footer_about_en" rows={3} maxLength={400} defaultValue={st.footer_about_en ?? ""} dir="ltr" className="field text-start" />
+            </Field>
+            <Field label="سطر الحقوق (عربي)" hint={`الافتراضي: ${t.footer.rights} ${brand.name.ar}`}>
+              <input name="footer_rights_ar" maxLength={150} defaultValue={st.footer_rights_ar ?? ""} className="field" />
+            </Field>
+            <Field label="سطر الحقوق (إنجليزي)">
+              <input name="footer_rights_en" maxLength={150} defaultValue={st.footer_rights_en ?? ""} dir="ltr" className="field text-start" />
+            </Field>
+            <Field label="العنوان (عربي)">
+              <input name="address_ar" maxLength={300} defaultValue={st.address_ar ?? ""} className="field" />
+            </Field>
+            <Field label="العنوان (إنجليزي)">
+              <input name="address_en" maxLength={300} defaultValue={st.address_en ?? ""} dir="ltr" className="field text-start" />
+            </Field>
+            <Field label="رقم الهاتف">
+              <input name="phone" maxLength={30} defaultValue={st.phone ?? ""} dir="ltr" className="field text-start" />
+            </Field>
+            <Field label="البريد الإلكتروني">
+              <input name="email" type="email" maxLength={200} defaultValue={st.email ?? ""} dir="ltr" className="field text-start" />
+            </Field>
+          </div>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="footer_links" defaultChecked={st.footer_links !== "0"} className="size-4 accent-sign" />
+            إظهار روابط الصفحات في التذييل (الرحلات، السيارات، حجزي، تواصل معنا، الشروط، انضم كسائق)
+          </label>
+        </ActionForm>
+      </Card>
     </div>
   );
 }

@@ -266,6 +266,9 @@ export const bookings = pgTable(
     receiptAt: timestamp("receipt_at", { withTimezone: true }),
     invoiceNo: integer("invoice_no").unique(),
     invoiceAt: timestamp("invoice_at", { withTimezone: true }),
+    /** promo code used for this booking, and the discount it gave (halalas, before VAT) */
+    promoCode: text("promo_code"),
+    discount: integer("discount").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -618,3 +621,30 @@ export type Rating = typeof ratings.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type AdminUser = typeof adminUsers.$inferSelect;
 export type DriverDocument = typeof driverDocuments.$inferSelect;
+
+/* ---------- Promo codes for loyal customers ---------- */
+/**
+ * Sent on WhatsApp and email when a customer reaches every Nth paid booking (N set by the admin: 5, 10, 20...).
+ * One use; the discount is a percentage of the price before VAT.
+ */
+export const promoCodes = pgTable(
+  "promo_codes",
+  {
+    id: serial("id").primaryKey(),
+    code: text("code").notNull().unique(),
+    customerName: text("customer_name").notNull(),
+    customerPhone: text("customer_phone").notNull(),
+    customerEmail: text("customer_email"),
+    /** the discount, % of the price before VAT */
+    percent: integer("percent").notNull(),
+    /** earned at this many paid bookings */
+    bookingsCount: integer("bookings_count").notNull(),
+    /** the booking that earned it */
+    earnedBookingId: uuid("earned_booking_id").references(() => bookings.id, { onDelete: "set null" }),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    usedBookingId: uuid("used_booking_id").references(() => bookings.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("promo_codes_customer_count").on(t.customerPhone, t.bookingsCount)],
+);
+export type PromoCode = typeof promoCodes.$inferSelect;

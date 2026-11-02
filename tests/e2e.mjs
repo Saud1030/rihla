@@ -348,8 +348,11 @@ if (!ONLY || ONLY === "security") {
     const ref = await makeBooking(page, { route: "makkah-ziyarat", before: (p) => p.evaluate(() => { document.querySelector('input[name="reversed"]').value = "1"; }) });
     eq(sql(`select reversed from bookings where ref='${ref}'`), "f", "reversed=false");
   });
-  await check("over-long notes rejected (server limit)", async () => {
-    await fillBooking(page, { before: (p) => p.evaluate(() => { const t = document.querySelector("#notes"); t.removeAttribute("maxlength"); t.value = "x".repeat(1500); }) });
+  await check("no notes field on the booking form; forged over-long notes still rejected (server limit)", async () => {
+    await page.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
+    eq(await page.locator("#notes, textarea[name=notes]").count(), 0, "notes field removed");
+    eq(await page.locator("#phone").getAttribute("placeholder"), null, "no 05XXXXXXXX example");
+    await fillBooking(page, { before: (p) => p.evaluate(() => { const t = document.createElement("textarea"); t.name = "notes"; t.value = "x".repeat(1500); document.querySelector("form:has(#name)").append(t); }) });
     await page.getByRole("alert").filter({ hasText: "تعذّر إنشاء الحجز" }).waitFor({ timeout: 8000 });
   });
   await check("phone with letters rejected", async () => {
@@ -1111,7 +1114,7 @@ if (!ONLY || ONLY === "features") {
   };
   await check("chooser hourly tab: one city, 10/12/24 hours, date and time — all on the home page", async () => {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    await page.getByRole("tab", { name: "بالساعة مع سائق" }).click();
+    await page.getByRole("tab", { name: "بالساعة", exact: true }).click();
     assert(page.url().endsWith("/ar"), "tab doesn't navigate away");
     eq(await page.locator("form#search button[aria-controls=search-panel]").count(), 2, "city and duration only");
     await page.getByRole("button", { name: "اعرض الأسعار" }).click();
@@ -1211,7 +1214,7 @@ if (!ONLY || ONLY === "features") {
     await savePolicy(() => a.uncheck('input[name="hourly_enabled"]'));
     await a.getByText("تم حفظ سياسة الإلغاء").waitFor();
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    eq(await page.getByRole("tab", { name: "بالساعة مع سائق" }).count(), 0, "no hourly tab");
+    eq(await page.getByRole("tab", { name: "بالساعة", exact: true }).count(), 0, "no hourly tab");
     await page.goto(`${BASE}/ar/hourly?city=makkah&hours=12`, { waitUntil: "networkidle" });
     await page.getByText("الحجز بالساعة غير متاح").waitFor();
     const r = await fetch(`${BASE}/ar/search?mode=hourly&city=makkah&hours=12`, { redirect: "manual" });
@@ -1378,6 +1381,90 @@ if (!ONLY || ONLY === "features") {
     return (await mf("/__refunds")).filter((r) => String(r.key) === pid);
   };
   const soon = (h) => (`update bookings set pickup_date=(now() at time zone 'Asia/Riyadh' + interval '${h} hours')::date, pickup_time=to_char(now() at time zone 'Asia/Riyadh' + interval '${h} hours','HH24:MI') where ref='%REF%'`);
+
+  await check("footer is edited from the panel (about text, rights line, contact, page links on/off); booking form shows the cars two to a row", async () => {
+    await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
+    const f = a.getByTestId("footer-settings");
+    await f.locator('textarea[name="footer_about_ar"]').fill("نقل فاخر بين المطار والحرم على مدار الساعة.");
+    await f.locator('input[name="footer_rights_ar"]').fill("© ٢٠٢٦ مايتي هاندز للنقل");
+    await f.locator('input[name="footer_links"]').uncheck();
+    await f.getByRole("button", { name: "حفظ التذييل" }).click();
+    await a.getByText("تم حفظ التذييل").waitFor();
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    const footer = await page.locator("footer").innerText();
+    assert(footer.includes("نقل فاخر بين المطار والحرم") && footer.includes("© ٢٠٢٦ مايتي هاندز للنقل"), "footer texts: " + footer);
+    eq(await page.locator('footer nav[aria-label="Footer"]').count(), 0, "links hidden");
+    await f.locator('textarea[name="footer_about_ar"]').fill("");
+    await f.locator('input[name="footer_rights_ar"]').fill("");
+    await f.locator('input[name="footer_links"]').check();
+    await f.getByRole("button", { name: "حفظ التذييل" }).click();
+    for (let i = 0; i < 50 && sql("select value from settings where key='footer_links'") !== "1"; i++) await a.waitForTimeout(100);
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    assert((await page.locator("footer").innerText()).includes("جميع الحقوق محفوظة"), "back to the default");
+    eq(await page.locator('footer nav[aria-label="Footer"] a').count(), 6, "links back");
+    // the hourly tab is just "بالساعة"; cars as squares, two to a row
+    eq(await page.getByRole("tab", { name: "بالساعة", exact: true }).count(), 1, "hourly tab label");
+    await page.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
+    const boxes = await page.getByTestId("vehicle-grid").locator("label").evaluateAll((ls) => ls.slice(0, 2).map((l) => l.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) })));
+    eq(boxes[0].top, boxes[1].top, "two in a row");
+    assert(Math.abs(boxes[0].w - boxes[0].h) <= 2, "square: " + JSON.stringify(boxes[0]));
+  });
+
+  await check("promo codes: every Nth paid booking (set in the panel) sends the customer a code on WhatsApp and email; it takes its % off the next booking once; listed in the panel", async () => {
+    const phone = "+966557778899", local = "0557778899";
+    sql(`delete from promo_codes; delete from notifications where recipient in ('${phone}','vip.customer@example.com'); delete from bookings where customer_phone='${phone}'`);
+    // the panel: every 2 bookings, 20% off
+    await a.goto(`${BASE}/admin/promos`, { waitUntil: "networkidle" });
+    const f = a.getByTestId("promo-settings");
+    eq(await f.locator('select[name="promo_every"]').inputValue(), "5", "every 5 by default");
+    for (const n of ["5", "10", "20"]) assert(await f.locator(`select[name="promo_every"] option[value="${n}"]`).count(), "choice " + n);
+    await f.locator('select[name="promo_every"]').selectOption("3");
+    await f.locator('input[name="promo_percent"]').fill("20");
+    await f.getByRole("button", { name: "حفظ" }).click();
+    await a.getByText("تم حفظ إعدادات الرموز الترويجية.").waitFor();
+    sql("update settings set value='2' where key='promo_every'"); // 2 for a quicker test (saved values go through the same reader)
+    await mf("/__wa_reset");
+    const book = async (o = {}) => {
+      const ref = await makeBooking(cp, { vehicle: "تويوتا كامري", date: inDays(4), phone: local, name: "عميل مميز", before: async (p) => { await p.fill("#email", "vip.customer@example.com"); if (o.before) await o.before(p); } });
+      await payInBrowser(cp, ref, "pay");
+      return ref;
+    };
+    await book();
+    eq(sql("select count(*) from promo_codes"), "0", "no code after 1 booking");
+    await book();
+    const [code, pct, count, email] = sql(`select code, percent, bookings_count, customer_email from promo_codes where customer_phone='${phone}'`).split("|");
+    assert(/^VIP[A-Z0-9]{6}$/.test(code), "a code: " + code);
+    eq(`${pct}|${count}|${email}`, "20|2|vip.customer@example.com", "20% at the 2nd booking");
+    const waMsg = (await mf("/__wa")).find((m) => (m.text?.body ?? "").includes(code));
+    assert(waMsg && waMsg.to === "966557778899", "sent on WhatsApp");
+    eq(sql(`select count(*) from notifications where kind='promo_code' and channel='email' and recipient='vip.customer@example.com' and body like '%${code}%'`), "1", "and by email");
+    // listed in the panel: name, mobile, email, date
+    await a.goto(`${BASE}/admin/promos`, { waitUntil: "networkidle" });
+    const row = await a.getByTestId("promo-list").locator(`tr[data-code="${code}"]`).innerText();
+    for (const x of ["عميل مميز", phone, "vip.customer@example.com", code]) assert(row.includes(x), `list shows ${x}: ${row}`);
+    // a wrong code is refused in the form and on the server
+    await cp.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
+    await cp.getByRole("radiogroup").getByText("تويوتا كامري", { exact: true }).click();
+    await cp.fill("#promo", "NOPE1234");
+    await cp.getByTestId("promo").getByRole("button", { name: "تطبيق" }).click();
+    await cp.getByTestId("promo").getByText("الرمز الترويجي غير صحيح").waitFor();
+    // the right one: 20% off before VAT
+    await cp.fill("#promo", code.toLowerCase());
+    await cp.getByTestId("promo").getByRole("button", { name: "تطبيق" }).click();
+    await cp.getByTestId("promo").getByText("تم تطبيق خصم ٢٠٪").waitFor();
+    await cp.getByTestId("promo-discount").waitFor();
+    const price = Number(sql("select t.price from trips t join routes r on r.id=t.route_id join vehicles v on v.id=t.vehicle_id where r.slug='jeddah-airport-makkah' and v.slug='toyota-camry'"));
+    const r3 = await book({ before: async (p) => { await p.fill("#promo", code); } });
+    eq(sql(`select promo_code, discount, subtotal from bookings where ref='${r3}'`), `${code}|${Math.round(price * 0.2)}|${price - Math.round(price * 0.2)}`, "discount stored, subtotal after it");
+    await cp.goto(`${BASE}/ar/checkout/${r3}`, { waitUntil: "networkidle" }).catch(() => {});
+    eq(sql(`select used_booking_id is not null, used_at is not null from promo_codes where code='${code}'`), "t|t", "used once paid");
+    // used: refused next time
+    await fillBooking(cp, { vehicle: "تويوتا كامري", date: inDays(4), before: async (p) => { await p.fill("#promo", code); } });
+    await cp.getByText("الرمز الترويجي غير صحيح أو مستخدم من قبل.").waitFor();
+    await a.goto(`${BASE}/admin/promos`, { waitUntil: "networkidle" });
+    eq(await a.getByTestId("promo-list").locator(`tr[data-code="${code}"] [data-status]`).getAttribute("data-status"), "used", "shown as used");
+    sql("update settings set value='5' where key='promo_every'; update settings set value='10' where key='promo_percent'");
+  });
 
   await check("payment voucher on WhatsApp as soon as it's paid (not an invoice); the tax invoice comes with the rating when the trip ends", async () => {
     const setSetting = (k, v) => sql(`insert into settings(key,value) values('${k}','${v}') on conflict (key) do update set value=excluded.value`);
@@ -2774,7 +2861,7 @@ if (!ONLY || ONLY === "drivers") {
     const d = await kinds("driver");
     assert(d.length > 0 && d.every((k) => k.startsWith("driver_")), "driver only: " + d.join(","));
     const c = await kinds("customer");
-    assert(c.length > 0 && c.every((k) => ["customer_driver", "rating_request", "payment_receipt", "trip_invoice"].includes(k)), "customer only: " + c.join(","));
+    assert(c.length > 0 && c.every((k) => ["customer_driver", "rating_request", "payment_receipt", "trip_invoice", "promo_code"].includes(k)), "customer only: " + c.join(","));
     const r = await kinds("rating");
     assert(r.length > 0 && r.every((k) => k.startsWith("rating_")), "rating only: " + r.join(","));
     const e = await kinds("email");

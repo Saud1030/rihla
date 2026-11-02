@@ -660,6 +660,35 @@ export async function saveAppearance(_prev: ActionState, formData: FormData): Pr
   return { ok: true, message: warnings.length ? `تم الحفظ. تنبيه: ${warnings[0]}` : "تم حفظ المظهر. افتح الموقع لترى التغيير." };
 }
 
+/* ---------- Footer ---------- */
+
+/** what the site's footer shows (empty text = the default) */
+export async function saveFooter(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("appearance");
+  const v = (k: string, max: number) => String(formData.get(k) ?? "").trim().slice(0, max);
+  const email = v("email", 200);
+  if (email && !z.email().safeParse(email).success) return { error: "البريد الإلكتروني غير صحيح." };
+  const rows: Record<string, string> = {
+    footer_about_ar: v("footer_about_ar", 400),
+    footer_about_en: v("footer_about_en", 400),
+    footer_rights_ar: v("footer_rights_ar", 150),
+    footer_rights_en: v("footer_rights_en", 150),
+    address_ar: v("address_ar", 300),
+    address_en: v("address_en", 300),
+    phone: v("phone", 30),
+    email,
+    footer_links: formData.get("footer_links") === "on" ? "1" : "0",
+  };
+  await db.transaction(async (tx) => {
+    for (const [key, value] of Object.entries(rows)) {
+      await tx.insert(s.settings).values({ key, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
+    }
+  });
+  invalidateCatalogCache();
+  revalidatePath("/admin/appearance");
+  return { ok: true, message: "تم حفظ التذييل. افتح الموقع لترى التغيير." };
+}
+
 const LOGO_TYPES: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",

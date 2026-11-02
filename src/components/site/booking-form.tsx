@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import Image from "next/image";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
-import type { BookingFormState } from "@/app/actions/booking";
+import { checkPromo, type BookingFormState } from "@/app/actions/booking";
 import { formatDate, formatNumber, formatSAR, formatTime, vatNote } from "@/lib/format";
 import { displayPrice, withVat, type VatConfig } from "@/lib/pricing";
 import { PersonIcon, BagIcon, CheckIcon, LockIcon } from "@/components/icons";
@@ -56,7 +56,27 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
   const v = state.values ?? {};
   const [tripId, setTripId] = useState<string>(v.tripId || initialTripId);
   const trip = trips.find((x) => x.id === tripId) ?? trips[0];
-  const money = withVat(trip.price, vat.rateBp);
+  // promo code (checked on the server when "apply" is pressed, and again when the booking is sent)
+  const [promoText, setPromoText] = useState(v.promo ?? "");
+  const [promo, setPromo] = useState<{ code: string; percent: number } | null>(null);
+  const [promoMsg, setPromoMsg] = useState<"ok" | "bad" | null>(null);
+  const [checking, setChecking] = useState(false);
+  const discount = promo ? Math.round((trip.price * promo.percent) / 100) : 0;
+  const money = withVat(trip.price - discount, vat.rateBp);
+  async function applyPromo() {
+    const code = promoText.trim();
+    if (!code) return;
+    setChecking(true);
+    const r = await checkPromo(code);
+    setChecking(false);
+    if ("percent" in r) {
+      setPromo({ code, percent: r.percent });
+      setPromoMsg("ok");
+    } else {
+      setPromo(null);
+      setPromoMsg("bad");
+    }
+  }
   const err = (k: string) => !!state.errors?.[k as keyof NonNullable<BookingFormState["errors"]>];
   const E = t.form.errors;
   const [date, setDate] = useState(v.date ?? initialDate);
@@ -96,13 +116,14 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
         <fieldset>
           <legend className="text-xl font-semibold mb-1">{t.route.chooseVehicle}</legend>
           {vat.rateBp > 0 && <p className="text-sm text-muted mb-4">{vatNote(vat, lang)}</p>}
-          <div className="grid gap-2" role="radiogroup">
+          {/* the cars as squares, two to a row */}
+          <div className="grid grid-cols-2 gap-3" role="radiogroup" data-testid="vehicle-grid">
             {trips.map((x) => {
               const active = x.id === trip.id;
               return (
                 <label
                   key={x.id}
-                  className={`relative grid grid-cols-[88px_1fr_auto] items-center gap-4 rounded-xl border px-4 py-3 cursor-pointer bg-paper ${
+                  className={`relative flex flex-col items-center justify-between gap-2 rounded-xl border p-3 sm:p-4 text-center cursor-pointer bg-paper sm:aspect-square ${
                     active ? "border-sign ring-2 ring-sign" : "border-line hover:border-muted"
                   }`}
                 >
@@ -114,27 +135,27 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
                     onChange={() => setTripId(x.id)}
                     className="sr-only"
                   />
-                  <Image src={x.imageUrl ?? `/vehicles/${x.category}.svg`} alt="" width={88} height={37} className="w-[88px] h-auto rtl:-scale-x-100" unoptimized />
+                  <Image src={x.imageUrl ?? `/vehicles/${x.category}.svg`} alt="" width={200} height={84} className="w-full max-w-[200px] h-auto max-h-28 object-contain rtl:-scale-x-100 mt-2" unoptimized />
                   <span className="min-w-0">
                     <span className="block font-semibold">{x.name}</span>
-                    <span className="flex flex-wrap gap-x-4 text-sm text-muted tabular">
-                      <span>{x.categoryLabel}</span>
+                    <span className="block text-sm text-muted">{x.categoryLabel}</span>
+                    <span className="mt-1 flex flex-wrap justify-center gap-x-3 text-sm text-muted tabular">
                       <span className="inline-flex items-center gap-1">
-                        <PersonIcon className="size-4" /> {formatNumber(x.passengers, lang)} {t.route.passengers}
+                        <PersonIcon className="size-4" /> {formatNumber(x.passengers, lang)}
                       </span>
                       <span className="inline-flex items-center gap-1">
-                        <BagIcon className="size-4" /> {formatNumber(x.bags, lang)} {t.route.bags}
+                        <BagIcon className="size-4" /> {formatNumber(x.bags, lang)}
                       </span>
                     </span>
                   </span>
-                  <span className="text-end">
+                  <span>
                     {x.compareAtPrice && x.compareAtPrice > x.price && (
                       <span className="block text-xs text-muted line-through tabular">{formatSAR(displayPrice(x.compareAtPrice, vat), lang)}</span>
                     )}
                     <span className="block font-display font-semibold text-lg tabular">{formatSAR(displayPrice(x.price, vat), lang)}</span>
                   </span>
                   {active && (
-                    <span className="absolute -top-2.5 start-4 inline-flex items-center gap-1 rounded-full bg-sign text-white text-xs px-2 py-0.5">
+                    <span className="absolute -top-2.5 start-3 inline-flex items-center gap-1 rounded-full bg-sign text-white text-xs px-2 py-0.5">
                       <CheckIcon className="size-3" />
                       {t.route.selected}
                     </span>
@@ -243,7 +264,6 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
             />
           </div>
           {field("email", t.form.email, <input type="email" maxLength={200} autoComplete="email" dir="ltr" defaultValue={v.email ?? ""} className="field text-start" {...a11y("email")} />, E.email)}
-          {field("notes", t.form.notes, <textarea rows={3} maxLength={1000} defaultValue={v.notes ?? ""} className="field" {...a11y("notes")} />)}
         </fieldset>
       </div>
 
@@ -257,7 +277,61 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
             {end ? ` ${lang === "ar" ? "←" : "→"} ${formatEnd(end.time, end.dayOffset, lang)}` : ""}
           </p>
         )}
+        {/* promo code for loyal customers */}
+        <div className="mt-4 pt-4 border-t border-line" data-testid="promo">
+          <label htmlFor="promo" className="block text-sm font-medium mb-1">
+            {t.form.promo}
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="promo"
+              name="promo"
+              value={promoText}
+              onChange={(e) => {
+                setPromoText(e.target.value);
+                setPromo(null);
+                setPromoMsg(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyPromo();
+                }
+              }}
+              maxLength={40}
+              dir="ltr"
+              autoComplete="off"
+              className="field min-w-0 flex-1 text-start uppercase"
+              aria-invalid={promoMsg === "bad" || undefined}
+            />
+            <button type="button" onClick={applyPromo} disabled={checking || !promoText.trim()} className="btn btn-ghost border border-line shrink-0">
+              {t.form.promoApply}
+            </button>
+          </div>
+          {promoMsg === "ok" && promo && (
+            <p className="mt-1 text-sm text-sign" role="status">
+              {t.form.promoOk.replace("{p}", formatNumber(promo.percent, lang))}
+            </p>
+          )}
+          {(promoMsg === "bad" || (!!state.errors?.promo && !promo && promoText === (v.promo ?? ""))) && (
+            <p className="mt-1 text-sm text-danger" role="alert">
+              {E.promo}
+            </p>
+          )}
+        </div>
         <dl className="mt-4 pt-4 border-t border-line space-y-1.5 text-[15px] tabular" aria-live="polite">
+          {discount > 0 && (
+            <>
+              <div className="flex justify-between">
+                <dt className="text-muted">{t.form.price}</dt>
+                <dd>{formatSAR(trip.price, lang)}</dd>
+              </div>
+              <div className="flex justify-between text-sign" data-testid="promo-discount">
+                <dt>{t.form.discount}</dt>
+                <dd>-{formatSAR(discount, lang)}</dd>
+              </div>
+            </>
+          )}
           {vat.rateBp > 0 && (
             <>
               <div className="flex justify-between">

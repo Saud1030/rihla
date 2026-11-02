@@ -1,6 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { allow, clientIp } from "@/lib/rate-limit";
 import { z } from "zod";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -8,6 +10,7 @@ import { isLocale, type Locale } from "@/i18n/dictionaries";
 import { pairTitle, routeTitle } from "@/lib/catalog";
 import { maxBookingDate, newBookingRef, todayInRiyadh } from "@/lib/booking";
 import { earliestPickup, farEnough, parseLeadHours } from "@/lib/lead-time";
+import { cleanCode, discountFor, usablePromo } from "@/lib/promo";
 import { distancePrice, driveMinutes, parseVatConfig, roadKm, withVat } from "@/lib/pricing";
 import { hourlyPrice, isHourPackage } from "@/lib/policy";
 import { phoneWithCountry } from "@/lib/phone";
@@ -37,6 +40,7 @@ const fields = [
   "dropoff",
   "flight",
   "notes",
+  "promo",
 ] as const;
 type FieldName = (typeof fields)[number];
 
@@ -58,6 +62,7 @@ const schema = z.object({
   dropoff: z.string().trim().max(300).default(""),
   flight: z.string().trim().max(20).default(""),
   notes: z.string().trim().max(1000).default(""),
+  promo: z.string().max(40).default(""),
 });
 
 export async function createBooking(lang: string, _prev: BookingFormState, formData: FormData): Promise<BookingFormState> {
@@ -129,7 +134,15 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
 
   const settingRows = await db.select().from(s.settings).where(inArray(s.settings.key, ["vat_rate", "prices_include_vat", "vat_number"]));
   const vat = parseVatConfig(Object.fromEntries(settingRows.map((r) => [r.key, r.value])));
-  const money = withVat(resolved.price, vat.rateBp);
+  // a promo code takes its percentage off the price before VAT
+  const promoCode = cleanCode(d.promo);
+  let discount = 0;
+  if (promoCode) {
+    const promo = await usablePromo(promoCode);
+    if (!promo) return { errors: { promo: true }, values };
+    discount = discountFor(resolved.price, promo.percent);
+  }
+  const money = withVat(resolved.price - discount, vat.rateBp);
 
   // Retry on the (very unlikely) ref collision
   let ref = "";
@@ -163,6 +176,8 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
         flightNumber: d.flight || null,
         notes: d.notes || null,
         subtotal: money.subtotal,
+        promoCode: promoCode || null,
+        discount,
         vatRate: vat.rateBp,
         vatAmount: money.vat,
         amount: money.total,
@@ -318,4 +333,11 @@ async function resolveCityHourlyTrip(vehicleId: number, citySlug: string, hours:
       ? `سيارة مع سائق ${hours === 10 ? "١٠ ساعات" : hours === 12 ? "١٢ ساعة" : "٢٤ ساعة"} – مدينة ${city.nameAr}`
       : `Car with driver, ${hours} hours – ${city.nameEn}`;
   return { mode: "hourly", hours, hourlyCity: city.slug, tripId: null, vehicle, price, title, reversed: false, fromId: place?.id ?? null, toId: null, km: null, durationMin: hours * 60 };
+}
+
+/** The booking form checks a promo code before sending (the booking itself checks it again). */
+export async function checkPromo(code: string): Promise<{ percent: number } | { error: true }> {
+  if (!allow(`promo:${clientIp(await headers())}`, 20, 10 * 60_000)) return { error: true };
+  const promo = await usablePromo(cleanCode(code));
+  return promo ? { percent: promo.percent } : { error: true };
 }

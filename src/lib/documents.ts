@@ -5,6 +5,7 @@ import type { Booking } from "@/db/schema";
 import { publicBaseUrl } from "./public-url";
 import { bookingNo, formatSAR } from "./format";
 import { notify } from "./notify";
+import { afterPaid } from "./promo";
 
 /**
  * The customer's two documents:
@@ -59,7 +60,7 @@ export async function issueReceipt(bookingId: string) {
           "",
           THANKS.en,
         ].join("\n");
-    return await notify({
+    const sent = await notify({
       bookingId: b.id,
       channel: "whatsapp",
       kind: "payment_receipt",
@@ -69,6 +70,9 @@ export async function issueReceipt(bookingId: string) {
       params: [b.customerName, b.ref, amount, link],
       attachment: { url: await receiptPdfLink(b), name: `${receiptNo(b.receiptNo)}.pdf` },
     });
+    // the promo code it used is spent; every Nth paid booking earns a new one
+    await afterPaid(b);
+    return sent;
   } catch (e) {
     console.error("payment voucher failed", e);
     return null;

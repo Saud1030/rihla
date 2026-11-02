@@ -7,6 +7,7 @@ export const LINKS = [
   { href: "/admin/bookings", label: "الحجوزات" },
   { href: "/admin/drivers", label: "السائقين" },
   { href: "/admin/ratings", label: "التقييمات" },
+  { href: "/admin/promos", label: "الرموز الترويجية" },
   { href: "/admin/messages", label: "رسائل واتساب والبريد" },
   { href: "/admin/chat", label: "المحادثات والبوت" },
   { href: "/admin/prices", label: "الأسعار" },
