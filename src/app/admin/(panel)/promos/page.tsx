@@ -1,12 +1,13 @@
-import Link from "next/link";
 import { Suspense } from "react";
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
-import { promoSettings, PROMO_EVERY_CHOICES } from "@/lib/promo";
-import { bookingNo, formatDateTime, formatNumber } from "@/lib/format";
-import { resendPromo, savePromoSettings } from "../../promo-actions";
+import { promoSettings } from "@/lib/promo";
+import { formatNumber } from "@/lib/format";
+import { countryOptions } from "@/lib/countries";
+import { addPromoCustomer, resendPromo, savePromoSettings } from "../../promo-actions";
+import { PhoneCountryField } from "@/components/site/phone-country-field";
 import { ActionForm } from "@/components/admin/action-form";
 import { Card, Field, PageHeader, Skeleton } from "@/components/admin/ui";
 
@@ -26,9 +27,8 @@ async function Promos() {
   const [st, rows] = await Promise.all([
     getSettings(),
     db
-      .select({ p: s.promoCodes, usedNo: s.bookings.number, usedRef: s.bookings.ref })
+      .select({ p: s.promoCodes })
       .from(s.promoCodes)
-      .leftJoin(s.bookings, eq(s.bookings.id, s.promoCodes.usedBookingId))
       .orderBy(desc(s.promoCodes.id))
       .limit(500),
   ]);
@@ -48,19 +48,28 @@ async function Promos() {
             تفعيل الرموز الترويجية
           </label>
           <div className="grid gap-4 sm:grid-cols-2 max-w-xl">
-            <Field label="يُرسل الرمز بعد كل" hint="عدد الحجوزات المدفوعة للعميل">
-              <select name="promo_every" defaultValue={String(cfg.every)} className="field">
-                {[...new Set<number>([...PROMO_EVERY_CHOICES, cfg.every])]
-                  .sort((a, b) => a - b)
-                  .map((n) => (
-                    <option key={n} value={n}>
-                      {formatNumber(n, "ar")} حجوزات
-                    </option>
-                  ))}
-              </select>
+            <Field label="يُرسل الرمز بعد كل (عدد الحجوزات)" hint="اكتب العدد اللي تبيه: ٥ أو ١٠ أو ٢٠ أو غيره">
+              <input name="promo_every" type="number" min={1} max={1000} required defaultValue={cfg.every} dir="ltr" className="field text-start" />
             </Field>
             <Field label="نسبة الخصم ٪" hint="من سعر الحجز قبل الضريبة">
               <input name="promo_percent" type="number" min={1} max={100} required defaultValue={cfg.percent} dir="ltr" className="field text-start" />
+            </Field>
+          </div>
+        </ActionForm>
+      </Card>
+
+      {/* the admin adds a customer and sends them a code */}
+      <Card className="p-6" data-testid="promo-add">
+        <h2 className="font-semibold mb-1">إضافة عميل وإرسال رمز له</h2>
+        <p className="text-sm text-muted mb-4">يوصله رمز بخصم {formatNumber(cfg.percent, "ar")}٪ على الواتساب، وعلى الإيميل إذا كتبته.</p>
+        <ActionForm action={addPromoCustomer} submitLabel="إضافة وإرسال الرمز" pendingLabel="جارٍ الإرسال…">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="اسم العميل">
+              <input name="name" required minLength={2} maxLength={100} className="field" />
+            </Field>
+            <PhoneCountryField countries={countryOptions("ar")} defaultCountry="SA" defaultValue="" label="رقم الواتساب" countryLabel="رمز الدولة" hint="اختر الدولة ثم اكتب الرقم." />
+            <Field label="الإيميل (اختياري)">
+              <input name="email" type="email" maxLength={200} dir="ltr" className="field text-start" />
             </Field>
           </div>
         </ActionForm>
@@ -87,7 +96,7 @@ async function Promos() {
             <table className="w-full text-sm" data-testid="promo-list">
               <thead className="text-muted text-xs">
                 <tr className="border-b border-line">
-                  {["الاسم", "رقم الجوال", "الإيميل", "الرمز", "الخصم", "بعد حجز رقم", "التاريخ", "الحالة", ""].map((h, i) => (
+                  {["اسم العميل", "رقم الواتساب", "الإيميل", ""].map((h, i) => (
                     <th key={i} className="text-start font-medium py-2.5 px-3 whitespace-nowrap">
                       {h}
                     </th>
@@ -95,36 +104,16 @@ async function Promos() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ p, usedNo, usedRef }) => (
-                  <tr key={p.id} className="border-b border-line last:border-0 align-middle" data-code={p.code}>
+                {rows.map(({ p }) => (
+                  <tr key={p.id} className="border-b border-line last:border-0 align-middle" data-code={p.code} data-status={p.usedAt ? "used" : "new"}>
                     <td className="py-2.5 px-3 font-medium">{p.customerName}</td>
                     <td className="py-2.5 px-3">
                       <bdi dir="ltr">{p.customerPhone}</bdi>
                     </td>
                     <td className="py-2.5 px-3">{p.customerEmail ? <bdi dir="ltr">{p.customerEmail}</bdi> : <span className="text-muted">—</span>}</td>
-                    <td className="py-2.5 px-3 font-mono font-semibold" dir="ltr">
-                      {p.code}
-                    </td>
-                    <td className="py-2.5 px-3 tabular">{formatNumber(p.percent, "ar")}٪</td>
-                    <td className="py-2.5 px-3 tabular">{formatNumber(p.bookingsCount, "ar")}</td>
-                    <td className="py-2.5 px-3 whitespace-nowrap">{formatDateTime(p.createdAt, "ar")}</td>
-                    <td className="py-2.5 px-3 whitespace-nowrap" data-status={p.usedAt ? "used" : "new"}>
-                      {p.usedAt ? (
-                        <span>
-                          مستخدم{" "}
-                          {usedRef && (
-                            <Link href={`/admin/bookings/${usedRef}`} className="text-sign hover:underline">
-                              <bdi dir="ltr">{bookingNo(usedNo)}</bdi>
-                            </Link>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-sign">لم يُستخدم</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-2.5 px-3 text-end">
                       {!p.usedAt && (
-                        <ActionForm action={resendPromo} submitLabel="إرسال مرة أخرى" pendingLabel="جارٍ الإرسال…" submitClassName="btn btn-ghost border border-line !min-h-8 !py-0.5 text-xs" className="">
+                        <ActionForm action={resendPromo} submitLabel="إرسال الرمز مرة أخرى" pendingLabel="جارٍ الإرسال…" submitClassName="btn btn-ghost border border-line !min-h-8 !py-0.5 text-xs" className="">
                           <input type="hidden" name="id" value={p.id} />
                         </ActionForm>
                       )}

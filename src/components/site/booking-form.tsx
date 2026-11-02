@@ -116,14 +116,14 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
         <fieldset>
           <legend className="text-xl font-semibold mb-1">{t.route.chooseVehicle}</legend>
           {vat.rateBp > 0 && <p className="text-sm text-muted mb-4">{vatNote(vat, lang)}</p>}
-          {/* the cars as squares, two to a row */}
-          <div className="grid grid-cols-2 gap-3" role="radiogroup" data-testid="vehicle-grid">
+          {/* the cars as small squares: two to a row on phones, four on wider screens */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5" role="radiogroup" data-testid="vehicle-grid">
             {trips.map((x) => {
               const active = x.id === trip.id;
               return (
                 <label
                   key={x.id}
-                  className={`relative flex flex-col items-center justify-between gap-2 rounded-xl border p-3 sm:p-4 text-center cursor-pointer bg-paper sm:aspect-square ${
+                  className={`relative flex flex-col items-center justify-between gap-1 rounded-xl border p-2.5 text-center text-sm cursor-pointer bg-paper aspect-square ${
                     active ? "border-sign ring-2 ring-sign" : "border-line hover:border-muted"
                   }`}
                 >
@@ -135,16 +135,16 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
                     onChange={() => setTripId(x.id)}
                     className="sr-only"
                   />
-                  <Image src={x.imageUrl ?? `/vehicles/${x.category}.svg`} alt="" width={200} height={84} className="w-full max-w-[200px] h-auto max-h-28 object-contain rtl:-scale-x-100 mt-2" unoptimized />
+                  <Image src={x.imageUrl ?? `/vehicles/${x.category}.svg`} alt="" width={200} height={84} className="w-full max-w-[100px] h-auto max-h-12 object-contain rtl:-scale-x-100 mt-1.5" unoptimized />
                   <span className="min-w-0">
-                    <span className="block font-semibold">{x.name}</span>
-                    <span className="block text-sm text-muted">{x.categoryLabel}</span>
-                    <span className="mt-1 flex flex-wrap justify-center gap-x-3 text-sm text-muted tabular">
+                    <span className="block font-semibold leading-tight">{x.name}</span>
+                    <span className="block text-xs text-muted">{x.categoryLabel}</span>
+                    <span className="mt-0.5 flex flex-wrap justify-center gap-x-2.5 text-xs text-muted tabular">
                       <span className="inline-flex items-center gap-1">
-                        <PersonIcon className="size-4" /> {formatNumber(x.passengers, lang)}
+                        <PersonIcon className="size-3.5" /> {formatNumber(x.passengers, lang)}
                       </span>
                       <span className="inline-flex items-center gap-1">
-                        <BagIcon className="size-4" /> {formatNumber(x.bags, lang)}
+                        <BagIcon className="size-3.5" /> {formatNumber(x.bags, lang)}
                       </span>
                     </span>
                   </span>
@@ -152,10 +152,10 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
                     {x.compareAtPrice && x.compareAtPrice > x.price && (
                       <span className="block text-xs text-muted line-through tabular">{formatSAR(displayPrice(x.compareAtPrice, vat), lang)}</span>
                     )}
-                    <span className="block font-display font-semibold text-lg tabular">{formatSAR(displayPrice(x.price, vat), lang)}</span>
+                    <span className="block font-display font-semibold tabular">{formatSAR(displayPrice(x.price, vat), lang)}</span>
                   </span>
                   {active && (
-                    <span className="absolute -top-2.5 start-3 inline-flex items-center gap-1 rounded-full bg-sign text-white text-xs px-2 py-0.5">
+                    <span className="absolute -top-2.5 start-2 inline-flex items-center gap-1 rounded-full bg-sign text-white text-xs px-2 py-0.5">
                       <CheckIcon className="size-3" />
                       {t.route.selected}
                     </span>

@@ -1402,26 +1402,37 @@ if (!ONLY || ONLY === "features") {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     assert((await page.locator("footer").innerText()).includes("جميع الحقوق محفوظة"), "back to the default");
     eq(await page.locator('footer nav[aria-label="Footer"] a').count(), 6, "links back");
+    // the booking box: the same tall rectangle in Arabic and English (on the left in both)
+    const sizes = [];
+    for (const l of ["ar", "en"]) {
+      await page.goto(`${BASE}/${l}`, { waitUntil: "networkidle" });
+      const r = await page.getByTestId("booking-box").boundingBox();
+      sizes.push({ x: Math.round(r.x), w: Math.round(r.width), h: Math.round(r.height) });
+    }
+    eq(JSON.stringify(sizes[0]), JSON.stringify(sizes[1]), "same box in both languages");
+    assert(sizes[0].h > sizes[0].w * 1.3 && sizes[0].x < 640, "tall, on the left: " + JSON.stringify(sizes[0]));
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     // the hourly tab is just "بالساعة"; cars as squares, two to a row
     eq(await page.getByRole("tab", { name: "بالساعة", exact: true }).count(), 1, "hourly tab label");
     await page.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
     const boxes = await page.getByTestId("vehicle-grid").locator("label").evaluateAll((ls) => ls.slice(0, 2).map((l) => l.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) })));
-    eq(boxes[0].top, boxes[1].top, "two in a row");
+    eq(boxes[0].top, boxes[1].top, "side by side");
+    assert(boxes[0].w < 220, "small squares: " + boxes[0].w);
     assert(Math.abs(boxes[0].w - boxes[0].h) <= 2, "square: " + JSON.stringify(boxes[0]));
   });
 
   await check("promo codes: every Nth paid booking (set in the panel) sends the customer a code on WhatsApp and email; it takes its % off the next booking once; listed in the panel", async () => {
     const phone = "+966557778899", local = "0557778899";
-    sql(`delete from promo_codes; delete from notifications where recipient in ('${phone}','vip.customer@example.com'); delete from bookings where customer_phone='${phone}'`);
+    sql(`delete from promo_codes; delete from notifications where recipient in ('${phone}','vip.customer@example.com','guest.vip@example.com','+971501112233'); delete from bookings where customer_phone='${phone}'`);
     // the panel: every 2 bookings, 20% off
     await a.goto(`${BASE}/admin/promos`, { waitUntil: "networkidle" });
     const f = a.getByTestId("promo-settings");
-    eq(await f.locator('select[name="promo_every"]').inputValue(), "5", "every 5 by default");
-    for (const n of ["5", "10", "20"]) assert(await f.locator(`select[name="promo_every"] option[value="${n}"]`).count(), "choice " + n);
-    await f.locator('select[name="promo_every"]').selectOption("3");
+    eq(await f.locator('input[name="promo_every"]').inputValue(), "5", "every 5 by default");
+    await f.locator('input[name="promo_every"]').fill("7"); // any number the admin wants
     await f.locator('input[name="promo_percent"]').fill("20");
     await f.getByRole("button", { name: "حفظ" }).click();
     await a.getByText("تم حفظ إعدادات الرموز الترويجية.").waitFor();
+    eq(sql("select value from settings where key='promo_every'"), "7", "saved");
     sql("update settings set value='2' where key='promo_every'"); // 2 for a quicker test (saved values go through the same reader)
     await mf("/__wa_reset");
     const book = async (o = {}) => {
@@ -1438,10 +1449,24 @@ if (!ONLY || ONLY === "features") {
     const waMsg = (await mf("/__wa")).find((m) => (m.text?.body ?? "").includes(code));
     assert(waMsg && waMsg.to === "966557778899", "sent on WhatsApp");
     eq(sql(`select count(*) from notifications where kind='promo_code' and channel='email' and recipient='vip.customer@example.com' and body like '%${code}%'`), "1", "and by email");
-    // listed in the panel: name, mobile, email, date
+    // listed in the panel: name, WhatsApp number, email
     await a.goto(`${BASE}/admin/promos`, { waitUntil: "networkidle" });
     const row = await a.getByTestId("promo-list").locator(`tr[data-code="${code}"]`).innerText();
-    for (const x of ["عميل مميز", phone, "vip.customer@example.com", code]) assert(row.includes(x), `list shows ${x}: ${row}`);
+    for (const x of ["عميل مميز", phone, "vip.customer@example.com"]) assert(row.includes(x), `list shows ${x}: ${row}`);
+    // the admin adds a customer by hand: a code is made and sent
+    const add = a.getByTestId("promo-add");
+    await add.locator('input[name="name"]').fill("ضيف خاص");
+    await add.locator('select[name="phoneCountry"]').selectOption("AE");
+    await add.locator('input[name="phone"]').fill("0501112233");
+    await add.locator('input[name="email"]').fill("guest.vip@example.com");
+    await add.getByRole("button", { name: "إضافة وإرسال الرمز" }).click();
+    await a.getByText("تمت إضافة ضيف خاص وإرسال الرمز").waitFor();
+    const manual = sql("select code, bookings_count from promo_codes where customer_phone='+971501112233'").split("|");
+    assert(/^VIP/.test(manual[0]) && manual[1] === "0", "manual code: " + manual);
+    assert((await mf("/__wa")).some((m) => m.to === "971501112233" && (m.text?.body ?? "").includes(manual[0])), "sent on WhatsApp");
+    eq(sql(`select count(*) from notifications where kind='promo_code' and channel='email' and recipient='guest.vip@example.com'`), "1", "and by email");
+    await a.reload({ waitUntil: "networkidle" });
+    assert((await a.getByTestId("promo-list").locator(`tr[data-code="${manual[0]}"]`).innerText()).includes("ضيف خاص"), "listed");
     // a wrong code is refused in the form and on the server
     await cp.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
     await cp.getByRole("radiogroup").getByText("تويوتا كامري", { exact: true }).click();
@@ -1462,7 +1487,7 @@ if (!ONLY || ONLY === "features") {
     await fillBooking(cp, { vehicle: "تويوتا كامري", date: inDays(4), before: async (p) => { await p.fill("#promo", code); } });
     await cp.getByText("الرمز الترويجي غير صحيح أو مستخدم من قبل.").waitFor();
     await a.goto(`${BASE}/admin/promos`, { waitUntil: "networkidle" });
-    eq(await a.getByTestId("promo-list").locator(`tr[data-code="${code}"] [data-status]`).getAttribute("data-status"), "used", "shown as used");
+    eq(await a.getByTestId("promo-list").locator(`tr[data-code="${code}"]`).getAttribute("data-status"), "used", "shown as used");
     sql("update settings set value='5' where key='promo_every'; update settings set value='10' where key='promo_percent'");
   });
 

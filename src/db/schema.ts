@@ -16,7 +16,7 @@ import {
   pgSequence,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 
@@ -637,7 +637,7 @@ export const promoCodes = pgTable(
     customerEmail: text("customer_email"),
     /** the discount, % of the price before VAT */
     percent: integer("percent").notNull(),
-    /** earned at this many paid bookings */
+    /** earned at this many paid bookings; 0 = added and sent by the admin */
     bookingsCount: integer("bookings_count").notNull(),
     /** the booking that earned it */
     earnedBookingId: uuid("earned_booking_id").references(() => bookings.id, { onDelete: "set null" }),
@@ -645,6 +645,7 @@ export const promoCodes = pgTable(
     usedBookingId: uuid("used_booking_id").references(() => bookings.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("promo_codes_customer_count").on(t.customerPhone, t.bookingsCount)],
+  // one code per milestone; codes the admin sends by hand have bookingsCount 0
+  (t) => [uniqueIndex("promo_codes_customer_count").on(t.customerPhone, t.bookingsCount).where(sql`${t.bookingsCount} > 0`)],
 );
 export type PromoCode = typeof promoCodes.$inferSelect;

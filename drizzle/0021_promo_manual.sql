@@ -1,0 +1,2 @@
+DROP INDEX "promo_codes_customer_count";--> statement-breakpoint
+CREATE UNIQUE INDEX "promo_codes_customer_count" ON "promo_codes" USING btree ("customer_phone","bookings_count") WHERE "promo_codes"."bookings_count" > 0;

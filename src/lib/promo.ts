@@ -11,7 +11,6 @@ import { formatNumber } from "./format";
  * earns a code, sent on WhatsApp and email. The code takes a percentage off the next booking (before VAT), once.
  */
 
-export const PROMO_EVERY_CHOICES = [3, 5, 10, 15, 20] as const;
 export const DEFAULT_PROMO_EVERY = 5;
 export const DEFAULT_PROMO_PERCENT = 10;
 
@@ -33,7 +32,7 @@ export const cleanCode = (v: unknown) =>
     .slice(0, 20);
 
 const ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-const newCode = () => "VIP" + Array.from({ length: 6 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
+export const newCode = () => "VIP" + Array.from({ length: 6 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
 
 /** a code that can still be used, or null */
 export async function usablePromo(code: string) {
@@ -96,16 +95,17 @@ export async function sendPromo(p: typeof s.promoCodes.$inferSelect, lang: "ar" 
   const ar = lang === "ar";
   const n = formatNumber(p.bookingsCount, lang);
   const pct = formatNumber(p.percent, lang);
+  const manual = p.bookingsCount === 0;
   const body = ar
     ? [
         `مرحبًا ${p.customerName}، شكرًا لثقتك بنا!`,
-        `بمناسبة حجزك رقم ${n} معنا، هذا رمز ترويجي خاص لك: ${p.code}`,
+        manual ? `هذا رمز ترويجي خاص لك: ${p.code}` : `بمناسبة حجزك رقم ${n} معنا، هذا رمز ترويجي خاص لك: ${p.code}`,
         `خصم ${pct}٪ على حجزك القادم. اكتبه في خانة «الرمز الترويجي» وقت الحجز.`,
         "شكرًا لكم لاختياركم Mighty Hands Trans.",
       ].join("\n")
     : [
         `Hello ${p.customerName}, thank you for riding with us!`,
-        `For your booking number ${n}, here is your own promo code: ${p.code}`,
+        manual ? `Here is your own promo code: ${p.code}` : `For your booking number ${n}, here is your own promo code: ${p.code}`,
         `${pct}% off your next booking. Type it in the "Promo code" box when you book.`,
         "Thank you for choosing Mighty Hands Trans.",
       ].join("\n");

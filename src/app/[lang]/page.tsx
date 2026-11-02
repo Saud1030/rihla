@@ -26,7 +26,7 @@ export default async function HomePage() {
         </Suspense>
         {/* wide screens: the text on one side, the booking box as a tall panel on the left; phones: text, then the box */}
         <div
-          className={`relative mx-auto max-w-6xl px-4 py-8 md:py-12 grid gap-6 lg:items-center lg:gap-10 ${lang === "ar" ? "lg:grid-cols-[minmax(0,1fr)_23rem]" : "lg:grid-cols-[23rem_minmax(0,1fr)]"}`}
+          className={`relative mx-auto max-w-6xl px-4 py-8 md:py-12 grid gap-6 md:items-center md:gap-10 ${lang === "ar" ? "md:grid-cols-[minmax(0,1fr)_23rem]" : "md:grid-cols-[23rem_minmax(0,1fr)]"}`}
         >
           <Suspense
             fallback={
@@ -39,7 +39,7 @@ export default async function HomePage() {
             <HeroText lang={lang} t={t} />
           </Suspense>
 
-          <div className={`booking-box sign-reveal p-4 md:p-5 w-full max-w-[50rem] lg:min-h-[30rem] ${lang === "ar" ? "" : "lg:order-first"}`} data-testid="booking-box">
+          <div className={`booking-box sign-reveal p-5 w-full max-w-[23rem] md:min-h-[38rem] mx-auto md:mx-0 ${lang === "ar" ? "" : "md:order-first"}`} data-testid="booking-box">
             <Suspense fallback={<SearchFormSkeleton />}>
               <TripSearch lang={lang} t={t} id="search" />
             </Suspense>

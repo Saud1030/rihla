@@ -148,6 +148,13 @@
       "when": 1793632278693,
       "tag": "0020_promo_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793635768929,
+      "tag": "0021_promo_manual",
+      "breakpoints": true
     }
   ]
 }

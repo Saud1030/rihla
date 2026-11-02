@@ -33,7 +33,7 @@ export function PhoneCountryField({
       {/* number reads left to right: +966 | 5XXXXXXXX */}
       <div className="flex gap-2" dir="ltr">
         <div className="relative shrink-0" data-testid="phone-country">
-          <span aria-hidden className="field flex items-center gap-1.5 !w-auto pe-7 whitespace-nowrap tabular pointer-events-none">
+          <span aria-hidden className="field flex items-center gap-1.5 !w-auto whitespace-nowrap tabular pointer-events-none" style={{ paddingInlineEnd: "2rem" }}>
             <span className="text-lg leading-none">{flag(cur.iso)}</span>+{cur.code}
             <svg viewBox="0 0 20 20" className="absolute end-2 top-1/2 -translate-y-1/2 size-4 text-muted" aria-hidden>
               <path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" />
