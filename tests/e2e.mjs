@@ -134,7 +134,7 @@ if (!ONLY || ONLY === "flow") {
   await check("valid booking -> checkout shows server price, masked phone, MyFatoorah button", async () => {
     ref = await makeBooking(page, { vehicle: "جمس يوكن XL" });
     await page.getByText("+9665•", { exact: false }).waitFor();
-    await page.getByRole("button", { name: /ادفع ٥٥٢ ر\.س/ }).waitFor();
+    await page.getByRole("button", { name: /ادفع ٥٥٢ \u20C1/ }).waitFor();
     eq(bookingRow(ref).amount, 55200, "amount in DB (480 + 15% VAT)");
   });
   await check("SendPayment gets the right amount, reference and callback", async () => {
@@ -1146,7 +1146,11 @@ if (!ONLY || ONLY === "features") {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     const src = await page.locator("header img").getAttribute("src");
     assert(/^\/api\/brand\/logo\?v=/.test(src), "logo src " + src);
-    assert(await page.locator(`link[rel="icon"][href^="/api/brand/logo"]`).count(), "favicon");
+    // the logo is the browser tab icon (drawn square by /api/brand/favicon)
+    const icon = await page.locator('link[rel="icon"][href^="/api/brand/favicon"]').first().getAttribute("href");
+    assert(icon && icon.includes("v="), "favicon " + icon);
+    const ic = await fetch(BASE + icon);
+    eq(ic.headers.get("content-type"), "image/png", "favicon is the logo as PNG");
     const r = await fetch(BASE + src);
     eq(r.headers.get("content-type"), "image/png", "type");
     assert(r.headers.get("content-security-policy").includes("sandbox"), "csp sandbox");
@@ -1800,6 +1804,7 @@ if (!ONLY || ONLY === "features") {
     assert((await card.getByTestId("package-installments").innerText()).includes("على ٣ دفعات"), "3 payments");
     await card.getByRole("link", { name: "احجز الباقة" }).click();
     await cp.waitForURL(new RegExp(`/ar/packages/${pid}$`), { waitUntil: "commit" });
+    await cp.getByTestId("package-part").first().waitFor();
     eq(await cp.getByTestId("package-part").count(), 3, "schedule of 3");
     const pf = cp.getByTestId("package-form");
     await pf.locator("#date").fill(inDays(6));
@@ -1885,12 +1890,14 @@ if (!ONLY || ONLY === "features") {
     await cp.getByTestId("booking-installments").locator('[data-due="after"]').getByText("بعد الرحلة").waitFor();
     // the trip ends: the after-trip link goes out on WhatsApp by itself
     await mf("/__wa_reset");
+    const did = sql("insert into drivers (name, phone, plate_number, car_type) values ('سائق الباقة', '+966550000881', 'ب ب ب ٨٨١', 'كامري') returning id").split("\n")[0];
+    sql(`update bookings set driver_id=${did}, status='confirmed' where ref='${ref}'`);
     await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
     await a.getByRole("button", { name: /انتهت الرحلة/ }).first().click();
     await a.waitForURL(/completed=/, { waitUntil: "commit" });
     eq(sql(`select link_sent_at is not null from installments i join bookings b on b.id=i.booking_id where b.ref='${ref}' and i.seq=2`), "t", "link sent");
     assert((await mf("/__wa")).some((m) => m.to === "966556660022" && (m.text?.body ?? "").includes("/ar/pay/")), "on WhatsApp");
-    sql("delete from packages");
+    sql(`delete from bookings where ref='${ref}'; delete from drivers where id=${did}; delete from packages`);
   });
   await check("payment voucher on WhatsApp as soon as it's paid (not an invoice); the tax invoice comes with the rating when the trip ends", async () => {
     const setSetting = (k, v) => sql(`insert into settings(key,value) values('${k}','${v}') on conflict (key) do update set value=excluded.value`);
@@ -2162,10 +2169,11 @@ if (!ONLY || ONLY === "features") {
     eq(sql("select value from settings where key='bank_iban'"), IBAN, "IBAN normalised");
     eq(sql("select value from settings where key='bank_enabled'"), "1", "enabled");
   });
-  await check("checkout offers exactly two ways to pay, no card brand list", async () => {
+  await check("checkout offers exactly three ways to pay (online, transfer, cash), no card brand list", async () => {
     const ref = await makeBooking(bp, { date: inDaysUTC(3) });
     await bp.locator("[data-method]").first().waitFor();
-    eq(await bp.locator("[data-method]").count(), 2, "two methods");
+    eq(await bp.locator("[data-method]").count(), 3, "three methods");
+    eq(await bp.locator('[data-method="cash"]').count(), 1, "cash to the driver");
     eq(await bp.locator('[data-method="myfatoorah"]').count(), 1, "MyFatoorah");
     eq(await bp.locator('[data-method="bank_transfer"]').count(), 1, "bank transfer");
     const txt = await bp.textContent("main");
@@ -2174,13 +2182,13 @@ if (!ONLY || ONLY === "features") {
     assert(!(await bp.textContent("body")).includes("Apple Pay"), "home doesn't list card brands");
     void ref;
   });
-  await check("bank transfer disabled -> only MyFatoorah is offered", async () => {
+  await check("bank transfer disabled -> MyFatoorah and cash are offered", async () => {
     await saveBank(() => a.uncheck('input[name="bank_enabled"]'));
     await a.getByText("تم حفظ بيانات التحويل البنكي.").waitFor();
     const ref = await makeBooking(bp, { date: inDaysUTC(3) });
     await bp.locator("[data-method]").first().waitFor();
-    eq(await bp.locator("[data-method]").count(), 1, "one method");
-    eq(await bp.locator('[data-method="myfatoorah"]').count(), 1, "MyFatoorah only");
+    eq(await bp.locator("[data-method]").count(), 2, "two methods");
+    eq(await bp.locator('[data-method="bank_transfer"]').count(), 0, "no bank transfer");
     await saveBank(() => a.check('input[name="bank_enabled"]'));
     await a.getByText("تم حفظ بيانات التحويل البنكي.").waitFor();
     void ref;

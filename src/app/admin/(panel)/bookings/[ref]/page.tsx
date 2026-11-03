@@ -75,11 +75,19 @@ async function Detail({
 }) {
   await requireSection("bookings");
   const { ref } = await params;
-  const completedNote = {
-    sent: "انتهت الرحلة وأُرسل للعميل طلب التقييم على واتساب.",
-    ready: "انتهت الرحلة. رسالة طلب التقييم جاهزة في قائمة الرسائل بالأسفل.",
-    none: "انتهت الرحلة.",
-  }[String((await searchParams).completed ?? "") as "sent" | "ready" | "none"];
+  const sp = await searchParams;
+  const completedNote =
+    sp.cash === "1"
+      ? "تم تسجيل استلام المبلغ كاش، ووصل العميل سند الصرف."
+      : sp.einvoice === "reported"
+        ? "تم إرسال الفاتورة لوافق والإبلاغ عنها لهيئة الزكاة."
+        : sp.einvoice === "sent"
+          ? "تم إرسال الفاتورة لوافق."
+          : {
+          sent: "انتهت الرحلة وأُرسل للعميل طلب التقييم على واتساب.",
+          ready: "انتهت الرحلة. رسالة طلب التقييم جاهزة في قائمة الرسائل بالأسفل.",
+          none: "انتهت الرحلة.",
+        }[String(sp.completed ?? "") as "sent" | "ready" | "none"];
   const [b, settings] = await Promise.all([
     getBookingWithPayments(ref),
     getSettings(),

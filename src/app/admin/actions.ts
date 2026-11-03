@@ -964,7 +964,8 @@ export async function confirmCash(_prev: ActionState, formData: FormData): Promi
   if (!done) return { error: "لا يمكن التسجيل: الحجز ليس كاش أو مسجّل من قبل." };
   revalidatePath(`/admin/bookings/${done.ref}`);
   revalidatePath("/admin");
-  return { ok: true, message: "تم تسجيل استلام المبلغ كاش، ووصل العميل سند الصرف." };
+  // the card with the button goes away once paid, so the note shows at the top of the page
+  redirect(`/admin/bookings/${done.ref}?cash=1`);
 }
 
 const bankSchema = z.object({
@@ -1082,5 +1083,7 @@ export async function resendEinvoice(_prev: ActionState, formData: FormData): Pr
   const b = await pushEinvoice(String(formData.get("id") ?? ""));
   if (!b) return { error: "لا توجد فاتورة لهذا الحجز بعد (تصدر لما تنتهي الرحلة)." };
   revalidatePath(`/admin/bookings/${b.ref}`);
-  return b.einvoiceStatus === "failed" ? { error: `لم تُرسل: ${b.einvoiceError}` } : { ok: true, message: b.einvoiceStatus === "reported" ? "تم إرسال الفاتورة لوافق والإبلاغ عنها لهيئة الزكاة." : "تم إرسال الفاتورة لوافق." };
+  if (b.einvoiceStatus === "failed") return { error: `لم تُرسل: ${b.einvoiceError}` };
+  // sent: the button goes away, so the note shows at the top of the page
+  redirect(`/admin/bookings/${b.ref}?einvoice=${b.einvoiceStatus === "reported" ? "reported" : "sent"}`);
 }
