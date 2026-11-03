@@ -1,4 +1,5 @@
 import "server-only";
+import { durationText } from "@/lib/policy";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 import { getDictionary } from "@/i18n/dictionaries";
@@ -15,7 +16,7 @@ const madeAt = (h: ExportHead) => `تاريخ ووقت التحميل: ${formatD
 type Row = Booking & TableBooking;
 const t = getDictionary("ar");
 const sar = (h: number | null | undefined) => (h == null ? null : h / 100);
-const to = (b: Row) => b.toName ?? (b.hours ? `بالساعة · ${b.hours} ساعة` : "");
+const to = (b: Row) => b.toName ?? (b.hours ? `مع سائق · ${durationText(b.hours)}` : "");
 
 const COLUMNS: { head: string; width: number; value: (b: Row) => string | number | null; money?: boolean }[] = [
   { head: "رقم الحجز", width: 11, value: (b) => bookingNo(b.number) },

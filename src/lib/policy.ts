@@ -8,6 +8,27 @@ export type HourPackage = (typeof HOUR_PACKAGES)[number];
 
 export const isHourPackage = (n: number): n is HourPackage => (HOUR_PACKAGES as readonly number[]).includes(n);
 
+/** a full-day booking can run several days (24 h each), picked as "from date to date" */
+export const MAX_DAYS = 30;
+export const cleanDays = (v: unknown) => {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n >= 1 ? Math.min(MAX_DAYS, n) : 1;
+};
+/** days between two YYYY-MM-DD dates (the end date is when the last day ends), at least 1 */
+export function daysBetween(from: string, to: string) {
+  const d = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5);
+  return Number.isFinite(d) ? Math.max(1, Math.min(MAX_DAYS, d)) : 1;
+}
+/** how long a booking is, for lists: "٣ أيام" or "١٢ ساعة" */
+export function durationText(hours: number, lang: "ar" | "en" = "ar") {
+  const f = (n: number) => n.toLocaleString(lang === "ar" ? "ar-SA" : "en-US");
+  if (hours >= 24 && hours % 24 === 0) {
+    const d = hours / 24;
+    return lang === "ar" ? (d === 1 ? "يوم كامل" : d === 2 ? "يومان" : d <= 10 ? `${f(d)} أيام` : `${f(d)} يومًا`) : d === 1 ? "1 day" : `${d} days`;
+  }
+  return lang === "ar" ? `${f(hours)} ساعة` : `${hours} hours`;
+}
+
 export function hourlyPrice(v: { hourly10: number; hourly12: number; hourly24: number }, hours: HourPackage) {
   return hours === 10 ? v.hourly10 : hours === 12 ? v.hourly12 : v.hourly24;
 }

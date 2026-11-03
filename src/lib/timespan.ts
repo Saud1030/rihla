@@ -24,7 +24,7 @@ export function addToClock(date: string | null, time: string, minutes: number) {
 export function formatEnd(time: string, dayOffset: number, locale: Locale) {
   const t = formatTime(time, locale);
   if (dayOffset <= 0) return t;
-  if (locale === "ar") return `${t} (${dayOffset === 1 ? "اليوم التالي" : `بعد ${dayOffset} أيام`})`;
+  if (locale === "ar") return `${t} (${dayOffset === 1 ? "اليوم التالي" : `بعد ${dayOffset.toLocaleString("ar-SA")} أيام`})`;
   return `${t} (${dayOffset === 1 ? "next day" : `+${dayOffset} days`})`;
 }
 

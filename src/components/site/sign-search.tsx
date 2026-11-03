@@ -5,6 +5,7 @@ import { formatDate, formatTime } from "@/lib/format";
 import { farEnough } from "@/lib/lead-time";
 import { useEarliest } from "./use-earliest";
 import { MorphButton } from "@/components/morph-button";
+import { daysBetween, durationText } from "@/lib/policy";
 import { addToClock, formatEnd, TIME_SLOTS } from "@/lib/timespan";
 
 export type ChoiceOption = {
@@ -24,6 +25,10 @@ export type SignSearchLabels = {
   pickupPlace: string;
   duration: string;
   hoursLabel: Record<10 | 12 | 24, string>;
+  /** "إلى تاريخ": the last day of a full-day booking */
+  endDate: string;
+  /** "المدة: {n}" */
+  daysCount: string;
   choose: string;
   chooseTime: string;
   date: string;
@@ -108,6 +113,10 @@ export function SignSearch({
   const [hours, setHours] = useState<10 | 12 | 24>(10);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  // full day or more: the customer picks the dates, from - to (each day is 24 hours from the pickup time)
+  const [endDate, setEndDate] = useState("");
+  const fullDays = mode === "hourly" && hours === 24;
+  const days = fullDays && date && endDate ? daysBetween(date, endDate) : 1;
   const [open, setOpen] = useState<Target | null>(null);
   const [nav, setNav] = useState<Nav>({});
   const [missing, setMissing] = useState<Field[]>([]);
@@ -200,7 +209,7 @@ export function SignSearch({
   const modes: Mode[] = ["transfer", ...(hourlyEnabled ? (["hourly"] as const) : []), ...(multiEnabled ? (["multi"] as const) : [])];
   const end =
     mode === "hourly" && time
-      ? addToClock(date || null, time, hours * 60)
+      ? addToClock(date || null, time, (fullDays ? days * 24 : hours) * 60)
       : null;
 
   /* ---------- panel content ---------- */
@@ -551,6 +560,7 @@ export function SignSearch({
         <>
           <input type="hidden" name="city" value={city} />
           <input type="hidden" name="hours" value={hours} />
+          {fullDays && <input type="hidden" name="days" value={days} />}
         </>
       )}
       {mode === "multi" && legs.map((l, i) => <input key={i} type="hidden" name={`l${i + 1}`} value={`${l.from},${l.to},${l.date},${l.time}`} />)}
@@ -734,6 +744,19 @@ export function SignSearch({
             className={`field ${missing.includes("date") ? "!border-danger ring-2 ring-danger/40" : ""}`}
           />
         </label>
+        {fullDays && (
+          <label className="block min-w-0 self-start" data-testid="end-date">
+            <span className="block text-sm text-white/85 mb-1">{L.endDate}</span>
+            <input
+              type="date"
+              value={endDate}
+              min={date ? addToClock(date, "00:00", 24 * 60).date : dayMin}
+              max={maxDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="field"
+            />
+          </label>
+        )}
         <label className="block min-w-0 self-start">
           <span className="block text-sm text-white/85 mb-1">{L.time}</span>
           <select
@@ -761,6 +784,7 @@ export function SignSearch({
 
       {end && (
         <p className="text-sm text-white/90" data-testid="ends-at">
+          {fullDays && <span className="me-3">{L.daysCount.replace("{n}", durationText(days * 24, lang))}</span>}
           {L.endsAt}:{" "}
           <span className="font-semibold">
             {formatEnd(end.time, end.dayOffset, lang)}

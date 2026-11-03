@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { seeOther } from "@/lib/http";
 import { isLocale } from "@/i18n/dictionaries";
 import { findRoute, getCatalog, getLocations, getSettings } from "@/lib/catalog";
-import { isHourPackage } from "@/lib/policy";
+import { cleanDays, isHourPackage } from "@/lib/policy";
 import { isClock, isDay } from "@/lib/timespan";
 import { legsFromParams } from "@/lib/multi";
 
@@ -43,7 +43,9 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/[lang]/search">)
   if (q.get("mode") === "hourly" && q.get("city")) {
     const city = (q.get("city") ?? "").slice(0, 80);
     const hours = Number(q.get("hours"));
-    if (/^[a-z0-9-]{1,80}$/.test(city) && isHourPackage(hours) && (await getSettings()).hourly_enabled !== "0") return go(`/${locale}/hourly`, { city, hours: String(hours) });
+    // a full day can run several days (the search box sends how many)
+    const extra: Record<string, string> = hours === 24 && cleanDays(q.get("days")) > 1 ? { days: String(cleanDays(q.get("days"))) } : {};
+    if (/^[a-z0-9-]{1,80}$/.test(city) && isHourPackage(hours) && (await getSettings()).hourly_enabled !== "0") return go(`/${locale}/hourly`, { city, hours: String(hours), ...extra });
     return back();
   }
 

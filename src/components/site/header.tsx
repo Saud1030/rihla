@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
 import type { Brand } from "@/lib/brand";
 import { LangSwitch } from "./lang-switch";
+import { GlassNav, type GlassLink } from "./glass-nav";
 
 export function Logo({ lang, brand }: { lang: Locale; brand: Brand }) {
   return (
@@ -21,43 +22,34 @@ export function Logo({ lang, brand }: { lang: Locale; brand: Brand }) {
 }
 
 export function SiteHeader({ lang, t, brand }: { lang: Locale; t: Dictionary; brand: Brand }) {
-  const links = [
-    { href: `/${lang}`, label: t.nav.home },
-    { href: `/${lang}/routes`, label: t.nav.routes },
-    { href: `/${lang}/fleet`, label: t.nav.fleet },
-    { href: `/${lang}/booking`, label: t.nav.myBooking },
-    { href: `/${lang}/contact`, label: t.nav.contact },
+  const links: GlassLink[] = [
+    { href: `/${lang}`, label: t.nav.home, icon: "home", exact: true },
+    { href: `/${lang}/routes`, label: t.nav.routes, icon: "routes" },
+    { href: `/${lang}/fleet`, label: t.nav.fleet, icon: "fleet" },
+    { href: `/${lang}/booking`, label: t.nav.myBooking, icon: "booking" },
+    { href: `/${lang}/contact`, label: t.nav.contact, icon: "contact" },
   ];
+  const themeLabels = lang === "ar" ? { dark: "الوضع الداكن", light: "الوضع الفاتح" } : { dark: "Dark mode", light: "Light mode" };
   return (
-    <header className="bg-paper border-b border-line">
+    <header className="site-header sticky top-0 z-40 border-b border-line">
       <div className="mx-auto max-w-6xl px-4 h-16 flex items-center gap-4">
         <Logo lang={lang} brand={brand} />
-        <nav className="hidden lg:flex items-center gap-1 ms-2" aria-label="Main">
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} className="px-3 py-2 rounded-md text-[15px] text-muted hover:text-ink hover:bg-stone">
-              {l.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="ms-auto flex items-center gap-2">
+        {/* the glass pill menu: in the middle on wide screens, in its own row on phones */}
+        <div className="hidden lg:flex flex-1 justify-center min-w-0">
+          <GlassNav links={links} themeLabels={themeLabels} />
+        </div>
+        <div className="ms-auto lg:ms-0 flex items-center gap-2">
           <Suspense fallback={<span className="px-3 py-2 text-[15px] text-muted">{t.nav.switchLang}</span>}>
             <LangSwitch lang={lang} label={t.nav.switchLang} />
           </Suspense>
-          <Link href={`/${lang}#search`} className="btn btn-primary !min-h-10 !py-2 text-[15px]">
+          <Link href={`/${lang}#search`} className="btn btn-primary !min-h-10 !py-2 text-[15px] rounded-full">
             {t.nav.book}
           </Link>
         </div>
       </div>
-      {/* Mobile nav */}
-      <nav className="lg:hidden border-t border-line overflow-x-auto" aria-label="Main mobile">
-        <div className="flex px-2">
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} className="px-3 py-2.5 text-sm text-muted whitespace-nowrap">
-              {l.label}
-            </Link>
-          ))}
-        </div>
-      </nav>
+      <div className="lg:hidden px-3 pb-2.5">
+        <GlassNav links={links} themeLabels={themeLabels} />
+      </div>
     </header>
   );
 }

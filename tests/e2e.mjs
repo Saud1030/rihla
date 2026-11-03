@@ -622,7 +622,7 @@ if (!ONLY || ONLY === "admin") {
     await a.getByText("كلمة المرور الحالية غير صحيحة").waitFor();
     await f.locator('input[name="current"]').fill("Admin12345"); await f.locator('input[name="next"]').evaluate((i) => { i.removeAttribute("minlength"); i.value = "short"; });
     await f.getByRole("button", { name: "تغيير كلمة المرور" }).click();
-    await a.getByText("١٠ أحرف على الأقل").waitFor();
+    await a.getByText("كلمة المرور الجديدة يجب أن تكون ١٠ أحرف على الأقل.").waitFor();
     await f.locator('input[name="next"]').fill("NewPassword123");
     await f.getByRole("button", { name: "تغيير كلمة المرور" }).click();
     await a.getByText("تم تغيير كلمة المرور.").waitFor();
@@ -690,6 +690,35 @@ if (!ONLY || ONLY === "ux") {
       if (v.length) problems.push(`${p} → ${v.join("; ")}`);
     }
     if (problems.length) fs.writeFileSync(process.env.AXE_OUT ?? "/dev/null", problems.join("\n"));
+    assert(!problems.length, problems.join(" || ").slice(0, 600));
+  });
+  await check("dark mode: the moon button switches the site to dark, it is remembered, and axe finds no contrast problems", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const dp = await ctx.newPage();
+    await dp.goto(BASE + "/ar", { waitUntil: "networkidle" });
+    eq(await dp.evaluate(() => document.documentElement.dataset.theme), "light", "starts light");
+    await dp.getByTestId("theme-toggle").first().click();
+    eq(await dp.evaluate(() => document.documentElement.dataset.theme), "dark", "now dark");
+    const bg = await dp.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    assert(/rgb\((\d+), (\d+), (\d+)\)/.exec(bg).slice(1).every((n) => Number(n) < 60), "dark page background: " + bg);
+    await dp.goto(BASE + "/ar/fleet", { waitUntil: "networkidle" });
+    eq(await dp.evaluate(() => document.documentElement.dataset.theme), "dark", "remembered on the next page");
+    // the glass menu: the bead sits under the current page
+    const bead = await dp.locator("[data-testid=glass-nav]:visible [data-bead]").boundingBox();
+    const cur = await dp.locator("[data-testid=glass-nav]:visible a[aria-current=page]").boundingBox();
+    assert(bead && cur && Math.abs(bead.x - cur.x) < 4 && Math.abs(bead.width - cur.width) < 4, `bead ${JSON.stringify(bead)} vs ${JSON.stringify(cur)}`);
+    const axeSrc = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    const ref = sql("select ref from bookings where status='pending_payment' limit 1");
+    const problems = [];
+    for (const p of ["/ar", "/en", "/ar/routes", "/ar/routes/makkah-madinah", `/ar/checkout/${ref}`, "/ar/fleet", "/ar/contact"]) {
+      await dp.goto(BASE + p, { waitUntil: "networkidle" });
+      await dp.evaluate(() => document.querySelectorAll("[data-reveal],[data-reveal-items]").forEach((e) => e.setAttribute("data-shown", "")));
+      await dp.waitForTimeout(1000);
+      await dp.addScriptTag({ content: axeSrc });
+      const v = await dp.evaluate(async () => (await window.axe.run(document, { resultTypes: ["violations"] })).violations.filter((x) => ["serious", "critical"].includes(x.impact)).map((x) => `${x.id}(${x.nodes.length}): ${x.nodes[0]?.target?.join(" ")}`));
+      if (v.length) problems.push(`${p} → ${v.join("; ")}`);
+    }
+    await ctx.close();
     assert(!problems.length, problems.join(" || ").slice(0, 600));
   });
   await check("load: 20 concurrent users for 8s on key pages, no errors", async () => {
@@ -1156,9 +1185,9 @@ if (!ONLY || ONLY === "features") {
     await fn();
     await submit(a, "حفظ السياسة");
   };
-  await check("chooser hourly tab: one city, 10/12/24 hours, date and time — all on the home page", async () => {
+  await check("chooser daily tab: one city, 10 or 12 hours or full days from a date to a date — all on the home page", async () => {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    await page.getByRole("tab", { name: "بالساعة", exact: true }).click();
+    await page.getByRole("tab", { name: "يومي", exact: true }).click();
     assert(page.url().endsWith("/ar"), "tab doesn't navigate away");
     eq(await page.locator("form#search button[aria-controls=search-panel]").count(), 2, "city and duration only");
     await page.getByRole("button", { name: "اعرض الأسعار" }).click();
@@ -1169,7 +1198,7 @@ if (!ONLY || ONLY === "features") {
     await page.locator("#search-panel").getByRole("button", { name: /^مكة المكرمة/ }).click();
     await page.locator("#search-panel").waitFor({ state: "detached" });
     // duration is chosen like a place: open the field, tap a package; every package works
-    for (const h of ["١٠ ساعات", "١٢ ساعة", "٢٤ ساعة"]) {
+    for (const h of ["١٠ ساعات", "١٢ ساعة", "يوم كامل أو أكثر"]) {
       await page.locator("form#search button[aria-controls=search-panel]").nth(1).click();
       await page.locator("#search-panel").getByRole("button", { name: h }).click();
       assert((await page.locator("form#search").textContent()).includes(h), "picked " + h);
@@ -1177,14 +1206,36 @@ if (!ONLY || ONLY === "features") {
     await page.fill('form#search input[name="date"]', inDaysUTC(2));
     await page.selectOption('form#search select[name="time"]', "18:00");
     assert((await page.getByTestId("ends-at").textContent()).includes("٦:٠٠ م (اليوم التالي)"), "18:00 + 24h shown on the sign");
+    // from date to date: 3 days
+    await page.getByTestId("end-date").locator("input").fill(inDaysUTC(5));
+    const sign = await page.getByTestId("ends-at").textContent();
+    assert(sign.includes("٣ أيام") && sign.includes("بعد ٣ أيام"), "3 days on the sign: " + sign);
     await page.getByRole("button", { name: "اعرض الأسعار" }).click();
-    await page.waitForURL(/\/ar\/hourly\?city=makkah&hours=24&date=/, { waitUntil: "commit" });
-    await page.getByRole("heading", { name: /سيارة مع سائق · ٢٤ ساعة/ }).waitFor();
+    await page.waitForURL(/\/ar\/hourly\?city=makkah&hours=24&days=3&date=/, { waitUntil: "commit" });
+    await page.getByRole("heading", { name: /سيارة مع سائق · ٣ أيام/ }).waitFor();
+    eq(await page.getByTestId("days-form").locator("select").inputValue(), "3", "days on the page");
     assert((await page.getByTestId("form-end").textContent()).includes("ينتهي الحجز"), "end shown on the form");
     eq(await page.getByTestId("hourly-city").innerText(), "مدينة مكة المكرمة", "city shown");
     // switching package keeps the city, date and time
     await page.getByRole("link", { name: "١٠ ساعات" }).click();
     await page.waitForURL(/\/ar\/hourly\?city=makkah&hours=10&date=.*&time=18/, { waitUntil: "commit" });
+  });
+  await check("daily: several full days cost the day price for each day, stored as days on the booking", async () => {
+    const day = Number(sql("select coalesce((select price from city_hourly_prices c join vehicles v on v.id=c.vehicle_id where c.city='makkah' and c.hours=24 and v.slug='toyota-camry'), (select hourly_24 from vehicles where slug='toyota-camry'))"));
+    await page.goto(`${BASE}/ar/hourly?city=makkah&hours=24&days=3`, { waitUntil: "networkidle" });
+    await page.getByRole("radiogroup").getByText("تويوتا كامري", { exact: true }).click();
+    await page.fill("#date", inDaysUTC(3)); await page.fill("#time", "09:00");
+    await page.fill("#passengers", "2"); await page.fill("#bags", "1");
+    await page.fill("#pickup", "فندق قرب الحرم"); await page.fill("#name", "عميل يومي"); await page.fill("#phone", "+966552223355");
+    await page.locator("form:has(#name) button[type=submit]").click();
+    await page.waitForURL(/\/checkout\/[A-Z0-9]{8}$/, { waitUntil: "commit" });
+    const ref = page.url().split("/").pop();
+    eq(sql(`select hours||','||duration_min||','||subtotal from bookings where ref='${ref}'`), `72,4320,${day * 3}`, "3 days = 72 h, 3 x the day price");
+    assert(sql(`select route_title from bookings where ref='${ref}'`).includes("٣ أيام"), "title says 3 days");
+    // forged: more than 30 days is capped
+    const r = await fetch(`${BASE}/ar/search?mode=hourly&city=makkah&hours=24&days=99`, { redirect: "manual" });
+    assert(r.headers.get("location").includes("days=30"), r.headers.get("location"));
+    sql(`delete from bookings where ref='${ref}'`);
   });
   let hourRef;
   await check("hourly 12h in a city: server price + VAT, city and end time stored, paid end to end", async () => {
@@ -1258,7 +1309,7 @@ if (!ONLY || ONLY === "features") {
     await savePolicy(() => a.uncheck('input[name="hourly_enabled"]'));
     await a.getByText("تم حفظ سياسة الإلغاء").waitFor();
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    eq(await page.getByRole("tab", { name: "بالساعة", exact: true }).count(), 0, "no hourly tab");
+    eq(await page.getByRole("tab", { name: "يومي", exact: true }).count(), 0, "no hourly tab");
     await page.goto(`${BASE}/ar/hourly?city=makkah&hours=12`, { waitUntil: "networkidle" });
     await page.getByText("الحجز بالساعة غير متاح").waitFor();
     const r = await fetch(`${BASE}/ar/search?mode=hourly&city=makkah&hours=12`, { redirect: "manual" });
@@ -1456,8 +1507,8 @@ if (!ONLY || ONLY === "features") {
     eq(JSON.stringify(sizes[0]), JSON.stringify(sizes[1]), "same box in both languages");
     assert(sizes[0].h > sizes[0].w * 1.3 && sizes[0].x < 640, "tall, on the left: " + JSON.stringify(sizes[0]));
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    // the hourly tab is just "بالساعة"; cars as squares, two to a row
-    eq(await page.getByRole("tab", { name: "بالساعة", exact: true }).count(), 1, "hourly tab label");
+    // the daily tab is "يومي"; cars as squares, two to a row
+    eq(await page.getByRole("tab", { name: "يومي", exact: true }).count(), 1, "hourly tab label");
     await page.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
     const boxes = await page.getByTestId("vehicle-grid").locator("label").evaluateAll((ls) => ls.slice(0, 2).map((l) => l.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) })));
     eq(boxes[0].top, boxes[1].top, "side by side");

@@ -12,7 +12,7 @@ import { maxBookingDate, newBookingRef, todayInRiyadh } from "@/lib/booking";
 import { earliestPickup, farEnough, parseLeadHours } from "@/lib/lead-time";
 import { cleanCode, discountFor, usablePromo } from "@/lib/promo";
 import { distancePrice, driveMinutes, parseVatConfig, roadKm, withVat } from "@/lib/pricing";
-import { hourlyPrice, isHourPackage } from "@/lib/policy";
+import { cleanDays, durationText, hourlyPrice, isHourPackage } from "@/lib/policy";
 import { phoneWithCountry } from "@/lib/phone";
 import { DEFAULT_COUNTRY, dialCode } from "@/lib/countries";
 import { multiTitle, parseLegs, quoteMultiTrip } from "@/lib/multi";
@@ -73,6 +73,8 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
   const hourlyFrom = String(formData.get("hourlyFrom") ?? "").slice(0, 80);
   const hourlyTo = String(formData.get("hourlyTo") ?? "").slice(0, 80);
   const hours = Number(formData.get("hours") ?? 0);
+  // a full day can run several days
+  const days = hours === 24 ? cleanDays(formData.get("days")) : 1;
   const hourlyCity = String(formData.get("hourlyCity") ?? "").slice(0, 80);
   const legSlugs = parseLegs(String(formData.get("legs") ?? ""));
 
@@ -93,7 +95,7 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
     ? await resolveDistanceTrip(Number(d.tripId.slice(2)), fromSlug, toSlug, locale)
     : d.tripId.startsWith("h:")
       ? hourlyCity
-        ? await resolveCityHourlyTrip(Number(d.tripId.slice(2)), hourlyCity, hours, locale)
+        ? await resolveCityHourlyTrip(Number(d.tripId.slice(2)), hourlyCity, hours, locale, days)
         : await resolveHourlyTrip(Number(d.tripId.slice(2)), hourlyFrom, hourlyTo, hours, locale)
       : d.tripId.startsWith("m:")
         ? await resolveMultiTrip(Number(d.tripId.slice(2)), legSlugs, locale)
@@ -318,7 +320,7 @@ async function resolveMultiTrip(vehicleId: number, legSlugs: [string, string][] 
 }
 
 /** a car with a driver for N hours in a city */
-async function resolveCityHourlyTrip(vehicleId: number, citySlug: string, hours: number, locale: Locale): Promise<Resolved | null> {
+async function resolveCityHourlyTrip(vehicleId: number, citySlug: string, hours: number, locale: Locale, days = 1): Promise<Resolved | null> {
   if (!isHourPackage(hours)) return null;
   const [setting] = await db.select().from(s.settings).where(eq(s.settings.key, "hourly_enabled")).limit(1);
   if (setting?.value === "0") return null;
@@ -327,12 +329,14 @@ async function resolveCityHourlyTrip(vehicleId: number, citySlug: string, hours:
   if (!vehicle || !city) return null;
   // a place in the city, so the booking shows up when filtering by city or destination
   const [place] = await db.select({ id: s.locations.id }).from(s.locations).where(and(eq(s.locations.city, city.slug), eq(s.locations.active, true))).orderBy(s.locations.sortOrder).limit(1);
-  const price = (await cityHourlyPrices(city.slug, hours, [vehicle])).get(vehicle.id)!;
+  // several full days: the day price for each day
+  const price = (await cityHourlyPrices(city.slug, hours, [vehicle])).get(vehicle.id)! * days;
+  const total = hours * days;
   const title =
     locale === "ar"
-      ? `سيارة مع سائق ${hours === 10 ? "١٠ ساعات" : hours === 12 ? "١٢ ساعة" : "٢٤ ساعة"} – مدينة ${city.nameAr}`
-      : `Car with driver, ${hours} hours – ${city.nameEn}`;
-  return { mode: "hourly", hours, hourlyCity: city.slug, tripId: null, vehicle, price, title, reversed: false, fromId: place?.id ?? null, toId: null, km: null, durationMin: hours * 60 };
+      ? `سيارة مع سائق ${durationText(total, "ar")} – مدينة ${city.nameAr}`
+      : `Car with driver, ${durationText(total, "en")} – ${city.nameEn}`;
+  return { mode: "hourly", hours: total, hourlyCity: city.slug, tripId: null, vehicle, price, title, reversed: false, fromId: place?.id ?? null, toId: null, km: null, durationMin: total * 60 };
 }
 
 /** The booking form checks a promo code before sending (the booking itself checks it again). */

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { durationText } from "@/lib/policy";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireSection } from "@/lib/auth";
@@ -128,7 +129,7 @@ async function Detail({
       b.pricingMode === "distance"
         ? `حسب المسافة (حوالي ${formatNumber(b.distanceKm ?? 0, "ar")} كم)`
         : b.pricingMode === "hourly"
-          ? `بالساعة مع سائق (${formatNumber(b.hours ?? 0, "ar")} ساعة)`
+          ? `سيارة مع سائق (${durationText(b.hours ?? 0)})`
           : b.pricingMode === "multi"
             ? "رحلة متعددة الوجهات (مجموع أسعار المراحل)"
             : "سعر ثابت",

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { durationText } from "@/lib/policy";
 import { getDictionary } from "@/i18n/dictionaries";
 import { bookingNo, formatDate, formatSAR, formatTime } from "@/lib/format";
 import type { TableBooking } from "@/lib/admin-data";
@@ -56,7 +57,7 @@ export function BookingsTable({ rows, empty = "لا توجد حجوزات.", amo
               <td className={`${td} whitespace-nowrap`}>{formatDate(b.pickupDate, "ar", { weekday: false })}</td>
               <td className={`${td} whitespace-nowrap`}>{formatTime(b.pickupTime, "ar")}</td>
               <td className={`${td} min-w-36`}>{b.fromName}</td>
-              <td className={`${td} min-w-36`}>{b.toName ?? (b.hours ? `بالساعة · ${b.hours} ساعة` : "—")}</td>
+              <td className={`${td} min-w-36`}>{b.toName ?? (b.hours ? `مع سائق · ${durationText(b.hours)}` : "—")}</td>
               <td className={`${td} whitespace-nowrap`}>{b.vehicleName}</td>
               <td className={`${td} whitespace-nowrap`}>{b.customerName}</td>
               <td className={`${td} whitespace-nowrap`}>

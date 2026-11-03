@@ -57,6 +57,8 @@ export async function signSearchProps(
       pickupPlace: t.search.pickupPlace,
       duration: t.search.duration,
       hoursLabel: t.search.hours,
+      endDate: t.search.endDate,
+      daysCount: t.search.daysCount,
       choose: t.search.choose,
       chooseTime: t.search.chooseTime,
       date: t.form.date,

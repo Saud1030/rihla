@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { CarLoader } from "@/components/site/car-loader";
+import { RouteLoader } from "@/components/site/route-loader";
+import { SITE_THEME_SCRIPT } from "@/lib/site-theme-script";
 import "../globals.css";
 import { dir, getDictionary, isLocale, locales, type Locale } from "@/i18n/dictionaries";
 import { site } from "@/config/site";
@@ -49,6 +52,9 @@ async function BrandShell({ lang, children }: { lang: Locale; children: React.Re
       <div className="contents print:hidden">
         <SiteFooter lang={lang} t={t} brand={brand} />
         <ChatLauncher lang={lang} t={t} />
+        <Suspense fallback={null}>
+          <RouteLoader label={lang === "ar" ? "جارٍ التحميل…" : "Loading…"} mark={brand.mark[lang]} />
+        </Suspense>
       </div>
     </>
   );
@@ -59,9 +65,19 @@ export default async function SiteLayout({ children, params }: LayoutProps<"/[la
   if (!isLocale(lang)) notFound();
 
   return (
-    <html lang={lang} dir={dir(lang)}>
+    <html lang={lang} dir={dir(lang)} suppressHydrationWarning>
+      <head>
+        {/* dark or light before the page paints */}
+        <script dangerouslySetInnerHTML={{ __html: SITE_THEME_SCRIPT }} />
+      </head>
       <body className="min-h-dvh flex flex-col">
-        <Suspense fallback={<div className="min-h-dvh" aria-busy="true" />}>
+        <Suspense
+          fallback={
+            <div className="min-h-dvh grid place-items-center" aria-busy="true">
+              <CarLoader label={lang === "ar" ? "لحظات ونكون جاهزين…" : "One moment…"} />
+            </div>
+          }
+        >
           <BrandShell lang={lang}>{children}</BrandShell>
         </Suspense>
       </body>
