@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatDate, formatTime } from "@/lib/format";
 import { farEnough } from "@/lib/lead-time";
 import { useEarliest } from "./use-earliest";
+import { MorphButton } from "@/components/morph-button";
 import { addToClock, formatEnd, TIME_SLOTS } from "@/lib/timespan";
 
 export type ChoiceOption = {
@@ -110,6 +111,13 @@ export function SignSearch({
   const [open, setOpen] = useState<Target | null>(null);
   const [nav, setNav] = useState<Nav>({});
   const [missing, setMissing] = useState<Field[]>([]);
+  // the "show prices" button turns while the next page loads; coming back with the browser's back button resets it
+  const [going, setGoing] = useState(false);
+  useEffect(() => {
+    const reset = () => setGoing(false);
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, []);
   // the nearest pickup that can be booked (now + the admin's hours); earlier days and times aren't offered
   const earliest = useEarliest(leadHours);
   const dayMin = earliest && earliest.date > minDate ? earliest.date : minDate;
@@ -521,7 +529,7 @@ export function SignSearch({
           e.preventDefault();
           setMissing(m);
           setOpen(null);
-        }
+        } else setGoing(true); // the prices page is loading
       }}
       onKeyDown={(e) => {
         if (e.key === "Escape" && open) {
@@ -654,9 +662,7 @@ export function SignSearch({
             ) : (
               <span />
             )}
-            <button type="submit" className="btn btn-amber w-full text-[17px]">
-              {L.showPrices}
-            </button>
+            <MorphButton type="submit" busy={going} label={L.showPrices} center className="btn btn-amber w-full text-[17px]" />
           </div>
         </div>
       ) : mode === "hourly" ? (
@@ -748,9 +754,7 @@ export function SignSearch({
             ))}
           </select>
         </label>
-        <button type="submit" className="btn btn-amber w-full text-[17px] @sm:col-span-2 @xl:col-span-full @3xl:col-span-1 @3xl:self-end">
-          {L.showPrices}
-        </button>
+        <MorphButton type="submit" busy={going} label={L.showPrices} center className="btn btn-amber w-full text-[17px] @sm:col-span-2 @xl:col-span-full @3xl:col-span-1 @3xl:self-end" />
       </div>
       )}
       {open === "hours" && panel}

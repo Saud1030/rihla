@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState } from "react";
 import type { ActionState } from "@/app/admin/actions";
+import { MorphButton } from "@/components/morph-button";
 
 /** A form bound to a server action, with a status line and a submit button. */
 export function ActionForm({
@@ -33,9 +34,16 @@ export function ActionForm({
     <form onSubmit={onSubmit} className={className}>
       {children}
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={pending || submitDisabled} className={submitClassName}>
-          {pending ? pendingLabel : submitLabel}
-        </button>
+        {/* animates while saving; "حذف…" buttons get the bin that eats its label */}
+        <MorphButton
+          type="submit"
+          busy={pending}
+          disabled={pending || submitDisabled}
+          label={submitLabel}
+          busyLabel={pendingLabel}
+          variant={/^(حذف|إلغاء الحجز|رفض)/.test(submitLabel) ? "delete" : "default"}
+          className={submitClassName}
+        />
         <p aria-live="polite" className="text-sm">
           {state.error && <span className="text-danger">{state.error}</span>}
           {state.ok && state.message && <span className="text-sign">{state.message}</span>}

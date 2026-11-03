@@ -1,5 +1,6 @@
 "use client";
 
+import { MorphButton } from "@/components/morph-button";
 import { startTransition, useActionState, useMemo, useState } from "react";
 import type { ActionState } from "@/app/admin/actions";
 import { CORNERS, DEFAULT_THEME, FONTS, PRESETS, isHex, themeCss, themeWarnings, type CornerKey, type FontKey, type Theme } from "@/lib/theme";
@@ -227,9 +228,7 @@ export function AppearanceForm({ action, initialTheme, initialTexts, placeholder
         </fieldset>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button type="submit" disabled={pending} className="btn btn-primary">
-            {pending ? "جارٍ الحفظ…" : "حفظ المظهر"}
-          </button>
+          <MorphButton type="submit" busy={pending} disabled={pending} label="حفظ المظهر" busyLabel="جارٍ الحفظ…" className="btn btn-primary" />
           <button
             type="button"
             className="btn btn-ghost"

@@ -1489,6 +1489,28 @@ if (!ONLY || ONLY === "features") {
     await a.evaluate(() => { localStorage.removeItem("admin-theme"); localStorage.removeItem("admin-menu"); });
   });
 
+  await check("buttons animate while they work: delete buttons' bin eats the label and the button turns into a turning circle; others fold into a circle", async () => {
+    sql("insert into admin_users(email, name, password_hash, role, permissions) values ('bin.test@example.com', 'حساب للحذف', 'x', 'staff', '[\"ratings\"]') on conflict do nothing");
+    await a.goto(`${BASE}/admin/users`, { waitUntil: "networkidle" });
+    const row = a.getByTestId("user-list").locator("li").filter({ hasText: "حساب للحذف" });
+    const del = row.getByRole("button", { name: "حذف" });
+    eq(await del.getAttribute("data-morph"), "delete", "delete look");
+    eq(await del.locator(".mb-bin .mb-lid").count(), 1, "a bin with a lid");
+    // hold the request a moment to see the busy state
+    await a.route("**/admin/users", async (r) => { if (r.request().method() === "POST") await new Promise((x) => setTimeout(x, 1500)); await r.continue().catch(() => {}); });
+    await del.click();
+    await a.locator('button[data-morph="delete"][aria-busy="true"]').waitFor();
+    await a.waitForTimeout(900);
+    const w = await a.locator('button[data-morph="delete"][aria-busy="true"]').evaluate((b) => { const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
+    assert(Math.abs(w[0] - w[1]) <= 2, "closed into a circle: " + w);
+    await a.waitForURL(/deleted=1/, { waitUntil: "commit" });
+    await a.unroute("**/admin/users");
+    eq(sql("select count(*) from admin_users where email='bin.test@example.com'"), "0", "deleted");
+    // the save buttons fold into the middle
+    await a.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+    eq(await a.getByRole("button", { name: "حفظ إعدادات الضريبة" }).getAttribute("data-morph"), "default", "save look");
+  });
+
   await check("animation: the home sections appear as they scroll into view; nothing is hidden for people who turn motion off", async () => {
     const pg = await ctx.newPage();
     await pg.goto(`${BASE}/ar`, { waitUntil: "networkidle" });

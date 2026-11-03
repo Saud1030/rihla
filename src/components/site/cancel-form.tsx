@@ -1,5 +1,6 @@
 "use client";
 
+import { MorphButton } from "@/components/morph-button";
 import { startTransition, useActionState, useState } from "react";
 import type { CancelState } from "@/app/actions/cancel";
 
@@ -62,9 +63,7 @@ export function CancelForm({ action, labels: L }: { action: (s: CancelState, f: 
         </p>
       )}
       <div className="flex flex-wrap gap-3">
-        <button type="submit" disabled={pending} className="btn !bg-danger !text-white">
-          {pending ? L.sending : L.submit}
-        </button>
+        <MorphButton type="submit" busy={pending} disabled={pending} label={L.submit} busyLabel={L.sending} variant="delete" className="btn !bg-danger !text-white" />
         <button type="button" onClick={() => setOpen(false)} className="btn btn-ghost" disabled={pending}>
           {L.keep}
         </button>

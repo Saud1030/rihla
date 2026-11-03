@@ -1,5 +1,6 @@
 "use client";
 
+import { MorphButton } from "@/components/morph-button";
 import { useActionState, useState } from "react";
 import Image from "next/image";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
@@ -356,10 +357,7 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
             {E.generic}
           </p>
         )}
-        <button type="submit" disabled={pending} className="btn btn-primary w-full mt-5 text-[17px]">
-          <LockIcon className="size-4" />
-          {pending ? t.form.sending : t.form.continue}
-        </button>
+        <MorphButton type="submit" busy={pending} disabled={pending} label={t.form.continue} busyLabel={t.form.sending} icon={<LockIcon className="size-4" />} center className="btn btn-primary w-full mt-5 text-[17px]" />
         <p className="mt-3 text-xs text-muted">{t.form.agree}</p>
       </aside>
     </form>

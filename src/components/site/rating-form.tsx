@@ -1,5 +1,6 @@
 "use client";
 
+import { MorphButton } from "@/components/morph-button";
 import { useActionState, useState } from "react";
 import { submitRating, type RateState } from "@/app/actions/rating";
 import type { Dictionary } from "@/i18n/dictionaries";
@@ -56,9 +57,7 @@ export function RatingForm({ token, t }: { token: string; t: Dictionary["rate"] 
           {state.error === "invalid" ? t.invalid : t.pick}
         </p>
       )}
-      <button type="submit" disabled={pending} className="btn btn-primary w-full sm:w-auto">
-        {pending ? t.sending : t.send}
-      </button>
+      <MorphButton type="submit" busy={pending} disabled={pending} label={t.send} busyLabel={t.sending} className="btn btn-primary w-full sm:w-auto" />
     </form>
   );
 }

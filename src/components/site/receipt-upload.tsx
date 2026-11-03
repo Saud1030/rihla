@@ -1,5 +1,6 @@
 "use client";
 
+import { MorphButton } from "@/components/morph-button";
 import { useActionState, useState } from "react";
 import type { ReceiptState } from "@/app/actions/receipt";
 
@@ -44,9 +45,7 @@ export function ReceiptUpload({ action, labels: L, again }: { action: (s: Receip
           {L.errors[state.error]}
         </p>
       )}
-      <button type="submit" disabled={pending} className="btn btn-primary">
-        {pending ? L.uploading : L.upload}
-      </button>
+      <MorphButton type="submit" busy={pending} disabled={pending} label={L.upload} busyLabel={L.uploading} className="btn btn-primary" />
     </form>
   );
 }

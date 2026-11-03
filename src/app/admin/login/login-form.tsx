@@ -1,5 +1,6 @@
 "use client";
 
+import { MorphButton } from "@/components/morph-button";
 import { startTransition, useActionState } from "react";
 import { login } from "../actions";
 
@@ -25,9 +26,7 @@ export function LoginForm() {
           {state.error}
         </p>
       )}
-      <button type="submit" disabled={pending} className="btn btn-primary w-full">
-        {pending ? "جارٍ الدخول…" : "دخول"}
-      </button>
+      <MorphButton type="submit" busy={pending} disabled={pending} label="دخول" busyLabel="جارٍ الدخول…" center className="btn btn-primary w-full" />
     </form>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { MorphButton } from "@/components/morph-button";
 import Link from "next/link";
 import { useActionState } from "react";
 import { applyAsDriver, type JoinState } from "@/app/actions/driver-apply";
@@ -148,9 +149,7 @@ export function DriverJoinForm({ lang, t, vehicles, years }: { lang: Locale; t: 
           {t.errors[state.formError]}
         </p>
       )}
-      <button type="submit" disabled={pending} className="btn btn-primary w-full sm:w-auto">
-        {pending ? t.sending : t.send}
-      </button>
+      <MorphButton type="submit" busy={pending} disabled={pending} label={t.send} busyLabel={t.sending} className="btn btn-primary w-full sm:w-auto" />
     </form>
   );
 }

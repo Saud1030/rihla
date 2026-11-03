@@ -451,3 +451,76 @@ li:hover > .chart-tip { opacity: 1; }
 :root:not([data-admin-theme="light"]) .admin-shell .site-island :is(.btn-primary, .bg-sign) { color: #fff; }
 /* links inside sentences are underlined, not told apart by colour alone */
 :root:not([data-admin-theme="light"]) .admin-shell :is(p, li, td, span, dd) > a.text-sign { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- Buttons that animate while they work (MorphButton) ---------- */
+.morph {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  max-width: 48rem;
+  /* coming back: at once */
+  transition: max-width 0.3s cubic-bezier(0.2, 0.7, 0.2, 1), padding 0.3s ease, border-radius 0.3s ease, background-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.morph .mb-label {
+  display: inline-block;
+  max-width: 30rem;
+  white-space: nowrap;
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 0.3s ease 0.1s, max-width 0.3s ease, opacity 0.2s ease 0.1s;
+}
+.morph .mb-bin { width: 18px; height: 18px; flex: none; overflow: visible; }
+.morph .mb-lid { transform-box: fill-box; transform-origin: 0% 100%; }
+[dir="rtl"] .morph .mb-lid { transform-origin: 100% 100%; }
+.morph .mb-ring {
+  position: absolute;
+  inset: 3px;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-inline-start-color: transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+/* while busy: the label goes, the button closes into a circle, the ring turns */
+.morph[data-busy] {
+  /* going: first the label is eaten, then the button closes */
+  transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1) 0.4s, padding 0.35s ease 0.4s, border-radius 0.3s ease 0.4s, background-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  max-width: var(--mb-h, 2.9rem);
+  min-width: var(--mb-h, 2.9rem);
+  justify-content: center;
+  padding-inline: 0;
+  border-radius: 9999px;
+  cursor: progress;
+}
+.morph[data-busy][data-center] { margin-inline: auto; }
+.morph[data-busy] .mb-label {
+  max-width: 0;
+  opacity: 0;
+  transition: clip-path 0.45s cubic-bezier(0.5, 0, 0.75, 0), max-width 0.35s ease 0.4s, opacity 0.2s ease 0.35s;
+}
+.morph[data-busy] .mb-ring { opacity: 1; transition-delay: 0.7s; animation: mb-spin 0.8s linear infinite; }
+.morph:disabled[data-busy] { opacity: 1; }
+/* the label is eaten towards the bin / folds into the middle */
+/* the letters next to the bin go first, as if it eats them */
+[dir="rtl"] .morph[data-busy][data-morph="delete"] .mb-label { clip-path: inset(0 100% 0 0); }
+[dir="ltr"] .morph[data-busy][data-morph="delete"] .mb-label { clip-path: inset(0 0 0 100%); }
+.morph[data-busy][data-morph="default"] .mb-label { clip-path: inset(0 50% 0 50%); }
+.morph[data-busy] .mb-lid { animation: mb-chomp 0.55s ease-in-out; }
+@keyframes mb-spin { to { rotate: 360deg; } }
+@keyframes mb-chomp {
+  0%, 100% { transform: none; }
+  25%, 70% { transform: rotate(-38deg) translateY(-1px); }
+}
+[dir="rtl"] .morph[data-busy] .mb-lid { animation-name: mb-chomp-rtl; }
+@keyframes mb-chomp-rtl {
+  0%, 100% { transform: none; }
+  25%, 70% { transform: rotate(38deg) translateY(-1px); }
+}
+/* the delete button's bin sits in the middle of the circle */
+.morph[data-busy][data-morph="delete"] { justify-content: center; gap: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .morph, .morph .mb-label { transition: none; }
+  .morph[data-busy] .mb-lid { animation: none; }
+  .morph[data-busy] .mb-ring { transition-delay: 0s; animation-duration: 1.6s; }
+}

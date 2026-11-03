@@ -1,5 +1,6 @@
 "use client";
 
+import { MorphButton } from "@/components/morph-button";
 import { startTransition, useActionState, useRef } from "react";
 import type { ActionState } from "@/app/admin/actions";
 
@@ -40,9 +41,7 @@ export function ChatReply({ id, action }: { id: string; action: (s: ActionState,
         />
       </label>
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={pending} className="btn btn-primary">
-          {pending ? "جارٍ الإرسال…" : "إرسال الرد"}
-        </button>
+        <MorphButton type="submit" busy={pending} disabled={pending} label="إرسال الرد" busyLabel="جارٍ الإرسال…" className="btn btn-primary" />
         <span className="text-xs text-muted">Enter للإرسال، Shift+Enter لسطر جديد</span>
         <p aria-live="polite" className="text-sm">
           {state.error && <span className="text-danger">{state.error}</span>}
