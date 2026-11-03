@@ -23,6 +23,9 @@ import { invalidateCatalogCache } from "@/lib/catalog";
 import { cancelPaidBooking, requestRefund } from "@/lib/cancellation";
 import { driveMinutes, roadKm } from "@/lib/pricing";
 import { detectFile, IMAGE_TYPES, MB } from "@/lib/files";
+import { recordCashPayment } from "@/lib/cash";
+import { pushEinvoice, wafeqAccounts } from "@/lib/einvoice";
+import { readSettings } from "@/lib/notify";
 import { issueReceipt } from "@/lib/documents";
 import { driverHold } from "@/lib/driver-hold";
 import { formatDateTime } from "@/lib/format";
@@ -954,12 +957,32 @@ export async function confirmBankTransfer(_prev: ActionState, formData: FormData
   return { ok: true, message: "تم تأكيد استلام التحويل. الحجز الآن مدفوع." };
 }
 
+/** The customer paid the driver (or the office) in cash: mark it received and send the payment voucher */
+export async function confirmCash(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const admin = await requireSection("bookings");
+  const done = await recordCashPayment(String(formData.get("id") ?? ""), admin.email);
+  if (!done) return { error: "لا يمكن التسجيل: الحجز ليس كاش أو مسجّل من قبل." };
+  revalidatePath(`/admin/bookings/${done.ref}`);
+  revalidatePath("/admin");
+  return { ok: true, message: "تم تسجيل استلام المبلغ كاش، ووصل العميل سند الصرف." };
+}
+
 const bankSchema = z.object({
   bank_enabled: z.enum(["0", "1"]),
   bank_name: z.string().trim().max(100),
   bank_account_name: z.string().trim().max(150),
   bank_iban: z.string().trim().max(40),
 });
+
+/** Cash to the driver on or off */
+export async function saveCashSetting(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("settings");
+  const value = formData.get("cash_enabled") === "on" ? "1" : "0";
+  await db.insert(s.settings).values({ key: "cash_enabled", value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
+  invalidateCatalogCache();
+  revalidatePath("/admin/settings");
+  return { ok: true, message: value === "1" ? "تم تفعيل الدفع كاش." : "تم إيقاف الدفع كاش." };
+}
 
 export async function saveBankSettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("settings");
@@ -1015,4 +1038,49 @@ export async function saveCityHourlyPrices(_prev: ActionState, formData: FormDat
   });
   revalidatePath("/admin/hourly-prices");
   return { ok: true, message: `تم حفظ أسعار مدينة ${c.nameAr}.` };
+}
+
+/* ---------- E-invoicing platform (Wafeq) ---------- */
+
+/** Provider, API key (kept when left empty), sales account, tax rate and ZATCA reporting */
+export async function saveEinvoiceSettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("settings");
+  const provider = formData.get("einv_provider") === "wafeq" ? "wafeq" : "";
+  const key = String(formData.get("wafeq_api_key") ?? "").trim();
+  const account = String(formData.get("wafeq_account") ?? "").trim().slice(0, 100);
+  const taxRate = String(formData.get("wafeq_tax_rate") ?? "").trim().slice(0, 100);
+  if (key && !/^[\w.\-:]{8,200}$/.test(key)) return { error: "مفتاح وافق غير صحيح." };
+  const st = await readSettings();
+  if (provider && !(key || st.wafeq_api_key)) return { error: "اكتب مفتاح API من وافق." };
+  if (provider && !account) return { error: "اختر حساب المبيعات (الإيرادات) في وافق." };
+  const rows: Record<string, string> = { einv_provider: provider, wafeq_account: account, wafeq_tax_rate: taxRate, einv_report: formData.get("einv_report") === "on" ? "1" : "0" };
+  if (key) rows.wafeq_api_key = key;
+  await db.transaction(async (tx) => {
+    for (const [k, value] of Object.entries(rows)) await tx.insert(s.settings).values({ key: k, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
+  });
+  invalidateCatalogCache();
+  revalidatePath("/admin/settings");
+  return { ok: true, message: provider ? "تم الحفظ. الفواتير تنرسل لوافق تلقائيًا لما تنتهي الرحلة." : "تم الحفظ. الربط مع منصة الفوترة موقوف." };
+}
+
+/** Try the saved key: lists the accounts so the right sales account can be chosen */
+export async function testEinvoice(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("settings");
+  const key = String(formData.get("wafeq_api_key") ?? "").trim() || (await readSettings()).wafeq_api_key;
+  if (!key) return { error: "اكتب مفتاح API أولًا." };
+  try {
+    const accounts = await wafeqAccounts(key);
+    return { ok: true, message: `الاتصال بوافق ناجح. الحسابات: ${accounts.slice(0, 8).map((a) => `${a.name} (${a.id})`).join("، ") || "لا يوجد"}` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "تعذّر الاتصال بوافق." };
+  }
+}
+
+/** Send a finished trip's invoice to the platform again (after fixing the settings) */
+export async function resendEinvoice(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("bookings");
+  const b = await pushEinvoice(String(formData.get("id") ?? ""));
+  if (!b) return { error: "لا توجد فاتورة لهذا الحجز بعد (تصدر لما تنتهي الرحلة)." };
+  revalidatePath(`/admin/bookings/${b.ref}`);
+  return b.einvoiceStatus === "failed" ? { error: `لم تُرسل: ${b.einvoiceError}` } : { ok: true, message: b.einvoiceStatus === "reported" ? "تم إرسال الفاتورة لوافق والإبلاغ عنها لهيئة الزكاة." : "تم إرسال الفاتورة لوافق." };
 }

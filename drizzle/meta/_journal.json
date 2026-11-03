@@ -162,6 +162,34 @@
       "when": 1793717879496,
       "tag": "0022_price_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793723734130,
+      "tag": "0023_seasons",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793724049526,
+      "tag": "0024_cash",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793724095480,
+      "tag": "0025_packages",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793724440898,
+      "tag": "0026_einvoice",
+      "breakpoints": true
     }
   ]
 }

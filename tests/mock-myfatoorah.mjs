@@ -25,6 +25,7 @@ let last = null;
 const refunds = [];
 let nextRefund = 900;
 const waMessages = [];
+const wafeqInvoices = [];
 const WA_TOKEN = process.env.WA_TOKEN ?? fs.readFileSync(".env", "utf8").match(/^WHATSAPP_TOKEN=(.*)$/m)?.[1]?.trim();
 
 const json = (res, code, body) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(body)); };
@@ -49,6 +50,33 @@ http
       return json(res, 200, inv);
     }
 
+    // ---- Wafeq (e-invoicing) stand-in: /wafeq/v1/... with "Authorization: Api-Key test-wafeq-key" ----
+    if (url.pathname === "/__wafeq") return json(res, 200, wafeqInvoices);
+    if (url.pathname.startsWith("/wafeq/v1/")) {
+      if (req.headers.authorization !== "Api-Key test-wafeq-key") return json(res, 401, { detail: "Invalid API key." });
+      const p = url.pathname.slice("/wafeq/v1".length);
+      if (p.startsWith("/accounts/") && req.method === "GET") return json(res, 200, { count: 2, results: [{ id: "acc_sales", name: "Sales", name_ar: "المبيعات", type: "REVENUE" }, { id: "acc_cash", name: "Cash", type: "ASSET" }] });
+      const body = JSON.parse((await readBody(req)) || "{}");
+      if (p === "/contacts/" && req.method === "POST") {
+        if (!body.name) return json(res, 400, { errors: [{ field: "name", message: "required" }] });
+        return json(res, 201, { id: `cnt_${wafeqInvoices.length + 1}`, ...body });
+      }
+      if (p === "/invoices/" && req.method === "POST") {
+        const bad = !String(body.contact ?? "").startsWith("cnt_") || !body.invoice_number || !(body.line_items ?? []).every((l) => l.account === "acc_sales" && l.unit_amount > 0);
+        if (bad) return json(res, 400, { errors: [{ message: "invalid invoice" }] });
+        const inv = { id: `inv_${wafeqInvoices.length + 1}`, status: "DRAFT", ...body };
+        wafeqInvoices.push(inv);
+        return json(res, 201, inv);
+      }
+      const rep = p.match(/^\/invoices\/([^/]+)\/tax-authority\/report\/$/);
+      if (rep && req.method === "POST") {
+        const inv = wafeqInvoices.find((x) => x.id === rep[1]);
+        if (!inv) return json(res, 404, { detail: "Not found." });
+        inv.status = "REPORTED";
+        return json(res, 200, { status: "REPORTED" });
+      }
+      return json(res, 404, { detail: "Not found." });
+    }
     if (url.pathname === "/__wa") return json(res, 200, waMessages);
     if (url.pathname === "/__wa_reset") { waMessages.length = 0; return json(res, 200, { ok: true }); }
     const wa = url.pathname.match(/^\/v\d+\.\d+\/([^/]+)\/messages$/);

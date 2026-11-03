@@ -7,6 +7,7 @@ import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries
 import { getBookingByRef } from "@/lib/booking";
 import { getBankConfig, getSettings } from "@/lib/catalog";
 import { formatDateTime, formatNumber, formatSAR } from "@/lib/format";
+import { installmentsOf } from "@/lib/packages";
 import { cancelQuote, parseCancelPolicy } from "@/lib/policy";
 import { cancelByCustomer } from "@/app/actions/cancel";
 import { CancelForm } from "@/components/site/cancel-form";
@@ -87,7 +88,12 @@ async function BookingView({
             <CheckIcon className="size-6" />
           </span>
           <div>
-            <h1 className="text-2xl font-semibold">{t.booking.paidTitle}</h1>
+            <h1 className="text-2xl font-semibold">{b.paymentMethod === "cash" && !b.paymentId ? t.checkout.cashBox : t.booking.paidTitle}</h1>
+            {b.paymentMethod === "cash" && !b.paymentId && (
+              <p className="mt-1 font-medium" data-testid="cash-due">
+                {t.checkout.cashAmount}: <span className="tabular">{formatSAR(b.amount, lang)}</span>
+              </p>
+            )}
             <p className="text-white/85 mt-1">{b.driverId && b.status === "confirmed" ? t.driver.ready : t.booking.paidLead}</p>
             <p className="text-white mt-2 font-medium" data-testid="paid-thanks">
               {t.booking.thanks}
@@ -142,6 +148,17 @@ async function BookingView({
             </Link>
           </div>
         </div>
+      ) : pending && b.paymentMethod === "cash" ? (
+        <div className="rounded-xl border border-amber bg-paper p-6 mb-8" data-testid="cash-box">
+          <h1 className="text-2xl font-semibold">{t.checkout.cashBox}</h1>
+          <p className="mt-1 text-muted">{t.checkout.cashBoxLead}</p>
+          <p className="mt-4">
+            {t.checkout.cashAmount}: <span className="font-display text-2xl font-semibold tabular">{formatSAR(b.amount, lang)}</span>
+          </p>
+          <Link href={`/${lang}/checkout/${b.ref}`} className="mt-4 inline-block text-sm text-sign hover:underline underline-offset-4">
+            {t.checkout.cashOther}
+          </Link>
+        </div>
       ) : (
         <div className="mb-8">
           <h1 className="text-3xl font-semibold">{b.status === "pending_payment" ? t.booking.pendingTitle : t.booking.title}</h1>
@@ -156,6 +173,7 @@ async function BookingView({
       {(b.status === "confirmed" || b.status === "completed") && b.driverId && <DriverCard bookingRef={b.ref} driverId={b.driverId} t={t} />}
 
       <BookingSummary b={b} lang={lang} t={t} vatNumber={settings.vat_number} />
+      {b.packageId && <Installments bookingId={b.id} lang={lang} t={t} />}
       {(b.receiptNo || b.invoiceNo) && (
         <div className="mt-4 flex flex-wrap gap-3" data-testid="customer-documents">
           {b.receiptNo && (
@@ -313,6 +331,38 @@ async function DriverCard({ bookingRef, driverId, t }: { bookingRef: string; dri
           </a>
         </div>
       </div>
+    </section>
+  );
+}
+
+/** A package booking: each payment, paid or not; the first unpaid one can be paid from here once its link exists */
+async function Installments({ bookingId, lang, t }: { bookingId: string; lang: Locale; t: Dictionary }) {
+  const all = await installmentsOf(bookingId);
+  if (!all.length) return null;
+  const n = (x: number) => formatNumber(x, lang);
+  const next = all.find((x) => !x.paidAt);
+  return (
+    <section className="mt-4 bg-paper border border-line rounded-xl p-5" data-testid="booking-installments">
+      <h2 className="font-semibold mb-3">{t.packages.schedule}</h2>
+      <ol className="divide-y divide-line text-[15px]">
+        {all.map((x) => (
+          <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2" data-paid={x.paidAt ? "1" : "0"}>
+            <span>{t.packages.payment.replace("{k}", n(x.seq)).replace("{n}", n(all.length))}</span>
+            <span className="flex items-center gap-3 tabular">
+              {formatSAR(x.amount, lang)}
+              {x.paidAt ? (
+                <span className="text-xs rounded-md px-2 py-0.5 bg-sign-soft text-sign">{t.packages.paidMark}</span>
+              ) : x.id === next?.id && (x.seq === 1 || x.linkSentAt) ? (
+                <Link href={`/${lang}/pay/${x.token}`} className="btn btn-primary !min-h-8 !py-0.5 text-sm">
+                  {t.packages.payNow}
+                </Link>
+              ) : (
+                <span className="text-xs rounded-md px-2 py-0.5 bg-stone text-muted">{t.packages.dueMark}</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

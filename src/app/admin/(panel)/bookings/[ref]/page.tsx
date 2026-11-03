@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { installmentsOf, payLink } from "@/lib/packages";
+import { einvoiceConfig } from "@/lib/einvoice";
+import { markInstallment, sendInstallment } from "../../../package-actions";
+import { CopyText } from "@/components/admin/copy-text";
 import { durationText } from "@/lib/policy";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -8,6 +12,8 @@ import {
   adminCancelWithRefund,
   approveRefund,
   confirmBankTransfer,
+  confirmCash,
+  resendEinvoice,
   markRefundManual,
   updateBooking,
 } from "../../../actions";
@@ -79,6 +85,7 @@ async function Detail({
     getSettings(),
   ]);
   if (!b) notFound();
+  const einvoiceOn = !!einvoiceConfig(settings);
   const [drivers, messages, [rating]] = await Promise.all([
     db
       .select({
@@ -272,7 +279,11 @@ async function Detail({
                 ? "تحويل بنكي"
                 : b.paymentMethod === "myfatoorah"
                   ? "ماي فاتورة"
-                  : "لم يختر العميل بعد"}
+                  : b.paymentMethod === "cash"
+                    ? b.paymentId
+                      ? "كاش (تم الاستلام)"
+                      : "كاش للسائق (لم يُستلم بعد)"
+                    : "لم يختر العميل بعد"}
             </p>
             {(b.receiptNo || b.invoiceNo) && (
               <p className="px-5 py-3 text-sm border-t border-line flex flex-wrap gap-x-6 gap-y-1" data-testid="booking-documents">
@@ -554,7 +565,50 @@ async function Detail({
             </Card>
           )}
 
-          {b.status === "pending_payment" && (
+          {b.packageId && <InstallmentsAdmin bookingId={b.id} lang={b.locale === "en" ? "en" : "ar"} />}
+
+          {/* the invoice on the e-invoicing platform (Wafeq) */}
+          {b.invoiceNo && (b.einvoiceStatus || einvoiceOn) && (
+            <Card className="p-5 space-y-2" data-testid="einvoice-status">
+              <h2 className="font-semibold">الفاتورة في منصة الفوترة (وافق)</h2>
+              <p className="text-sm">
+                {b.einvoiceStatus === "reported"
+                  ? "أُرسلت لوافق وتم الإبلاغ عنها لهيئة الزكاة."
+                  : b.einvoiceStatus === "sent"
+                    ? "أُرسلت لوافق."
+                    : b.einvoiceStatus === "failed"
+                      ? `لم تُرسل: ${b.einvoiceError ?? ""}`
+                      : "لم تُرسل بعد."}
+                {b.einvoiceId && (
+                  <span className="text-muted" dir="ltr">
+                    {" "}
+                    ({b.einvoiceId})
+                  </span>
+                )}
+              </p>
+              {b.einvoiceStatus !== "reported" && (
+                <ActionForm action={resendEinvoice} submitLabel="إرسال الفاتورة لوافق" pendingLabel="جارٍ الإرسال…" submitClassName="btn btn-ghost border border-line !min-h-9 !py-1 text-sm" className="">
+                  <input type="hidden" name="id" value={b.id} />
+                </ActionForm>
+              )}
+            </Card>
+          )}
+
+          {/* cash to the driver: the admin (or the driver) marks it received; the voucher goes to the customer */}
+          {b.paymentMethod === "cash" && !b.paymentId && b.status !== "cancelled" && (
+            <Card className="p-5 border-amber border-2" data-testid="cash-card">
+              <h2 className="font-semibold">الدفع كاش</h2>
+              <p className="text-sm text-muted mt-1 mb-3">
+                اختار العميل الدفع كاش للسائق: {formatSAR(b.amount, "ar")}. تقدر تسند السائق الآن، ولما يستلم المبلغ اضغط «تم استلام المبلغ كاش» (أو يضغطها السائق من صفحته)، ويوصل
+                العميل سند الصرف.
+              </p>
+              <ActionForm action={confirmCash} submitLabel="تم استلام المبلغ كاش" pendingLabel="جارٍ التسجيل…">
+                <input type="hidden" name="id" value={b.id} />
+              </ActionForm>
+            </Card>
+          )}
+
+          {b.status === "pending_payment" && b.paymentMethod !== "cash" && (
             <Card
               className={`p-5 ${b.paymentMethod === "bank_transfer" ? "border-amber border-2" : ""}`}
             >
@@ -701,3 +755,54 @@ const REFUND_LABELS: Record<string, string> = {
   manual: "عولج يدويًا",
   failed: "فشل الإرسال",
 };
+
+/** A package booking's payments: send each link on WhatsApp (or copy it), or mark one paid by hand */
+async function InstallmentsAdmin({ bookingId, lang }: { bookingId: string; lang: "ar" | "en" }) {
+  const all = await installmentsOf(bookingId);
+  if (!all.length) return null;
+  const paid = all.filter((x) => x.paidAt).reduce((n, x) => n + x.amount, 0);
+  const left = all.filter((x) => !x.paidAt).reduce((n, x) => n + x.amount, 0);
+  return (
+    <Card className="p-5 space-y-3" data-testid="admin-installments">
+      <h2 className="font-semibold">دفعات الباقة</h2>
+      <p className="text-sm text-muted">
+        المدفوع {formatSAR(paid, "ar")} · المتبقي {formatSAR(left, "ar")}. أرسل رابط كل دفعة للعميل على الواتساب لما يجي وقتها، أو انسخه وأرسله بنفسك.
+      </p>
+      <ol className="divide-y divide-line border border-line rounded-lg text-sm">
+        {await Promise.all(
+          all.map(async (x) => (
+            <li key={x.id} className="px-3 py-2.5 space-y-2" data-seq={x.seq} data-paid={x.paidAt ? "1" : "0"}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium">
+                  الدفعة {formatNumber(x.seq, "ar")} من {formatNumber(all.length, "ar")} · <span className="tabular">{formatSAR(x.amount, "ar")}</span>
+                </span>
+                {x.paidAt ? (
+                  <span className="text-xs rounded-md px-2 py-0.5 bg-sign-soft text-sign">
+                    مدفوعة {x.method === "cash" ? "كاش" : x.method === "transfer" ? "تحويل" : "ماي فاتورة"} · {formatDateTime(x.paidAt, "ar")}
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted">{x.linkSentAt ? `أُرسل الرابط ${formatDateTime(x.linkSentAt, "ar")}` : "لم تُدفع"}</span>
+                )}
+              </div>
+              {!x.paidAt && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <ActionForm action={sendInstallment} submitLabel={x.linkSentAt ? "إرسال الرابط مرة أخرى" : "إرسال رابط الدفعة واتساب"} pendingLabel="جارٍ الإرسال…" submitClassName="btn btn-primary !min-h-8 !py-0.5 text-sm" className="">
+                    <input type="hidden" name="id" value={x.id} />
+                  </ActionForm>
+                  <CopyText text={await payLink(lang, x.token)} label="نسخ الرابط" />
+                  <ActionForm action={markInstallment} submitLabel="استلمتها كاش/تحويل" submitClassName="btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm" className="flex items-center gap-2">
+                    <input type="hidden" name="id" value={x.id} />
+                    <select name="method" className="field !min-h-8 !py-0 text-sm !w-auto" aria-label="طريقة الدفع">
+                      <option value="transfer">تحويل</option>
+                      <option value="cash">كاش</option>
+                    </select>
+                  </ActionForm>
+                </div>
+              )}
+            </li>
+          )),
+        )}
+      </ol>
+    </Card>
+  );
+}

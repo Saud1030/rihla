@@ -1,10 +1,11 @@
+import { pushEinvoice } from "./einvoice";
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Booking, Driver, Rating } from "@/db/schema";
 import { publicBaseUrl } from "./public-url";
-import { bookingNo, formatDate, formatSAR, formatTime, stopLines } from "./format";
+import { bookingNo, formatDate, formatSARText as formatSAR, formatTime, stopLines } from "./format";
 import { companyName, notify, readSettings } from "./notify";
 import { invoiceLink, invoiceNo, issueInvoice } from "./documents";
 
@@ -79,6 +80,8 @@ export async function requestRating(bookingId: string) {
   const st = await readSettings();
   const done = await issueInvoice(bookingId);
   if (!done) return null; // not completed
+  // the same invoice on the e-invoicing platform (Wafeq), if set up; never blocks the customer's message
+  await pushEinvoice(done.id);
   const ar = done.locale !== "en";
   const invoice = await invoiceLink(done);
 

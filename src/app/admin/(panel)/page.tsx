@@ -238,7 +238,7 @@ function MonthPayments({ rows }: { rows: Awaited<ReturnType<typeof getDashboardS
                     <td className="px-3 py-2.5 min-w-48">
                       {b.fromName} ← {b.toName ?? "—"}
                     </td>
-                    <td className={td}>{b.paymentMethod === "bank_transfer" ? "تحويل بنكي" : "ماي فاتورة"}</td>
+                    <td className={td}>{b.paymentMethod === "cash" ? "كاش" : b.paymentMethod === "bank_transfer" ? "تحويل بنكي" : "ماي فاتورة"}</td>
                     <td className={`${td} tabular`}>{formatSAR(b.subtotal, "ar")}</td>
                     <td className={`${td} tabular font-medium`}>{formatSAR(b.amount, "ar")}</td>
                     <td className={td}>

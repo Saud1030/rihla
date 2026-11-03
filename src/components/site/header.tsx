@@ -21,7 +21,7 @@ export function Logo({ lang, brand }: { lang: Locale; brand: Brand }) {
   );
 }
 
-export function SiteHeader({ lang, t, brand }: { lang: Locale; t: Dictionary; brand: Brand }) {
+export function SiteHeader({ lang, t, brand, packages = false }: { lang: Locale; t: Dictionary; brand: Brand; packages?: boolean }) {
   const links: GlassLink[] = [
     { href: `/${lang}`, label: t.nav.home, icon: "home", exact: true },
     { href: `/${lang}/routes`, label: t.nav.routes, icon: "routes" },
@@ -42,9 +42,15 @@ export function SiteHeader({ lang, t, brand }: { lang: Locale; t: Dictionary; br
           <Suspense fallback={<span className="px-3 py-2 text-[15px] text-muted">{t.nav.switchLang}</span>}>
             <LangSwitch lang={lang} label={t.nav.switchLang} />
           </Suspense>
-          <Link href={`/${lang}#search`} className="btn btn-primary !min-h-10 !py-2 text-[15px] rounded-full">
+          <Link href={`/${lang}#search`} className="btn btn-primary !min-h-10 !py-2 !px-3 sm:!px-5 text-[15px] rounded-full whitespace-nowrap">
             {t.nav.book}
           </Link>
+          {/* right after "Book now", so customers see the packages straight away */}
+          {packages && (
+            <Link href={`/${lang}/packages`} className="btn btn-amber !min-h-10 !py-2 !px-3 sm:!px-5 text-[15px] rounded-full whitespace-nowrap" data-testid="packages-link">
+              {t.packages.nav}
+            </Link>
+          )}
         </div>
       </div>
       <div className="lg:hidden px-3 pb-2.5">

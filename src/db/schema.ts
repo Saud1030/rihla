@@ -43,7 +43,7 @@ export const locationKind = pgEnum("location_kind", [
   "other",
 ]);
 
-export const pricingMode = pgEnum("pricing_mode", ["fixed", "distance", "hourly", "multi"]);
+export const pricingMode = pgEnum("pricing_mode", ["fixed", "distance", "hourly", "multi", "package"]);
 
 export const refundStatus = pgEnum("refund_status", [
   "none", // nothing to refund
@@ -54,7 +54,7 @@ export const refundStatus = pgEnum("refund_status", [
 ]);
 
 /** how the customer chose to pay */
-export const paymentMethod = pgEnum("payment_method", ["myfatoorah", "bank_transfer"]);
+export const paymentMethod = pgEnum("payment_method", ["myfatoorah", "bank_transfer", "cash"]);
 
 /** running numbers of payment vouchers and invoices (never reused, even if a number is skipped) */
 export const receiptSeq = pgSequence("receipt_no_seq", { startWith: 1 });
@@ -272,6 +272,12 @@ export const bookings = pgTable(
     /** season increase (+) and offer discount (-) by the trip date, halalas, before the promo code; and what they were */
     priceAdjust: integer("price_adjust").notNull().default(0),
     priceAdjustNote: text("price_adjust_note").notNull().default(""),
+    /** a package booking (Admin -> Packages): paid in installments, see the installments table */
+    packageId: integer("package_id"),
+    /** the tax invoice sent to the e-invoicing platform (Admin -> Settings -> E-invoicing) */
+    einvoiceId: text("einvoice_id"),
+    einvoiceStatus: text("einvoice_status"),
+    einvoiceError: text("einvoice_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -665,3 +671,60 @@ export const offers = pgTable("offers", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 export type OfferRow = typeof offers.$inferSelect;
+
+/** Busy seasons (Admin -> Seasons): a % increase on trips whose date falls between two dates; on or off by hand */
+export const seasons = pgTable("seasons", {
+  id: serial("id").primaryKey(),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en").notNull().default(""),
+  percent: integer("percent").notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type SeasonRow = typeof seasons.$inferSelect;
+
+/** Packages (Admin -> Packages): a fixed offer with its price, paid in 1 or more installments */
+export const packages = pgTable("packages", {
+  id: serial("id").primaryKey(),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en").notNull().default(""),
+  /** one feature per line */
+  detailsAr: text("details_ar").notNull().default(""),
+  detailsEn: text("details_en").notNull().default(""),
+  /** halalas, before VAT (like trip prices) */
+  price: integer("price").notNull(),
+  /** how many payments: the first when booking, the rest by links the admin sends */
+  installments: integer("installments").notNull().default(2),
+  vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
+  passengers: integer("passengers").notNull().default(4),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type PackageRow = typeof packages.$inferSelect;
+
+/** The payments of a package booking. The token is the secret in the customer's payment link. */
+export const installments = pgTable(
+  "installments",
+  {
+    id: serial("id").primaryKey(),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    /** halalas, VAT included */
+    amount: integer("amount").notNull(),
+    token: text("token").notNull().unique(),
+    invoiceId: text("invoice_id"),
+    paymentId: text("payment_id").unique(),
+    /** myfatoorah, or how the admin received it by hand (cash, transfer) */
+    method: text("method"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    linkSentAt: timestamp("link_sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("installments_booking_seq").on(t.bookingId, t.seq)],
+);
+export type Installment = typeof installments.$inferSelect;

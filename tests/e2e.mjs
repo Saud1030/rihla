@@ -596,7 +596,7 @@ if (!ONLY || ONLY === "admin") {
     await a.getByText("تم حفظ الأسعار").waitFor();
     await site.goto(`${BASE}/ar/search?from=taif&to=jeddah-airport&date=${tomorrow()}&time=10:00`, { waitUntil: "networkidle" });
     assert(site.url().includes("/ar/routes/taif-jeddah-airport"), site.url());
-    await site.getByText("٤٠٠ ر.س").first().waitFor();
+    await site.getByText("٤٠٠ \u20C1").first().waitFor();
     sql(`delete from trips where route_id=${rid}; delete from routes where id=${rid}`);
   });
   await check("settings: notice text shows on site, empty hides the bar", async () => {
@@ -1688,26 +1688,21 @@ if (!ONLY || ONLY === "features") {
     sql("delete from settings where key like 'promo_public%'");
   });
 
-  await check("Hajj & Umrah seasons raise the price on Hijri season dates; offers take their % off in their dates; both switch off by hand", async () => {
-    const H = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { month: "numeric", day: "numeric", timeZone: "UTC" });
-    const hijri = (d) => Object.fromEntries(H.formatToParts(new Date(`${d}T12:00:00Z`)).filter((x) => x.type !== "literal").map((x) => [x.type, Number(x.value)]));
-    let ram;
-    for (let i = 2; i < 360 && !ram; i++) if (hijri(inDays(i)).month === 9 && hijri(inDays(i)).day === 10) ram = inDays(i);
-    assert(ram, "a Ramadan day within a year");
-    sql("delete from offers; delete from settings where key like 'season_%' or key='offers_enabled'");
+  await check("seasons (Hajj, Umrah...): added by hand with a % and Gregorian dates, raise the price in their dates; offers take their % off; both switch off by hand", async () => {
+    eq(sql("select count(*) from seasons where percent=0"), "2", "Ramadan and Hajj seasons ready, at 0% until set");
+    sql("delete from offers; delete from seasons; delete from settings where key in ('seasons_enabled','offers_enabled')");
     const price = Number(sql("select t.price from trips t join routes r on r.id=t.route_id join vehicles v on v.id=t.vehicle_id where r.slug='jeddah-airport-makkah' and v.slug='toyota-camry'"));
-    // the season: +30% from 1 Ramadan to 5 Shawwal (the default dates)
+    const ram = inDays(20);
     await a.goto(`${BASE}/admin/seasons`, { waitUntil: "networkidle" });
-    const card = a.getByTestId("season-ramadan");
-    eq(await card.locator('select[name="fromMonth"]').inputValue(), "9", "starts in Ramadan");
-    eq(`${await card.locator('select[name="toDay"]').inputValue()}-${await card.locator('select[name="toMonth"]').inputValue()}`, "5-10", "ends 5 Shawwal");
-    await card.locator('input[name="percent"]').fill("30");
-    await card.getByRole("button", { name: "حفظ" }).click();
-    await a.getByText("تم حفظ موسم رمضان والعمرة.").waitFor();
     assert(await a.locator(".admin-nav a[href='/admin/seasons']").count(), "in the menu");
-    await a.reload({ waitUntil: "networkidle" });
-    assert((await a.getByTestId("season-ramadan").getByTestId("season-dates").innerText()).length > 10, "shows the coming Gregorian dates");
-    // the booking form shows the increase for a Ramadan day, not for an ordinary day
+    const sa = a.getByTestId("seasons-add");
+    await sa.locator('input[name="nameAr"]').fill("موسم الاختبار");
+    await sa.locator('input[name="percent"]').fill("30");
+    await sa.locator('input[name="startDate"]').fill(inDays(19));
+    await sa.locator('input[name="endDate"]').fill(inDays(21));
+    await sa.getByRole("button", { name: "إضافة الموسم" }).click();
+    await a.getByText("تمت إضافة الموسم «موسم الاختبار».").waitFor();
+    // the booking form shows the increase in the season, not on an ordinary day
     await cp.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
     await cp.getByRole("radiogroup").getByText("تويوتا كامري", { exact: true }).click();
     await cp.fill("#date", ram);
@@ -1717,10 +1712,17 @@ if (!ONLY || ONLY === "features") {
     const extra = Math.round(price * 0.3);
     const r1 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: ram });
     eq(sql(`select price_adjust, subtotal from bookings where ref='${r1}'`), `${extra}|${price + extra}`, "season increase stored");
-    assert(sql(`select price_adjust_note from bookings where ref='${r1}'`).includes("موسم رمضان"), "and named");
+    assert(sql(`select price_adjust_note from bookings where ref='${r1}'`).includes("موسم الاختبار"), "and named");
+    // switched off by hand: no increase
+    await a.reload({ waitUntil: "networkidle" });
+    await a.getByTestId("seasons-switch").getByRole("button", { name: "إيقاف كل المواسم" }).click();
+    await a.getByText("تم إيقاف كل المواسم.").waitFor();
+    const r0 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: ram });
+    eq(sql(`select price_adjust from bookings where ref='${r0}'`), "0", "seasons off");
+    sql(`delete from settings where key='seasons_enabled'; delete from bookings where ref='${r0}'`);
     // an offer: 10% off trips on days 10–12
     await a.goto(`${BASE}/admin/offers`, { waitUntil: "networkidle" });
-    const add = a.getByTestId("offer-add");
+    const add = a.getByTestId("offers-add");
     await add.locator('input[name="nameAr"]').fill("عرض الاختبار");
     await add.locator('input[name="percent"]').fill("10");
     await add.locator('input[name="startDate"]').fill(inDays(10));
@@ -1734,21 +1736,119 @@ if (!ONLY || ONLY === "features") {
     eq(sql(`select price_adjust from bookings where ref='${r3}'`), "0", "not outside its dates");
     // this offer off by hand
     await a.reload({ waitUntil: "networkidle" });
-    const row = a.getByTestId("offer-list").locator("li").filter({ hasText: "عرض الاختبار" });
+    const row = a.getByTestId("offers-list").locator("li").filter({ hasText: "عرض الاختبار" });
     await row.getByRole("button", { name: "إيقاف" }).click();
     await a.getByText("تم إيقاف العرض.").waitFor();
     const r4 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: inDays(11) });
     eq(sql(`select price_adjust from bookings where ref='${r4}'`), "0", "a stopped offer does nothing");
     // on again, then every offer off with the page switch
     await a.reload({ waitUntil: "networkidle" });
-    await a.getByTestId("offer-list").locator("li").filter({ hasText: "عرض الاختبار" }).getByRole("button", { name: "تفعيل" }).click();
+    await a.getByTestId("offers-list").locator("li").filter({ hasText: "عرض الاختبار" }).getByRole("button", { name: "تفعيل" }).click();
     await a.getByText("تم تفعيل العرض.").waitFor();
     await a.reload({ waitUntil: "networkidle" });
     await a.getByTestId("offers-switch").getByRole("button", { name: "إيقاف كل العروض" }).click();
     await a.getByText("تم إيقاف كل العروض.").waitFor();
     const r5 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: inDays(11) });
     eq(sql(`select price_adjust from bookings where ref='${r5}'`), "0", "all offers off");
-    sql(`delete from offers; delete from settings where key like 'season_%' or key='offers_enabled'; delete from bookings where ref in ('${r1}','${r2}','${r3}','${r4}','${r5}')`);
+    sql(`delete from offers; delete from seasons; delete from settings where key in ('seasons_enabled','offers_enabled'); delete from bookings where ref in ('${r1}','${r2}','${r3}','${r4}','${r5}')`);
+  });
+
+  await check("cash to the driver: a third way to pay (on/off in settings); the booking stands unpaid; marked received -> paid and the voucher goes out", async () => {
+    sql("delete from settings where key='cash_enabled'");
+    const ref = await makeBooking(cp, { vehicle: "تويوتا كامري", date: inDays(5) });
+    await cp.locator('[data-method="cash"]').getByRole("button", { name: "سأدفع كاش للسائق" }).click();
+    await cp.waitForURL(new RegExp(`/ar/booking/${ref}$`), { waitUntil: "commit" });
+    await cp.getByTestId("cash-box").waitFor();
+    eq(sql(`select payment_method, status, payment_id is null from bookings where ref='${ref}'`), "cash|pending_payment|t", "cash, not paid yet");
+    // the admin sees it and marks the cash received
+    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
+    await a.getByTestId("cash-card").getByRole("button", { name: "تم استلام المبلغ كاش" }).click();
+    await a.getByText("تم تسجيل استلام المبلغ كاش").waitFor();
+    eq(sql(`select status, payment_id, receipt_no is not null from bookings where ref='${ref}'`), `paid|CASH-${ref}|t`, "paid, with a voucher");
+    eq(sql(`select source from payments where id='CASH-${ref}'`), "cash", "payment recorded as cash");
+    await cp.goto(`${BASE}/ar/booking/${ref}/receipt`, { waitUntil: "networkidle" });
+    assert((await cp.getByTestId("receipt").innerText()).includes("نقدًا (كاش)"), "voucher says cash");
+    // switched off: not offered
+    await a.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+    await a.getByTestId("cash-settings").locator('input[name="cash_enabled"]').uncheck();
+    await a.getByTestId("cash-settings").getByRole("button", { name: "حفظ" }).click();
+    await a.getByText("تم إيقاف الدفع كاش.").waitFor();
+    const r2 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: inDays(5) });
+    eq(await cp.locator('[data-method="cash"]').count(), 0, "no cash option");
+    sql(`delete from settings where key='cash_enabled'; delete from bookings where ref='${r2}'`);
+  });
+
+  await check("packages: added in the panel with a price and 3 payments; a button after 'Book now'; booked and the 1st paid online, the 2nd by the link the admin sends, the 3rd marked by hand; then the voucher", async () => {
+    sql("delete from packages");
+    await a.goto(`${BASE}/admin/packages`, { waitUntil: "networkidle" });
+    assert(await a.locator(".admin-nav a[href='/admin/packages']").count(), "in the menu");
+    const f = a.getByTestId("package-add");
+    await f.locator('input[name="nameAr"]').fill("باقة العمرة الذهبية");
+    await f.locator('input[name="price"]').fill("1000");
+    await f.locator('input[name="installments"]').fill("3");
+    await f.locator('textarea[name="detailsAr"]').fill("استقبال من المطار\nتنقلات داخل مكة ٣ أيام");
+    await f.getByRole("button", { name: "إضافة الباقة" }).click();
+    await a.getByText("تمت إضافة الباقة «باقة العمرة الذهبية».").waitFor();
+    const pid = sql("select id from packages where name_ar='باقة العمرة الذهبية'");
+    // the site: a Packages button in the top bar, the page, each payment
+    await cp.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    await cp.getByTestId("packages-link").click();
+    await cp.waitForURL(/\/ar\/packages$/, { waitUntil: "commit" });
+    const card = cp.locator(`[data-package="${pid}"]`);
+    await card.waitFor();
+    assert((await card.innerText()).includes("استقبال من المطار"), "details listed");
+    assert((await card.getByTestId("package-installments").innerText()).includes("على ٣ دفعات"), "3 payments");
+    await card.getByRole("link", { name: "احجز الباقة" }).click();
+    await cp.waitForURL(new RegExp(`/ar/packages/${pid}$`), { waitUntil: "commit" });
+    eq(await cp.getByTestId("package-part").count(), 3, "schedule of 3");
+    const pf = cp.getByTestId("package-form");
+    await pf.locator("#date").fill(inDays(6));
+    await pf.locator("#time").fill("10:00");
+    await pf.locator("#pickup").fill("فندق هيلتون");
+    await pf.locator("#name").fill("عميل الباقة");
+    await pf.locator("#phone").fill("0556660011");
+    await pf.getByRole("button", { name: "متابعة إلى دفع الدفعة الأولى" }).click();
+    await cp.waitForURL(/\/ar\/pay\/[A-Za-z0-9_-]+$/, { waitUntil: "commit" });
+    const ref = sql("select ref from bookings where customer_name='عميل الباقة' order by created_at desc limit 1");
+    eq(sql(`select amount, pricing_mode from bookings where ref='${ref}'`), "115000|package", "total with VAT");
+    eq(sql(`select string_agg(amount::text, ',' order by seq) from installments i join bookings b on b.id=i.booking_id where b.ref='${ref}'`), "38333,38333,38334", "3 payments add up");
+    // the first payment online
+    await cp.getByTestId("installment-pay").getByRole("button", { name: /ادفع/ }).click();
+    await cp.waitForURL(/localhost:4010\/pay\/\d+$/, { waitUntil: "commit" });
+    assert((await cp.locator("#amount").innerText()).includes("383.33"), "only the first payment");
+    await cp.click("#pay");
+    await cp.waitForURL(new RegExp(`/ar/booking/${ref}`), { waitUntil: "commit" });
+    await cp.getByTestId("booking-installments").waitFor();
+    eq(sql(`select status from bookings where ref='${ref}'`), "paid", "booked once the first is paid");
+    eq(sql(`select count(*) from installments i join bookings b on b.id=i.booking_id where b.ref='${ref}' and i.paid_at is not null`), "1", "one paid");
+    // the admin sends the link of the second one on WhatsApp
+    await mf("/__wa_reset");
+    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
+    const inst = a.getByTestId("admin-installments");
+    await inst.locator('li[data-seq="2"]').getByRole("button", { name: "إرسال رابط الدفعة واتساب" }).click();
+    await a.getByText("تم إرسال رابط الدفعة ٢ للعميل على الواتساب.").waitFor();
+    const msg = (await mf("/__wa")).find((m) => (m.text?.body ?? "").includes("/ar/pay/"));
+    assert(msg && msg.to === "966556660011", "link sent on WhatsApp");
+    const link = msg.text.body.match(/https?:\/\/\S+\/ar\/pay\/[A-Za-z0-9_-]+/)[0];
+    await cp.goto(link.replace(/^https?:\/\/[^/]+/, BASE), { waitUntil: "networkidle" });
+    await cp.getByTestId("installment-pay").getByRole("button", { name: /ادفع/ }).click();
+    await cp.waitForURL(/localhost:4010\/pay\/\d+$/, { waitUntil: "commit" });
+    await cp.click("#pay");
+    await cp.waitForURL(new RegExp(`/ar/booking/${ref}`), { waitUntil: "commit" });
+    eq(sql(`select count(*) from installments i join bookings b on b.id=i.booking_id where b.ref='${ref}' and i.paid_at is not null`), "2", "two paid");
+    eq(sql(`select receipt_no is null from bookings where ref='${ref}'`), "t", "no voucher before the last payment");
+    // the third paid by transfer, marked by the admin: all paid -> voucher
+    await a.reload({ waitUntil: "networkidle" });
+    await a.getByTestId("admin-installments").locator('li[data-seq="3"]').getByRole("button", { name: "استلمتها كاش/تحويل" }).click();
+    await a.getByText("تم تسجيل الدفعة كمدفوعة.").waitFor();
+    eq(sql(`select receipt_no is not null, payment_id from bookings where ref='${ref}'`), `t|PKG-${ref}`, "voucher once all are paid");
+    // hidden: gone from the site and the top bar
+    await a.goto(`${BASE}/admin/packages`, { waitUntil: "networkidle" });
+    await a.getByTestId("package-admin-list").locator(`[data-package="${pid}"]`).getByRole("button", { name: "إخفاء" }).click();
+    await a.getByText("تم إخفاء الباقة.").waitFor();
+    await cp.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await cp.getByTestId("packages-link").count(), 0, "no packages button");
+    sql("delete from packages");
   });
 
   await check("payment voucher on WhatsApp as soon as it's paid (not an invoice); the tax invoice comes with the rating when the trip ends", async () => {
@@ -3268,6 +3368,49 @@ if (!ONLY || ONLY === "drivers") {
     sql(`delete from bookings where ref in (${[...refs, ...more].map((x) => `'${x}'`).join(",")})`);
   });
 
+  await check("e-invoicing: a finished trip's tax invoice goes to Wafeq by API (customer, line, VAT) and is reported to ZATCA; a failure shows on the booking with 'send again'", async () => {
+    sql("delete from settings where key like 'wafeq_%' or key in ('einv_provider','einv_report')");
+    await a.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+    const f = a.getByTestId("einvoice-settings");
+    await f.locator('select[name="einv_provider"]').selectOption("wafeq");
+    await f.locator('input[name="wafeq_api_key"]').fill("test-wafeq-key");
+    await f.locator('input[name="wafeq_account"]').fill("acc_sales");
+    await f.locator('input[name="wafeq_tax_rate"]').fill("tax_15");
+    await f.locator('input[name="einv_report"]').check();
+    await f.getByRole("button", { name: "حفظ", exact: true }).click();
+    await a.getByText("الفواتير تنرسل لوافق تلقائيًا").waitFor();
+    await a.getByTestId("einvoice-settings").getByRole("button", { name: "اختبار الاتصال" }).click();
+    await a.getByText("الاتصال بوافق ناجح").waitFor();
+    assert((await a.getByTestId("einvoice-settings").innerText()).includes("acc_sales"), "lists the accounts");
+    assert(!(await a.content()).includes("test-wafeq-key"), "the key is never shown back");
+    const finish = async (r) => {
+      sql(`update bookings set driver_id=${driverId}, status='confirmed' where ref='${r}'`);
+      await a.goto(`${BASE}/admin/bookings/${r}`, { waitUntil: "networkidle" });
+      await a.getByRole("button", { name: "انتهت الرحلة (اطلب التقييم)" }).click();
+      await a.waitForURL(/completed=/, { waitUntil: "commit" });
+      await a.waitForLoadState("networkidle");
+    };
+    const r1 = paidBooking();
+    await finish(r1);
+    const [st, id, no] = sql(`select einvoice_status, einvoice_id, invoice_no from bookings where ref='${r1}'`).split("|");
+    eq(st, "reported", "sent and reported");
+    const inv = (await mf("/__wafeq")).find((x) => x.id === id);
+    assert(inv && inv.reference === r1 && inv.currency === "SAR" && inv.invoice_number === `INV-${String(no).padStart(4, "0")}`, "the invoice: " + JSON.stringify(inv));
+    eq(`${inv.line_items[0].unit_amount}|${inv.line_items[0].tax_rate}|${inv.status}`, "200|tax_15|REPORTED", "line before VAT, the 15% rate, reported");
+    await a.getByTestId("einvoice-status").getByText("تم الإبلاغ عنها لهيئة الزكاة").waitFor();
+    // a wrong key: the trip still ends; the booking says why, and it can be sent again
+    sql("update settings set value='wrong-key-123' where key='wafeq_api_key'");
+    const r2 = paidBooking();
+    await finish(r2);
+    eq(sql(`select einvoice_status from bookings where ref='${r2}'`), "failed", "failed");
+    await a.getByTestId("einvoice-status").getByText("مفتاح وافق غير صحيح").waitFor();
+    sql("update settings set value='test-wafeq-key' where key='wafeq_api_key'");
+    await a.getByTestId("einvoice-status").getByRole("button", { name: "إرسال الفاتورة لوافق" }).click();
+    await a.getByText("تم إرسال الفاتورة لوافق والإبلاغ عنها").waitFor();
+    eq(sql(`select einvoice_status from bookings where ref='${r2}'`), "reported", "sent again");
+    sql(`delete from settings where key like 'wafeq_%' or key in ('einv_provider','einv_report'); delete from bookings where ref in ('${r1}','${r2}')`);
+  });
+
   await check("staff account: only the sections it was given, in the menu and on the server", async () => {
     await a.goto(`${BASE}/admin/users`, { waitUntil: "networkidle" });
     const f = a.locator("form").filter({ has: a.getByRole("button", { name: "إضافة الحساب" }) });
@@ -3361,7 +3504,7 @@ if (!ONLY || ONLY === "prices") {
     const yukon = Number(sql(`select price from trips t join vehicles v on v.id=t.vehicle_id where route_id=${rid} and v.slug='gmc-yukon'`));
     eq(yukon % 1000, 0, "auto price rounded to 10 SAR");
     await page.goto(`${BASE}/ar/routes/abha-airport-tabuk`, { waitUntil: "networkidle" });
-    await page.getByText("١٬٥٠٠ ر.س").first().waitFor();
+    await page.getByText("١٬٥٠٠ \u20C1").first().waitFor();
   });
   await check("the same pair again (either direction) is refused; city filter shows only that city's routes", async () => {
     await a.goto(`${BASE}/admin/prices`, { waitUntil: "networkidle" });

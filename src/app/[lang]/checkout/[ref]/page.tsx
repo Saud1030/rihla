@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { installmentsOf } from "@/lib/packages";
 import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
 import { getBookingByRef } from "@/lib/booking";
 import { getBankConfig, getSettings } from "@/lib/catalog";
 import { isGatewayConfigured } from "@/lib/myfatoorah";
 import { formatSAR } from "@/lib/format";
-import { chooseBankTransfer, startPayment } from "@/app/actions/payment";
+import { chooseBankTransfer, chooseCash, startPayment } from "@/app/actions/payment";
+import { cashEnabled } from "@/lib/cash";
 import { BookingSummary } from "@/components/site/booking-summary";
 import { PayButton } from "@/components/site/pay-button";
 import { LockIcon } from "@/components/icons";
@@ -36,6 +38,11 @@ async function Checkout({ lang, t, params }: { lang: Locale; t: Dictionary; para
   const { ref } = await params;
   const [b, settings] = await Promise.all([getBookingByRef(ref), getSettings()]);
   if (!b) notFound();
+  // a package is paid in installments, each from its own payment page
+  if (b.packageId && b.status === "pending_payment") {
+    const due = (await installmentsOf(b.id)).find((x) => !x.paidAt);
+    if (due) redirect(`/${lang}/pay/${due.token}`);
+  }
 
   const payable = b.status === "pending_payment";
 
@@ -61,11 +68,12 @@ async function Checkout({ lang, t, params }: { lang: Locale; t: Dictionary; para
   );
 }
 
-/** Only two ways to pay: MyFatoorah's hosted page, or a bank transfer the admin confirms. */
+/** Ways to pay: MyFatoorah's hosted page, a bank transfer the admin confirms, or cash to the driver. */
 async function PaymentOptions({ b, lang, t }: { b: Booking; lang: Locale; t: Dictionary }) {
   const bank = await getBankConfig();
   const mf = isGatewayConfigured();
-  if (!mf && !bank) return <p className="text-danger bg-danger-soft rounded-md p-4 text-sm">{t.checkout.notConfigured}</p>;
+  const cash = cashEnabled(await getSettings());
+  if (!mf && !bank && !cash) return <p className="text-danger bg-danger-soft rounded-md p-4 text-sm">{t.checkout.notConfigured}</p>;
   return (
     <div>
       <h2 className="font-semibold flex items-center gap-2">
@@ -103,6 +111,24 @@ async function PaymentOptions({ b, lang, t }: { b: Booking; lang: Locale; t: Dic
           <form action={chooseBankTransfer.bind(null, b.ref, lang)}>
             <button type="submit" className="btn btn-ghost w-full">
               {t.checkout.bankChoose}
+            </button>
+          </form>
+        </div>
+      )}
+      {cash && (mf || bank) && (
+        <div className="my-5 flex items-center gap-3 text-sm text-muted" aria-hidden="true">
+          <span className="h-px flex-1 bg-line" />
+          {t.checkout.or}
+          <span className="h-px flex-1 bg-line" />
+        </div>
+      )}
+      {cash && (
+        <div className={mf || bank ? "" : "mt-4"} data-method="cash">
+          <h3 className="font-medium">{t.checkout.cashTitle}</h3>
+          <p className="mt-1 mb-3 text-sm text-muted">{t.checkout.cashLead}</p>
+          <form action={chooseCash.bind(null, b.ref, lang)}>
+            <button type="submit" className="btn btn-ghost border border-line w-full">
+              {t.checkout.cashChoose}
             </button>
           </form>
         </div>

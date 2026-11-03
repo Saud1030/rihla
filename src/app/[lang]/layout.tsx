@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { favicons } from "@/lib/favicons";
+import { activePackages } from "@/lib/packages";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -29,7 +31,8 @@ export async function generateMetadata({ params }: LayoutProps<"/[lang]">): Prom
     description: t.meta.description,
     alternates: { languages: { ar: "/ar", en: "/en" } },
     openGraph: { siteName: brand.name[lang], locale: lang === "ar" ? "ar_SA" : "en_US", type: "website" },
-    ...(brand.logoUrl ? { icons: { icon: brand.logoUrl } } : {}),
+    // the company logo as the tab icon (and the home-screen icon on phones)
+    icons: favicons(brand.logoUrl),
   };
 }
 
@@ -46,7 +49,7 @@ async function BrandShell({ lang, children }: { lang: Locale; children: React.Re
       {/* printing a voucher or an invoice prints the page content only */}
       <div className="contents print:hidden">
         <NoticeBar lang={lang} />
-        <SiteHeader lang={lang} t={t} brand={brand} />
+        <SiteHeader lang={lang} t={t} brand={brand} packages={(await activePackages()).length > 0} />
       </div>
       <main className="flex-1">{children}</main>
       <div className="contents print:hidden">

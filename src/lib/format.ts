@@ -1,12 +1,26 @@
 import type { Locale } from "@/i18n/dictionaries";
 
 /** Format halalas as SAR. Arabic uses Arabic digits. */
-export function formatSAR(halalas: number, locale: Locale) {
+/** the new Saudi Riyal sign (U+20C1), drawn on the site by a small font (see globals.css) */
+export const RIYAL = "\u20C1";
+
+const amount = (halalas: number, locale: Locale) => {
   const value = halalas / 100;
-  const n = new Intl.NumberFormat(locale === "ar" ? "ar-SA" : "en-SA", {
+  return new Intl.NumberFormat(locale === "ar" ? "ar-SA" : "en-SA", {
     minimumFractionDigits: value % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(value);
+};
+
+/** a price on the site, with the Saudi Riyal sign */
+export function formatSAR(halalas: number, locale: Locale) {
+  const n = amount(halalas, locale);
+  return locale === "ar" ? `${n} ${RIYAL}` : `${RIYAL} ${n}`;
+}
+
+/** a price in WhatsApp, email, PDF and Excel, where the new sign may not show yet: ر.س / SAR */
+export function formatSARText(halalas: number, locale: Locale) {
+  const n = amount(halalas, locale);
   return locale === "ar" ? `${n} ر.س` : `SAR ${n}`;
 }
 

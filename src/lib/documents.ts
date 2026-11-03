@@ -3,7 +3,7 @@ import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Booking } from "@/db/schema";
 import { publicBaseUrl } from "./public-url";
-import { bookingNo, formatSAR } from "./format";
+import { bookingNo, formatSARText as formatSAR } from "./format";
 import { notify } from "./notify";
 import { afterPaid } from "./promo";
 

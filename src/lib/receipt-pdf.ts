@@ -2,7 +2,7 @@ import "server-only";
 import PDFDocument from "pdfkit";
 import { isolate, pdfWriter, registerFonts } from "./pdf-text";
 import type { Booking } from "@/db/schema";
-import { formatDate, formatDateTime, formatSAR, formatTime } from "./format";
+import { formatDate, formatDateTime, formatSARText as formatSAR, formatTime } from "./format";
 import { receiptNo } from "./documents";
 import { maskPhone } from "./booking";
 
@@ -26,7 +26,7 @@ const T = {
     trip: "موعد الرحلة",
     method: "طريقة الدفع",
     paidAt: "وقت الدفع",
-    methods: { myfatoorah: "دفع إلكتروني - ماي فاتورة", bank_transfer: "تحويل بنكي" },
+    methods: { myfatoorah: "دفع إلكتروني - ماي فاتورة", bank_transfer: "تحويل بنكي", cash: "نقدًا (كاش)" },
     vat: "الرقم الضريبي",
     cr: "السجل التجاري",
     note: "هذا السند يثبت استلام المبلغ وليس فاتورة ضريبية. تصلك الفاتورة الضريبية بعد انتهاء الرحلة.",
@@ -42,7 +42,7 @@ const T = {
     trip: "Trip date",
     method: "Payment method",
     paidAt: "Paid at",
-    methods: { myfatoorah: "Online payment - MyFatoorah", bank_transfer: "Bank transfer" },
+    methods: { myfatoorah: "Online payment - MyFatoorah", bank_transfer: "Bank transfer", cash: "Cash" },
     vat: "VAT number",
     cr: "CR number",
     note: "This voucher confirms the payment and is not a tax invoice. Your tax invoice is sent when the trip ends.",

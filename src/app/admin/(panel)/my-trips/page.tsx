@@ -7,7 +7,7 @@ import { requireDriver } from "@/lib/auth";
 import { bookingNo, formatDate, formatNumber, formatSAR, formatTime, stopLines } from "@/lib/format";
 import { driverMoney, driverPayoutList } from "@/lib/driver-money";
 import { bookingEnd } from "@/lib/timespan";
-import { driverCompleteTrip, driverStartTrip, saveMyBankAccount } from "../../driver-actions";
+import { driverCollectCash, driverCompleteTrip, driverStartTrip, saveMyBankAccount } from "../../driver-actions";
 import { ActionForm } from "@/components/admin/action-form";
 import { AutoRefresh } from "@/components/admin/auto-refresh";
 import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
@@ -135,6 +135,17 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
                       </p>
                     </div>
                     <p>{b.routeTitle}</p>
+                    {/* the customer pays this trip in cash: collect it and mark it received */}
+                    {b.paymentMethod === "cash" && !b.paymentId && (
+                      <div className="rounded-lg border-2 border-amber px-3 py-2 space-y-2" data-testid="trip-cash">
+                        <p className="font-semibold">
+                          اجمع من العميل كاش: <span className="tabular">{formatSAR(b.amount, "ar")}</span>
+                        </p>
+                        <ActionForm action={driverCollectCash} submitLabel="استلمت المبلغ كاش" pendingLabel="جارٍ التسجيل…" className="">
+                          <input type="hidden" name="id" value={b.id} />
+                        </ActionForm>
+                      </div>
+                    )}
                     <p className="text-[15px]" data-testid="trip-fare">
                       <span className="text-muted">أجرتك: </span>
                       {b.driverFare != null ? <span className="font-semibold tabular">{formatSAR(b.driverFare, "ar")}</span> : <span className="text-muted">تحددها الإدارة</span>}

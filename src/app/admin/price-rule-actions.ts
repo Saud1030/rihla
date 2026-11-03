@@ -5,100 +5,86 @@ import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { invalidateCatalogCache } from "@/lib/catalog";
-import { SEASON_DEFS } from "@/lib/price-rules-server";
+import { ruleTable, type RuleKind } from "@/lib/price-rules-server";
 import type { ActionState } from "./actions";
 
 const digits = (v: FormDataEntryValue | null) => String(v ?? "").replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).trim();
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+const kindOf = (f: FormData): RuleKind => (f.get("kind") === "seasons" ? "seasons" : "offers");
+const WORDS = {
+  seasons: { one: "الموسم", pct: "نسبة الزيادة", max: 300, on: "تم تفعيل الموسم.", off: "تم إيقاف الموسم.", allOn: "تم تفعيل المواسم.", allOff: "تم إيقاف كل المواسم.", added: "تمت إضافة الموسم", name: "اكتب اسم الموسم." },
+  offers: { one: "العرض", pct: "نسبة الخصم", max: 90, on: "تم تفعيل العرض.", off: "تم إيقاف العرض.", allOn: "تم تفعيل العروض.", allOff: "تم إيقاف كل العروض.", added: "تمت إضافة العرض", name: "اكتب اسم العرض." },
+} as const;
 
-async function saveSettings(rows: Record<string, string>) {
-  await db.transaction(async (tx) => {
-    for (const [key, value] of Object.entries(rows))
-      await tx.insert(s.settings).values({ key, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
-  });
+function done(kind: RuleKind) {
   invalidateCatalogCache();
+  revalidatePath(`/admin/${kind}`);
 }
 
-/** One season: on/off, the % increase, and its Hijri start and end */
-export async function saveSeason(_prev: ActionState, formData: FormData): Promise<ActionState> {
+/** A whole list on or off at once (the switch at the top of the page) */
+export async function setRulesEnabled(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("catalog");
-  const def = SEASON_DEFS.find((d) => d.key === formData.get("key"));
-  if (!def) return { error: "الموسم غير موجود." };
-  const percent = Number(digits(formData.get("percent")));
-  if (!Number.isInteger(percent) || percent < 0 || percent > 300) return { error: "نسبة الزيادة رقم من ٠ إلى ٣٠٠." };
-  const part = (k: string, max: number) => {
-    const n = Number(digits(formData.get(k)));
-    return Number.isInteger(n) && n >= 1 && n <= max ? n : null;
-  };
-  const fm = part("fromMonth", 12), fd = part("fromDay", 30), tm = part("toMonth", 12), td = part("toDay", 30);
-  if (!fm || !fd || !tm || !td) return { error: "اختر بداية ونهاية الموسم (الشهر واليوم)." };
-  await saveSettings({
-    [`season_${def.key}_enabled`]: formData.get("enabled") === "on" ? "1" : "0",
-    [`season_${def.key}_percent`]: String(percent),
-    [`season_${def.key}_from`]: `${fm}-${fd}`,
-    [`season_${def.key}_to`]: `${tm}-${td}`,
-  });
-  revalidatePath("/admin/seasons");
-  return { ok: true, message: `تم حفظ ${def.name.ar}.` };
-}
-
-/** All offers on or off at once (the switch at the top of the offers page) */
-export async function setOffersEnabled(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireSection("catalog");
+  const kind = kindOf(formData);
   const on = formData.get("on") === "1";
-  await saveSettings({ offers_enabled: on ? "1" : "0" });
-  revalidatePath("/admin/offers");
-  return { ok: true, message: on ? "تم تفعيل العروض." : "تم إيقاف كل العروض." };
+  const key = `${kind}_enabled`;
+  const value = on ? "1" : "0";
+  await db.insert(s.settings).values({ key, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
+  done(kind);
+  return { ok: true, message: on ? WORDS[kind].allOn : WORDS[kind].allOff };
 }
 
-function readOffer(formData: FormData) {
+function readRule(kind: RuleKind, formData: FormData) {
+  const w = WORDS[kind];
   const nameAr = String(formData.get("nameAr") ?? "").trim().slice(0, 80);
   const nameEn = String(formData.get("nameEn") ?? "").trim().slice(0, 80);
   const percent = Number(digits(formData.get("percent")));
   const startDate = String(formData.get("startDate") ?? "");
   const endDate = String(formData.get("endDate") ?? "");
-  if (nameAr.length < 2) return { error: "اكتب اسم العرض." } as const;
-  if (!Number.isInteger(percent) || percent < 1 || percent > 90) return { error: "نسبة الخصم رقم من ١ إلى ٩٠." } as const;
+  if (nameAr.length < 2) return { error: w.name } as const;
+  if (!Number.isInteger(percent) || percent < 0 || percent > w.max) return { error: `${w.pct} رقم من ٠ إلى ${w.max.toLocaleString("ar-SA")}.` } as const;
   if (!isDate(startDate) || !isDate(endDate)) return { error: "اختر تاريخ البداية والنهاية." } as const;
   if (endDate < startDate) return { error: "تاريخ النهاية قبل البداية." } as const;
   return { values: { nameAr, nameEn, percent, startDate, endDate } } as const;
 }
 
-export async function addOffer(_prev: ActionState, formData: FormData): Promise<ActionState> {
+export async function addRule(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("catalog");
-  const r = readOffer(formData);
+  const kind = kindOf(formData);
+  const r = readRule(kind, formData);
   if ("error" in r) return { error: r.error };
-  await db.insert(s.offers).values({ ...r.values, active: true });
-  invalidateCatalogCache();
-  revalidatePath("/admin/offers");
-  return { ok: true, message: `تمت إضافة العرض «${r.values.nameAr}».` };
+  await db.insert(ruleTable(kind)).values({ ...r.values, active: true });
+  done(kind);
+  return { ok: true, message: `${WORDS[kind].added} «${r.values.nameAr}».` };
 }
 
-export async function saveOffer(_prev: ActionState, formData: FormData): Promise<ActionState> {
+export async function saveRule(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("catalog");
-  const r = readOffer(formData);
+  const kind = kindOf(formData);
+  const r = readRule(kind, formData);
   if ("error" in r) return { error: r.error };
-  const done = await db.update(s.offers).set(r.values).where(eq(s.offers.id, Number(formData.get("id") ?? 0))).returning({ id: s.offers.id });
-  if (!done.length) return { error: "العرض غير موجود." };
-  invalidateCatalogCache();
-  revalidatePath("/admin/offers");
-  return { ok: true, message: "تم حفظ العرض." };
+  const t = ruleTable(kind);
+  const rows = await db.update(t).set(r.values).where(eq(t.id, Number(formData.get("id") ?? 0))).returning({ id: t.id });
+  if (!rows.length) return { error: `${WORDS[kind].one} غير موجود.` };
+  done(kind);
+  return { ok: true, message: "تم الحفظ." };
 }
 
-/** One offer on or off by hand */
-export async function toggleOffer(_prev: ActionState, formData: FormData): Promise<ActionState> {
+/** One rule on or off by hand */
+export async function toggleRule(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("catalog");
+  const kind = kindOf(formData);
   const on = formData.get("on") === "1";
-  await db.update(s.offers).set({ active: on }).where(eq(s.offers.id, Number(formData.get("id") ?? 0)));
-  invalidateCatalogCache();
-  revalidatePath("/admin/offers");
-  return { ok: true, message: on ? "تم تفعيل العرض." : "تم إيقاف العرض." };
+  const t = ruleTable(kind);
+  await db.update(t).set({ active: on }).where(eq(t.id, Number(formData.get("id") ?? 0)));
+  done(kind);
+  return { ok: true, message: on ? WORDS[kind].on : WORDS[kind].off };
 }
 
-export async function deleteOffer(_prev: ActionState, formData: FormData): Promise<ActionState> {
+export async function deleteRule(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("catalog");
-  await db.delete(s.offers).where(eq(s.offers.id, Number(formData.get("id") ?? 0)));
-  invalidateCatalogCache();
-  revalidatePath("/admin/offers");
-  return { ok: true, message: "تم حذف العرض." };
+  const kind = kindOf(formData);
+  const t = ruleTable(kind);
+  await db.delete(t).where(eq(t.id, Number(formData.get("id") ?? 0)));
+  done(kind);
+  return { ok: true, message: "تم الحذف." };
 }

@@ -269,7 +269,7 @@ export function AppearanceForm({ action, initialTheme, initialTexts, placeholder
             </div>
             <div className="bg-paper border border-line rounded-xl px-4 py-3 flex items-center justify-between">
               <span className="text-sm">جدة ← مكة</span>
-              <span className="font-display font-semibold tabular">٢٥٠ ر.س</span>
+              <span className="font-display font-semibold tabular">{"٢٥٠ \u20C1"}</span>
             </div>
           </div>
         </div>

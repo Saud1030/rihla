@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { recordCashPayment } from "@/lib/cash";
+import { sarToHalalas } from "@/lib/money-input";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { and, eq, inArray, ne } from "drizzle-orm";
@@ -270,7 +272,8 @@ export async function assignDriver(_prev: ActionState, formData: FormData): Prom
   if (!d || !d.active || d.status !== "approved") return { error: "السائق غير موجود أو موقوف أو لم يُقبل طلبه بعد." };
   const hold = driverHold(d);
   if (hold) return { error: hold.kind === "blocked" ? `${d.name} محظور. اختر سائقًا آخر.` : `${d.name} موقوف مؤقتًا حتى ${formatDateTime(hold.until, "ar")}. اختر سائقًا آخر.` };
-  if (b.status === "pending_payment") return { error: "لم يُدفع الحجز بعد. أكّد الدفع أولًا ثم أسند السائق." };
+  // cash bookings are paid to the driver on the day: a driver can be given before the money
+  if (b.status === "pending_payment" && b.paymentMethod !== "cash") return { error: "لم يُدفع الحجز بعد. أكّد الدفع أولًا ثم أسند السائق." };
   if (b.status === "cancelled" || b.status === "completed") return { error: "لا يمكن إسناد سائق لحجز ملغي أو منتهٍ." };
   // the driver's fare can be set in the same step (empty keeps the one already set)
   const fare = formData.has("fare") ? sarToHalalas(formData.get("fare")) : null;
@@ -347,14 +350,6 @@ async function finishTrip(id: string, driverId: number | null): Promise<ActionSt
 
 /* ---------- Driver money: fare per trip, payouts ---------- */
 
-/** "150", "150.5", "١٥٠" -> halalas; "" -> null (no fare); invalid -> undefined */
-function sarToHalalas(raw: FormDataEntryValue | null): number | null | undefined {
-  const v = String(raw ?? "").trim().replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace("٫", ".");
-  if (v === "") return null;
-  if (!/^\d{1,6}(\.\d{1,2})?$/.test(v)) return undefined;
-  return Math.round(Number(v) * 100);
-}
-
 /** What the driver gets for this trip. He sees it on his page at once. */
 export async function setDriverFare(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("bookings");
@@ -410,4 +405,17 @@ export async function saveMyBankAccount(_prev: ActionState, formData: FormData):
   await db.update(s.drivers).set({ bankAccount, updatedAt: new Date() }).where(eq(s.drivers.id, me.driverId));
   revalidatePath("/admin/my-trips");
   return { ok: true, message: "تم حفظ حسابك البنكي." };
+}
+
+/** The driver collected the customer's cash for his own trip: the booking is paid and the customer gets the voucher */
+export async function driverCollectCash(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const me = await requireDriver();
+  const id = String(formData.get("id") ?? "");
+  const b = await db.query.bookings.findFirst({ where: and(eq(s.bookings.id, id), eq(s.bookings.driverId, me.driverId)) });
+  if (!b) return { error: "الرحلة غير موجودة." };
+  const done = await recordCashPayment(b.id, `driver:${me.name}`);
+  if (!done) return { error: "مسجّل من قبل." };
+  revalidatePath("/admin/my-trips");
+  revalidatePath(`/admin/bookings/${b.ref}`);
+  return { ok: true, message: "تم تسجيل استلام المبلغ، ووصل العميل سند الصرف." };
 }

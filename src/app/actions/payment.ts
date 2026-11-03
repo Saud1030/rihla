@@ -7,7 +7,8 @@ import { isLocale } from "@/i18n/dictionaries";
 import { getBookingByRef } from "@/lib/booking";
 import { createInvoice, GatewayError, isGatewayConfigured } from "@/lib/myfatoorah";
 import { publicBaseUrl } from "@/lib/public-url";
-import { getBankConfig } from "@/lib/catalog";
+import { getBankConfig, getSettings } from "@/lib/catalog";
+import { cashEnabled } from "@/lib/cash";
 
 export type PayState = { error?: "gateway" | "not_configured" };
 
@@ -43,6 +44,20 @@ export async function chooseBankTransfer(ref: string, lang: string): Promise<voi
     await db
       .update(s.bookings)
       .set({ paymentMethod: "bank_transfer", updatedAt: new Date() })
+      .where(and(eq(s.bookings.id, b.id), eq(s.bookings.status, "pending_payment")));
+  }
+  redirect(`/${locale}/booking/${b.ref}`);
+}
+
+/** Customer will pay cash to the driver on the day. The booking stands; the driver or the admin marks the cash received. */
+export async function chooseCash(ref: string, lang: string): Promise<void> {
+  const locale = isLocale(lang) ? lang : "ar";
+  const b = await getBookingByRef(ref);
+  if (!b) redirect(`/${locale}/booking`);
+  if (b.status === "pending_payment" && cashEnabled(await getSettings())) {
+    await db
+      .update(s.bookings)
+      .set({ paymentMethod: "cash", updatedAt: new Date() })
       .where(and(eq(s.bookings.id, b.id), eq(s.bookings.status, "pending_payment")));
   }
   redirect(`/${locale}/booking/${b.ref}`);

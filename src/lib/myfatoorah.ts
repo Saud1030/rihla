@@ -88,6 +88,31 @@ export async function createInvoice(b: Booking, lang: "ar" | "en", siteUrl: stri
   return { invoiceId: String(json.Data.InvoiceId), url: json.Data.InvoiceURL };
 }
 
+/** One installment of a package booking: its own invoice, CustomerReference INS-<token> */
+export async function createInstallmentInvoice(b: Booking, inst: { seq: number; amount: number; token: string }, count: number, lang: "ar" | "en", siteUrl: string) {
+  const value = inst.amount / 100;
+  const name = lang === "ar" ? `${b.routeTitle} - الدفعة ${inst.seq} من ${count}` : `${b.routeTitle} - payment ${inst.seq} of ${count}`;
+  const back = `${siteUrl.replace(/\/$/, "")}/api/payments/callback?ref=${encodeURIComponent(b.ref)}&lang=${lang}`;
+  const { status, json } = await call<{ InvoiceId: number; InvoiceURL: string }>("/v2/SendPayment", {
+    NotificationOption: "LNK",
+    InvoiceValue: value,
+    DisplayCurrencyIso: "SAR",
+    CustomerName: b.customerName.slice(0, 100),
+    ...(b.customerEmail ? { CustomerEmail: b.customerEmail } : {}),
+    Language: lang === "ar" ? "AR" : "EN",
+    CallBackUrl: back,
+    ErrorUrl: back,
+    CustomerReference: `INS-${inst.token}`,
+    UserDefinedField: b.id,
+    InvoiceItems: [{ ItemName: name.slice(0, 150), Quantity: 1, UnitPrice: value }],
+  });
+  if (!json?.IsSuccess || !json.Data?.InvoiceURL) {
+    const details = json?.ValidationErrors?.map((v) => `${v.Name}: ${v.Error}`).join("; ");
+    throw new GatewayError(`SendPayment rejected (${status}): ${json?.Message ?? ""} ${details ?? ""}`.trim());
+  }
+  return { invoiceId: String(json.Data.InvoiceId), url: json.Data.InvoiceURL };
+}
+
 /* ---------------- Payment status (GetPaymentStatus) ---------------- */
 
 export type MfTransaction = {
@@ -138,6 +163,8 @@ export type SettleResult =
  * booking as paid. Idempotent: safe to call from both callback and webhook.
  */
 export async function settlePayment(st: MfPaymentStatus): Promise<SettleResult> {
+  // an installment of a package booking
+  if ((st.CustomerReference ?? "").startsWith("INS-")) return settleInstallment(st);
   // CustomerReference was set by our server when creating the invoice, so it identifies the booking
   const ref = st.CustomerReference ?? "";
   const booking = ref ? await db.query.bookings.findFirst({ where: eq(s.bookings.ref, ref) }) : undefined;
@@ -204,6 +231,34 @@ export async function settlePayment(st: MfPaymentStatus): Promise<SettleResult> 
   // Booking was cancelled, or already paid by another invoice: needs a refund from the MyFatoorah portal
   console.warn("Successful payment for a booking that is not pending", { invoiceId, booking: booking.ref, status: booking.status });
   return { ok: false, bookingRef: booking.ref, reason: "already_settled_elsewhere" };
+}
+
+/** Same checks as a booking, for one installment: paid, the exact amount, once */
+async function settleInstallment(st: MfPaymentStatus): Promise<SettleResult> {
+  const token = (st.CustomerReference ?? "").slice(4);
+  const inst = token ? await db.query.installments.findFirst({ where: eq(s.installments.token, token) }) : undefined;
+  const booking = inst ? await db.query.bookings.findFirst({ where: eq(s.bookings.id, inst.bookingId) }) : undefined;
+  const invoiceId = String(st.InvoiceId);
+  for (const t of st.InvoiceTransactions ?? []) {
+    if (!t.PaymentId) continue;
+    const row = { id: String(t.PaymentId), invoiceId, bookingId: booking?.id ?? null, status: mapStatus(t.TransactionStatus), amount: toHalalas(t.TransationValue ?? st.InvoiceValue), currency: t.Currency || "SAR", source: t.PaymentGateway ?? null, raw: t };
+    await db.insert(s.payments).values(row).onConflictDoUpdate({ target: s.payments.id, set: { status: row.status, amount: row.amount, currency: row.currency, source: row.source, raw: row.raw, bookingId: row.bookingId, updatedAt: new Date() } });
+  }
+  if (!inst || !booking) return { ok: false, reason: "not_found" };
+  const success = (st.InvoiceTransactions ?? []).find((t) => isSuccess(t.TransactionStatus));
+  if (success && inst.paymentId === String(success.PaymentId)) return { ok: true, bookingRef: booking.ref };
+  if (!/^paid$/i.test(st.InvoiceStatus) || !success) return { ok: false, bookingRef: booking.ref, reason: "not_paid" };
+  if (toHalalas(st.InvoiceValue) !== inst.amount) {
+    console.warn("Installment amount mismatch", { invoiceId, booking: booking.ref, seq: inst.seq });
+    return { ok: false, bookingRef: booking.ref, reason: "mismatch" };
+  }
+  if (booking.status === "cancelled") return { ok: false, bookingRef: booking.ref, reason: "already_settled_elsewhere" };
+  const { markInstallmentPaid } = await import("./packages");
+  const row = await markInstallmentPaid(inst.id, { paymentId: String(success.PaymentId), invoiceId, method: "myfatoorah" });
+  if (row) return { ok: true, bookingRef: booking.ref };
+  // already paid (callback and webhook raced, or paid another way)
+  const now = await db.query.installments.findFirst({ where: eq(s.installments.id, inst.id) });
+  return now?.paymentId === String(success.PaymentId) ? { ok: true, bookingRef: booking.ref } : { ok: false, bookingRef: booking.ref, reason: "already_settled_elsewhere" };
 }
 
 /* ---------------- Webhook V2 signature ---------------- */

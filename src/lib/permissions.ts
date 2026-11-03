@@ -39,6 +39,7 @@ export const PATH_SECTIONS: [prefix: string, section: Section | "users"][] = [
   ["/admin/prices", "catalog"],
   ["/admin/seasons", "catalog"],
   ["/admin/offers", "catalog"],
+  ["/admin/packages", "catalog"],
   ["/admin/hourly-prices", "catalog"],
   ["/admin/routes", "catalog"],
   ["/admin/destinations", "catalog"],

@@ -5,7 +5,7 @@ import PDFDocument from "pdfkit";
 import { getDictionary } from "@/i18n/dictionaries";
 import type { TableBooking } from "./admin-data";
 import type { Booking } from "@/db/schema";
-import { bookingNo, formatDate, formatDateTime, formatSAR, formatTime } from "./format";
+import { bookingNo, formatDate, formatDateTime, formatSARText as formatSAR, formatTime } from "./format";
 import { isolate, pdfWriter, registerFonts } from "./pdf-text";
 
 /** The bookings list (as filtered on the page) as an Excel sheet or a PDF table, headed by the company logo and name and when it was downloaded */
