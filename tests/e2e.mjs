@@ -1816,7 +1816,7 @@ if (!ONLY || ONLY === "features") {
     await cp.waitForURL(/\/ar\/pay\/[A-Za-z0-9_-]+$/, { waitUntil: "commit" });
     const ref = sql("select ref from bookings where customer_name='عميل الباقة' order by created_at desc limit 1");
     eq(sql(`select amount, pricing_mode from bookings where ref='${ref}'`), "115000|package", "total with VAT");
-    eq(sql(`select string_agg(amount::text, ',' order by seq) from installments i join bookings b on b.id=i.booking_id where b.ref='${ref}'`), "38333,38333,38334", "3 payments add up");
+    eq(sql(`select string_agg(i.amount::text, ',' order by i.seq) from installments i join bookings b on b.id=i.booking_id where b.ref='${ref}'`), "38333,38333,38334", "3 payments add up");
     // the first payment online
     await cp.getByTestId("installment-pay").getByRole("button", { name: /ادفع/ }).click();
     await cp.waitForURL(/localhost:4010\/pay\/\d+$/, { waitUntil: "commit" });
