@@ -2784,7 +2784,7 @@ if (!ONLY || ONLY === "drivers") {
     eq(await a.locator('form input[name="photo"]').first().evaluate((i) => i.files.length), 0, "fake photo not kept");
     await addDriver({ name: "فهد الحربي", phone: "0551234321", plate: "ر س ع 5555", photo: { name: "me.png", mimeType: "image/png", buffer: PHOTO } });
     await a.waitForURL(/added=1/, { waitUntil: "commit" });
-    await a.getByTestId("driver-list").getByText("فهد الحربي").waitFor();
+    await a.getByTestId("driver-list").getByText("فهد الحربي", { exact: true }).waitFor();
     const [id, phone, plate, hasPhoto] = sql("select id, phone, plate_number, photo is not null from drivers where name='فهد الحربي'").split("|");
     driverId = Number(id);
     eq(phone, "+966551234321", "mobile stored with country code");
@@ -2792,6 +2792,36 @@ if (!ONLY || ONLY === "drivers") {
     eq(hasPhoto, "t", "photo saved");
     eq((await a.request.get(`${BASE}/api/admin/drivers/${driverId}/photo`)).status(), 200, "photo for staff");
     eq((await fetch(`${BASE}/api/admin/drivers/${driverId}/photo`)).status, 404, "photo hidden from the public");
+  });
+  await check("drivers team: search by plate, name or mobile and a status filter; the edit form opens in a window over the list", async () => {
+    sql("insert into drivers (name, phone, plate_number, car_type, status) values ('سائق آخر للبحث', '+966550000999', 'ك ك ك 1234', 'هايلكس', 'approved')");
+    const find = async (qs) => {
+      await a.goto(`${BASE}/admin/driver-team?${qs}`, { waitUntil: "networkidle" });
+      return (await a.getByTestId("driver-list").locator("[data-driver]").count().catch(() => 0));
+    };
+    eq(await find(`q=${encodeURIComponent("5555")}`), 1, "by plate digits");
+    eq(await find(`q=${encodeURIComponent("رسع")}`), 1, "by plate letters, spaces ignored");
+    eq(await find(`q=${encodeURIComponent("فهد")}`), 1, "by name");
+    eq(await find(`q=${encodeURIComponent("0551234321")}`.replace("0551234321", "551234321")), 1, "by mobile");
+    await find(`q=${encodeURIComponent("لا أحد")}`);
+    await a.getByTestId("driver-none").waitFor();
+    // the form on the page
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
+    const f = a.getByTestId("driver-filter");
+    await f.locator('input[name="q"]').fill("هايلكس");
+    await f.getByRole("button", { name: "بحث" }).click();
+    await a.waitForURL(/q=/, { waitUntil: "commit" });
+    await a.getByTestId("driver-list").getByText("سائق آخر للبحث", { exact: true }).waitFor();
+    eq(await a.getByTestId("driver-list").locator("[data-driver]").count(), 1, "only that driver");
+    // editing opens in a window; the list stays as it was
+    const card = a.locator("[data-driver]").first();
+    const before = await a.getByTestId("driver-list").boundingBox();
+    await card.getByRole("button", { name: "تعديل بيانات السائق" }).click();
+    await card.getByTestId("driver-edit").waitFor();
+    eq(await card.getByTestId("driver-edit").evaluate((d) => d.open), true, "window open");
+    eq(Math.round((await a.getByTestId("driver-list").boundingBox()).height), Math.round(before.height), "list not pushed down");
+    await card.getByTestId("driver-edit").getByRole("button", { name: "إغلاق" }).click();
+    sql("delete from drivers where phone='+966550000999'");
   });
 
   await check("booking form: WhatsApp number is required and 05xxxxxxxx is stored as +9665xxxxxxxx", async () => {
@@ -3188,7 +3218,7 @@ if (!ONLY || ONLY === "drivers") {
     sql(`update bookings set status='completed', completed_at=now() where ref='${r1}'`);
     await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     const card = a.locator(`[data-driver="${driverId}"]`);
-    await card.getByTestId("driver-money-admin").locator("summary").click();
+    await card.getByRole("button", { name: "المستحقات", exact: true }).click();
     const pf = card.locator("form").filter({ has: a.getByRole("button", { name: "تسجيل الدفعة" }) });
     await pf.locator('input[name="amount"]').fill("100");
     await pf.locator('input[name="note"]').fill("حوالة الراجحي");
@@ -3232,7 +3262,7 @@ if (!ONLY || ONLY === "drivers") {
     await drv.getByRole("button", { name: "حفظ الحساب البنكي" }).click();
     await drv.getByText("تم حفظ حسابك البنكي.").waitFor();
     await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
-    await a.locator(`[data-driver="${driverId}"]`).getByTestId("driver-money-admin").locator("summary").click();
+    await a.locator(`[data-driver="${driverId}"]`).getByRole("button", { name: "المستحقات", exact: true }).click();
     await a.locator(`[data-driver="${driverId}"]`).getByTestId("driver-money-admin").getByText("SA4405000068201234567000", { exact: false }).waitFor();
     // removing the payout puts the 150 back as owed
     await a.locator(`[data-driver="${driverId}"]`).getByTestId("payout-list").getByRole("button", { name: "حذف" }).click();

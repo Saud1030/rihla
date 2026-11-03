@@ -691,3 +691,24 @@ main { view-transition-name: page; }
   animation: loader-in 0.25s ease-out both;
 }
 @keyframes loader-in { from { opacity: 0; } }
+
+/* ---------- Admin pop-up window (driver data, money, suspend) ---------- */
+.admin-popup {
+  width: min(100% - 2rem, var(--popup-w, 48rem));
+  max-height: min(100dvh - 3rem, 56rem);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: #fff;
+  color: var(--color-ink);
+  box-shadow: 0 30px 80px -20px rgb(0 0 0 / 0.55);
+  overflow: auto;
+}
+.admin-popup.max-w-5xl { --popup-w: 64rem; }
+.admin-popup::backdrop { background: rgb(12 10 9 / 0.55); backdrop-filter: blur(3px); }
+.admin-popup[open] { animation: popup-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes popup-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } }
+/* the dark glass panel: a solid dark window so its forms stay readable */
+:root:not([data-admin-theme="light"]) .admin-shell .admin-popup { background: #1c1917; }
+@media (prefers-reduced-motion: reduce) { .admin-popup[open] { animation: none; } }

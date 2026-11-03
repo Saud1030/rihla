@@ -4,7 +4,12 @@ import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { driverRatings } from "@/lib/ratings";
 import { formatDate, formatNumber, formatSAR } from "@/lib/format";
-import { driverMoney, payoutColumns, type DriverMoney, type PayoutRow } from "@/lib/driver-money";
+import {
+  driverMoney,
+  payoutColumns,
+  type DriverMoney,
+  type PayoutRow,
+} from "@/lib/driver-money";
 
 import {
   addDriverPayout,
@@ -19,15 +24,27 @@ import {
   removeDriverPhoto,
   saveDriver,
 } from "../../driver-actions";
-import { ALL_DOC_KINDS, CARD_CM, CARD_DOCS, DOC_LABELS, modelYears } from "@/lib/driver-docs";
+import {
+  ALL_DOC_KINDS,
+  CARD_CM,
+  CARD_DOCS,
+  DOC_LABELS,
+  modelYears,
+} from "@/lib/driver-docs";
 import { ColorSelect, PlateFields } from "@/components/plate-fields";
 import { PhotoField } from "@/components/site/photo-field";
 import { PayoutFields } from "@/components/admin/payout-fields";
 import { formatDateTime } from "@/lib/format";
-import { daysLabel, driverHold, SUSPEND_DAYS, upcomingTrips } from "@/lib/driver-hold";
+import {
+  daysLabel,
+  driverHold,
+  SUSPEND_DAYS,
+  upcomingTrips,
+} from "@/lib/driver-hold";
 import { todayInRiyadh } from "@/lib/booking";
 import { ActionForm } from "@/components/admin/action-form";
 import { Card, Field } from "@/components/admin/ui";
+import { Popup } from "@/components/admin/popup";
 import { Stars } from "@/components/site/stars";
 import { DriverPhoto } from "@/components/admin/driver-photo";
 import { WhatsAppIcon } from "@/components/icons";
@@ -127,16 +144,76 @@ export async function Drivers({
   const rejected = rows.filter((d) => d.status === "rejected");
   const team = rows.filter((d) => d.status === "approved");
   const heldCount = team.filter((d) => driverHold(d)).length;
+  // the team page's search: name, mobile, plate, car, email (spaces, Arabic digits and letter forms ignored)
+  const fold = (v: string) =>
+    v
+      .toLowerCase()
+      .replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)))
+      .replace(/[أإآ]/g, "ا")
+      .replace(/ى/g, "ي")
+      .replace(/ة/g, "ه")
+      .replace(/[\s\-_.+]/g, "");
+  const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 60) : "";
+  const show =
+    typeof sp.show === "string" &&
+    ["available", "held", "owed"].includes(sp.show)
+      ? sp.show
+      : "";
   // the result of a block / suspend / lift, shown after the page reloads
   // money: what each driver earned, was paid and is still owed
   const [money, payoutRows] = await Promise.all([
     driverMoney(team.map((d) => d.id)),
-    team.length ? db.select(payoutColumns).from(s.driverPayouts).where(inArray(s.driverPayouts.driverId, team.map((d) => d.id))).orderBy(desc(s.driverPayouts.paidOn), desc(s.driverPayouts.id)) : Promise.resolve([]),
+    team.length
+      ? db
+          .select(payoutColumns)
+          .from(s.driverPayouts)
+          .where(
+            inArray(
+              s.driverPayouts.driverId,
+              team.map((d) => d.id),
+            ),
+          )
+          .orderBy(desc(s.driverPayouts.paidOn), desc(s.driverPayouts.id))
+      : Promise.resolve([]),
   ]);
-  const paidKey = typeof sp.paid === "string" ? sp.paid : typeof sp.unpaid === "string" ? sp.unpaid : "";
-  const holdKey = (["suspended", "resumed", "blocked", "unblocked"] as const).find((k) => typeof sp[k] === "string");
-  const holdDriver = holdKey ? rows.find((d) => String(d.id) === sp[holdKey]) : undefined;
-  const holdTrips = holdDriver && (holdKey === "suspended" || holdKey === "blocked") ? await upcomingTrips(holdDriver.id) : [];
+  const paidKey =
+    typeof sp.paid === "string"
+      ? sp.paid
+      : typeof sp.unpaid === "string"
+        ? sp.unpaid
+        : "";
+  const needle = fold(q);
+  const shown = team.filter((d) => {
+    if (
+      needle &&
+      !fold(
+        [
+          d.name,
+          d.phone,
+          d.plateNumber,
+          d.carType,
+          d.carModel,
+          d.carColor,
+          d.email,
+        ].join(" "),
+      ).includes(needle)
+    )
+      return false;
+    if (show === "available") return d.active && !driverHold(d);
+    if (show === "held") return !!driverHold(d);
+    if (show === "owed") return (money.get(d.id)?.remaining ?? 0) > 0;
+    return true;
+  });
+  const holdKey = (
+    ["suspended", "resumed", "blocked", "unblocked"] as const
+  ).find((k) => typeof sp[k] === "string");
+  const holdDriver = holdKey
+    ? rows.find((d) => String(d.id) === sp[holdKey])
+    : undefined;
+  const holdTrips =
+    holdDriver && (holdKey === "suspended" || holdKey === "blocked")
+      ? await upcomingTrips(holdDriver.id)
+      : [];
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -162,115 +239,122 @@ export async function Drivers({
 
       {view === "requests" && (
         <>
-      <section aria-labelledby="applications" data-testid="applications">
-        <h2 id="applications" className="text-xl font-semibold mb-1">
-          طلبات الانضمام{" "}
-          {pending.length > 0 && (
-            <span className="text-amber-deep">
-              ({formatNumber(pending.length, "ar")})
-            </span>
-          )}
-        </h2>
-        <p className="text-sm text-muted mb-3">
-          السائقون يسجّلون بأنفسهم من صفحة{" "}
-          <a
-            href="/ar/drivers/join"
-            target="_blank"
-            className="text-sign hover:underline"
-          >
-            انضم كسائق
-          </a>{" "}
-          (رابطها أسفل كل صفحة في الموقع). راجع الصور ثم اقبل الطلب أو ارفضه.
-        </p>
-        {pending.length === 0 ? (
-          <p className="text-muted text-sm">لا توجد طلبات جديدة.</p>
-        ) : (
-          <ul className="space-y-4">
-            {pending.map((d) => (
-              <li key={d.id}>
-                <Card
-                  className="border-amber border-2 p-4 space-y-4"
-                  data-testid="application"
-                >
-                  <div className="flex flex-wrap gap-4">
-                    <DriverPhoto d={d} className="size-20 rounded-xl" />
-                    <div className="min-w-0 flex-1 text-sm space-y-1">
-                      <p className="font-semibold text-[16px]">{d.name}</p>
-                      <p className="text-muted flex flex-wrap gap-x-4" data-testid="driver-contact">
-                        <span>
-                          الجوال: <bdi dir="ltr">{d.phone}</bdi>
-                        </span>
-                        {d.email && (
-                          <span>
-                            البريد: <bdi dir="ltr">{d.email}</bdi>
-                          </span>
-                        )}
-                      </p>
-                      <p>
-                        {[d.carType, d.carModel, d.carColor]
-                          .filter(Boolean)
-                          .join(" · ")}{" "}
-                        · اللوحة{" "}
-                        <bdi className="font-medium">{d.plateNumber}</bdi>
-                      </p>
-                      <p className="text-muted">
-                        قدّم الطلب: {formatDateTime(d.createdAt, "ar")}
-                      </p>
-                    </div>
-                    <a
-                      href={waLink(d.phone)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-ghost !min-h-9 !py-1 text-sm self-start"
+          <section aria-labelledby="applications" data-testid="applications">
+            <h2 id="applications" className="text-xl font-semibold mb-1">
+              طلبات الانضمام{" "}
+              {pending.length > 0 && (
+                <span className="text-amber-deep">
+                  ({formatNumber(pending.length, "ar")})
+                </span>
+              )}
+            </h2>
+            <p className="text-sm text-muted mb-3">
+              السائقون يسجّلون بأنفسهم من صفحة{" "}
+              <a
+                href="/ar/drivers/join"
+                target="_blank"
+                className="text-sign hover:underline"
+              >
+                انضم كسائق
+              </a>{" "}
+              (رابطها أسفل كل صفحة في الموقع). راجع الصور ثم اقبل الطلب أو
+              ارفضه.
+            </p>
+            {pending.length === 0 ? (
+              <p className="text-muted text-sm">لا توجد طلبات جديدة.</p>
+            ) : (
+              <ul className="space-y-4">
+                {pending.map((d) => (
+                  <li key={d.id}>
+                    <Card
+                      className="border-amber border-2 p-4 space-y-4"
+                      data-testid="application"
                     >
-                      <WhatsAppIcon className="size-4" /> واتساب
-                    </a>
-                  </div>
-                  <DocGallery id={d.id} kinds={docsOf(d.id)} />
-                  <div className="flex flex-wrap items-end gap-3 border-t border-line pt-4">
-                    <ActionForm
-                      action={approveDriver}
-                      submitLabel="قبول السائق وتفعيل حسابه"
-                      pendingLabel="جارٍ القبول…"
-                      className=""
-                    >
-                      <input type="hidden" name="id" value={d.id} />
-                    </ActionForm>
-                    <details className="flex-1 min-w-60">
-                      <summary className="cursor-pointer text-sm text-danger">
-                        رفض الطلب
-                      </summary>
-                      <ActionForm
-                        action={rejectDriver}
-                        submitLabel="رفض الطلب"
-                        submitClassName="btn !bg-danger !text-white !min-h-9 !py-1 text-sm"
-                        className="mt-2 space-y-2"
-                      >
-                        <input type="hidden" name="id" value={d.id} />
-                        <Field label="السبب (يصل للسائق)">
-                          <input
-                            name="reason"
-                            maxLength={300}
-                            placeholder="مثال: صورة الاستمارة غير واضحة"
-                            className="field"
-                          />
-                        </Field>
-                      </ActionForm>
-                    </details>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <Card className="p-6">
-        <h2 className="font-semibold mb-4">إضافة سائق</h2>
-        <DriverFields key={`new-${rows.length}`} vehicles={vehicleRows} />
-      </Card>
+                      <div className="flex flex-wrap gap-4">
+                        <DriverPhoto d={d} className="size-20 rounded-xl" />
+                        <div className="min-w-0 flex-1 text-sm space-y-1">
+                          <p className="font-semibold text-[16px]">{d.name}</p>
+                          <p
+                            className="text-muted flex flex-wrap gap-x-4"
+                            data-testid="driver-contact"
+                          >
+                            <span>
+                              الجوال: <bdi dir="ltr">{d.phone}</bdi>
+                            </span>
+                            {d.email && (
+                              <span>
+                                البريد: <bdi dir="ltr">{d.email}</bdi>
+                              </span>
+                            )}
+                          </p>
+                          <p>
+                            {[d.carType, d.carModel, d.carColor]
+                              .filter(Boolean)
+                              .join(" · ")}{" "}
+                            · اللوحة{" "}
+                            <bdi className="font-medium">{d.plateNumber}</bdi>
+                          </p>
+                          <p className="text-muted">
+                            قدّم الطلب: {formatDateTime(d.createdAt, "ar")}
+                          </p>
+                        </div>
+                        <a
+                          href={waLink(d.phone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-ghost !min-h-9 !py-1 text-sm self-start"
+                        >
+                          <WhatsAppIcon className="size-4" /> واتساب
+                        </a>
+                      </div>
+                      <DocGallery id={d.id} kinds={docsOf(d.id)} />
+                      <div className="flex flex-wrap items-end gap-3 border-t border-line pt-4">
+                        <ActionForm
+                          action={approveDriver}
+                          submitLabel="قبول السائق وتفعيل حسابه"
+                          pendingLabel="جارٍ القبول…"
+                          className=""
+                        >
+                          <input type="hidden" name="id" value={d.id} />
+                        </ActionForm>
+                        <details className="flex-1 min-w-60">
+                          <summary className="cursor-pointer text-sm text-danger">
+                            رفض الطلب
+                          </summary>
+                          <ActionForm
+                            action={rejectDriver}
+                            submitLabel="رفض الطلب"
+                            submitClassName="btn !bg-danger !text-white !min-h-9 !py-1 text-sm"
+                            className="mt-2 space-y-2"
+                          >
+                            <input type="hidden" name="id" value={d.id} />
+                            <Field label="السبب (يصل للسائق)">
+                              <input
+                                name="reason"
+                                maxLength={300}
+                                placeholder="مثال: صورة الاستمارة غير واضحة"
+                                className="field"
+                              />
+                            </Field>
+                          </ActionForm>
+                        </details>
+                      </div>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <Card className="p-6">
+            <h2 className="font-semibold mb-4">إضافة سائق</h2>
+            <DriverFields key={`new-${rows.length}`} vehicles={vehicleRows} />
+          </Card>
 
           <p className="text-sm">
-            <Link href="/admin/driver-team" className="text-sign hover:underline">
+            <Link
+              href="/admin/driver-team"
+              className="text-sign hover:underline"
+            >
               فريق السائقين ({formatNumber(team.length, "ar")}) ←
             </Link>
           </p>
@@ -278,156 +362,265 @@ export async function Drivers({
       )}
       {view === "team" && (
         <>
-      <h2 className="text-xl font-semibold pt-2">
-        فريق السائقين
-        {heldCount > 0 && (
-          <span className="ms-2 text-sm font-normal text-muted">
-            ({formatNumber(heldCount, "ar")} محظور أو موقوف)
-          </span>
-        )}
-      </h2>
-      {team.length === 0 ? (
-        <p className="text-muted">لا يوجد سائقون بعد.</p>
-      ) : (
-        <ul className="space-y-4" data-testid="driver-list">
-          {team.map((d) => {
-            const r = ratings.get(d.id);
-            const t = tripCount.get(d.id);
-            const hold = driverHold(d);
-            return (
-              <li key={d.id} data-driver={d.id} id={`driver-${d.id}`} className="scroll-mt-4 space-y-2">
-                {holdDriver?.id === d.id && (
-        <div role="status" data-testid="hold-notice" className={`rounded-lg border px-4 py-3 space-y-1 ${holdKey === "blocked" || holdKey === "suspended" ? "bg-amber/15 border-amber/40" : "bg-sign-soft border-sign/20 text-sign"}`}>
-          <p>
-            {holdKey === "suspended"
-              ? `تم إيقاف ${holdDriver.name} مؤقتًا حتى ${holdDriver.suspendedUntil ? formatDateTime(holdDriver.suspendedUntil, "ar") : ""}.`
-              : holdKey === "blocked"
-                ? `تم حظر ${holdDriver.name}.`
-                : holdKey === "resumed"
-                  ? `انتهى إيقاف ${holdDriver.name}، ويقدر يدخل ويستقبل الرحلات الآن.`
-                  : `تم إلغاء حظر ${holdDriver.name}.`}
-          </p>
-          {holdTrips.length > 0 && (
-            <p className="text-sm">
-              تنبيه: عنده {holdTrips.length === 1 ? "رحلة قادمة" : `${formatNumber(holdTrips.length, "ar")} رحلات قادمة`}، أسندها لسائق آخر:{" "}
-              {holdTrips.map((t, i) => (
-                <span key={t.ref}>
-                  {i > 0 && "، "}
-                  <Link href={`/admin/bookings/${t.ref}`} className="underline font-medium">
-                    {t.no}
-                  </Link>
-                </span>
-              ))}
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <h2 className="text-xl font-semibold">
+              فريق السائقين{" "}
+              <span className="text-sm font-normal text-muted">
+                ({formatNumber(team.length, "ar")}
+                {heldCount > 0
+                  ? ` · ${formatNumber(heldCount, "ar")} محظور أو موقوف`
+                  : ""}
+                )
+              </span>
+            </h2>
+          </div>
+          {/* find a driver: name, mobile, plate, car, email; and a quick filter */}
+          <form
+            method="get"
+            className="rounded-xl border border-line bg-paper p-3 flex flex-wrap items-end gap-2"
+            data-testid="driver-filter"
+          >
+            <label className="block flex-1 min-w-56">
+              <span className="block text-xs text-muted mb-1">بحث</span>
+              <input
+                name="q"
+                defaultValue={q}
+                placeholder="الاسم، الجوال، رقم اللوحة، السيارة…"
+                className="field !min-h-9 !py-1"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-xs text-muted mb-1">الحالة</span>
+              <select
+                name="show"
+                defaultValue={show}
+                className="field !min-h-9 !py-1"
+              >
+                <option value="">الكل</option>
+                <option value="available">متاح للرحلات</option>
+                <option value="held">محظور أو موقوف</option>
+                <option value="owed">له مستحقات</option>
+              </select>
+            </label>
+            <button className="btn btn-primary !min-h-9 !py-1 text-sm">
+              بحث
+            </button>
+            {(q || show) && (
+              <Link
+                href="/admin/driver-team"
+                className="btn btn-ghost border border-line !min-h-9 !py-1 text-sm"
+              >
+                مسح
+              </Link>
+            )}
+          </form>
+          {team.length === 0 ? (
+            <p className="text-muted">لا يوجد سائقون بعد.</p>
+          ) : shown.length === 0 ? (
+            <p className="text-muted" data-testid="driver-none">
+              لا يوجد سائق بهذا البحث.
             </p>
-          )}
-        </div>
-                )}
-                <Card className={`overflow-hidden ${hold ? "opacity-90 border-danger/30" : ""}`}>
-                  <div className="flex flex-wrap gap-4 p-4">
-                    <DriverPhoto d={d} className="size-20 rounded-xl" />
-                    <div className="min-w-0 flex-1 space-y-1 text-sm">
-                      <p className="font-semibold text-[16px]">
-                        {d.name}{" "}
-                        {!d.active && !hold && (
-                          <span className="text-danger text-sm font-normal">
-                            · غير متاح للرحلات
-                          </span>
-                        )}
-                      </p>
-                      {hold && (
-                        <p
-                          data-testid="driver-hold"
-                          className={`inline-block rounded-md px-2 py-0.5 text-xs font-medium ${hold.kind === "blocked" ? "bg-danger-soft text-danger" : "bg-amber/20 text-amber-deep"}`}
-                        >
-                          {hold.kind === "blocked"
-                            ? "محظور"
-                            : `موقوف مؤقتًا حتى ${formatDateTime(hold.until, "ar")}`}
-                          {hold.reason ? ` · ${hold.reason}` : ""}
+          ) : (
+            <ul className="space-y-3" data-testid="driver-list">
+              {shown.map((d) => {
+                const r = ratings.get(d.id);
+                const t = tripCount.get(d.id);
+                const hold = driverHold(d);
+                const m = money.get(d.id)!;
+                const kinds = docsOf(d.id);
+                return (
+                  <li
+                    key={d.id}
+                    data-driver={d.id}
+                    id={`driver-${d.id}`}
+                    className="scroll-mt-4 space-y-2"
+                  >
+                    {holdDriver?.id === d.id && (
+                      <div
+                        role="status"
+                        data-testid="hold-notice"
+                        className={`rounded-lg border px-4 py-3 space-y-1 ${holdKey === "blocked" || holdKey === "suspended" ? "bg-amber/15 border-amber/40" : "bg-sign-soft border-sign/20 text-sign"}`}
+                      >
+                        <p>
+                          {holdKey === "suspended"
+                            ? `تم إيقاف ${holdDriver.name} مؤقتًا حتى ${holdDriver.suspendedUntil ? formatDateTime(holdDriver.suspendedUntil, "ar") : ""}.`
+                            : holdKey === "blocked"
+                              ? `تم حظر ${holdDriver.name}.`
+                              : holdKey === "resumed"
+                                ? `انتهى إيقاف ${holdDriver.name}، ويقدر يدخل ويستقبل الرحلات الآن.`
+                                : `تم إلغاء حظر ${holdDriver.name}.`}
                         </p>
-                      )}
-                      <p className="text-muted flex flex-wrap gap-x-4" data-testid="driver-contact">
-                        <span>
-                          الجوال: <bdi dir="ltr">{d.phone}</bdi>
-                        </span>
-                        {d.email && (
-                          <span>
-                            البريد: <bdi dir="ltr">{d.email}</bdi>
-                          </span>
+                        {holdTrips.length > 0 && (
+                          <p className="text-sm">
+                            تنبيه: عنده{" "}
+                            {holdTrips.length === 1
+                              ? "رحلة قادمة"
+                              : `${formatNumber(holdTrips.length, "ar")} رحلات قادمة`}
+                            ، أسندها لسائق آخر:{" "}
+                            {holdTrips.map((t, i) => (
+                              <span key={t.ref}>
+                                {i > 0 && "، "}
+                                <Link
+                                  href={`/admin/bookings/${t.ref}`}
+                                  className="underline font-medium"
+                                >
+                                  {t.no}
+                                </Link>
+                              </span>
+                            ))}
+                          </p>
                         )}
-                      </p>
-                      <p>
-                        {[d.carType, d.carModel, d.carColor]
-                          .filter(Boolean)
-                          .join(" · ")}{" "}
-                        · اللوحة{" "}
-                        <bdi className="font-medium">{d.plateNumber}</bdi>
-                      </p>
-                      <p className="text-muted flex flex-wrap items-center gap-x-3">
-                        {r ? (
-                          <Link
-                            href={`/admin/ratings?driver=${d.id}`}
-                            className="inline-flex items-center gap-1 hover:text-ink"
-                          >
-                            <Stars value={r.avg} size="sm" />{" "}
-                            {formatNumber(r.avg, "ar", 1)} (
-                            {formatNumber(r.count, "ar")} تقييم)
-                          </Link>
-                        ) : (
-                          <span>لا تقييمات بعد</span>
-                        )}
-                        <span>
-                          {formatNumber(t?.done ?? 0, "ar")} رحلة منتهية،{" "}
-                          {formatNumber(t?.upcoming ?? 0, "ar")} قادمة
-                        </span>
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-2 items-end">
-                      <a
-                        href={waLink(d.phone)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-ghost !min-h-9 !py-1 text-sm"
-                      >
-                        <WhatsAppIcon className="size-4" /> واتساب
-                      </a>
-                      <ActionForm
-                        action={deleteDriver}
-                        submitLabel="حذف"
-                        pendingLabel="جارٍ الحذف…"
-                        submitClassName="btn btn-ghost !min-h-9 !py-1 text-sm !text-danger"
-                        className=""
-                      >
-                        <input type="hidden" name="id" value={d.id} />
-                      </ActionForm>
-                    </div>
-                  </div>
-                  <MoneyPanel d={d} m={money.get(d.id)!} payouts={payoutRows.filter((p) => p.driverId === d.id)} open={paidKey === String(d.id)} notice={paidKey === String(d.id) ? (typeof sp.paid === "string" ? "تم تسجيل الدفعة." : "تم حذف الدفعة.") : null} />
-                  <HoldControls d={d} hold={hold} />
-                  <details className="border-t border-line">
-                    <summary className="cursor-pointer px-4 py-3 text-sm text-sign">
-                      تعديل بيانات السائق
-                    </summary>
-                    <div className="px-4 pb-5 space-y-4">
-                      <DriverFields d={d} vehicles={vehicleRows} docs={docsOf(d.id)} />
-                      <DocGallery id={d.id} kinds={docsOf(d.id)} />
-                      {d.hasPhoto && (
-                        <ActionForm
-                          action={removeDriverPhoto}
-                          submitLabel="حذف الصورة الشخصية"
-                          submitClassName="btn btn-ghost !min-h-9 !py-1 text-sm !text-danger"
-                          className=""
+                      </div>
+                    )}
+                    <Card className={`p-3 ${hold ? "border-danger/30" : ""}`}>
+                      <div className="flex items-start gap-3">
+                        {/* photos together, like the join request: the driver, then his car and papers (each opens full size) */}
+                        <div
+                          className="flex items-start gap-1.5"
+                          data-testid="driver-photos"
                         >
-                          <input type="hidden" name="id" value={d.id} />
-                        </ActionForm>
-                      )}
-                    </div>
-                  </details>
-                </Card>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                          <DriverPhoto d={d} className="size-16 rounded-lg" />
+                          <DocThumbs id={d.id} kinds={kinds} />
+                        </div>
+                        <div className="min-w-0 flex-1 text-sm space-y-1">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <p className="font-semibold text-[15px] flex flex-wrap items-center gap-x-2">
+                              {d.name}
+                              {hold ? (
+                                <span
+                                  data-testid="driver-hold"
+                                  className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${hold.kind === "blocked" ? "bg-danger-soft text-danger" : "bg-amber/20 text-amber-deep"}`}
+                                >
+                                  {hold.kind === "blocked"
+                                    ? "محظور"
+                                    : `موقوف مؤقتًا حتى ${formatDateTime(hold.until, "ar")}`}
+                                  {hold.reason ? ` · ${hold.reason}` : ""}
+                                </span>
+                              ) : !d.active ? (
+                                <span className="text-danger text-xs font-normal">
+                                  غير متاح للرحلات
+                                </span>
+                              ) : null}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <a
+                                href={waLink(d.phone)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm"
+                                aria-label={`واتساب ${d.name}`}
+                              >
+                                <WhatsAppIcon className="size-4" />
+                              </a>
+                              <MoneyPanel
+                                d={d}
+                                m={m}
+                                payouts={payoutRows.filter(
+                                  (p) => p.driverId === d.id,
+                                )}
+                                open={paidKey === String(d.id)}
+                                notice={
+                                  paidKey === String(d.id)
+                                    ? typeof sp.paid === "string"
+                                      ? "تم تسجيل الدفعة."
+                                      : "تم حذف الدفعة."
+                                    : null
+                                }
+                              />
+                              <HoldControls d={d} hold={hold} />
+                              <Popup
+                                label="تعديل بيانات السائق"
+                                title={`بيانات السائق: ${d.name}`}
+                                testId="driver-edit"
+                                wide
+                              >
+                                <DriverFields
+                                  d={d}
+                                  vehicles={vehicleRows}
+                                  docs={kinds}
+                                />
+                                <DocGallery id={d.id} kinds={kinds} />
+                                {d.hasPhoto && (
+                                  <ActionForm
+                                    action={removeDriverPhoto}
+                                    submitLabel="حذف الصورة الشخصية"
+                                    submitClassName="btn btn-ghost !min-h-9 !py-1 text-sm !text-danger"
+                                    className=""
+                                  >
+                                    <input
+                                      type="hidden"
+                                      name="id"
+                                      value={d.id}
+                                    />
+                                  </ActionForm>
+                                )}
+                              </Popup>
+                              <ActionForm
+                                action={deleteDriver}
+                                submitLabel="حذف"
+                                pendingLabel="جارٍ الحذف…"
+                                submitClassName="btn btn-ghost !min-h-8 !py-0.5 text-sm !text-danger"
+                                className=""
+                              >
+                                <input type="hidden" name="id" value={d.id} />
+                              </ActionForm>
+                            </div>
+                          </div>
+                          <p className="flex flex-wrap gap-x-3 gap-y-0.5">
+                            <span
+                              className="text-muted flex flex-wrap gap-x-3"
+                              data-testid="driver-contact"
+                            >
+                              <bdi dir="ltr">{d.phone}</bdi>
+                              {d.email && <bdi dir="ltr">{d.email}</bdi>}
+                            </span>
+                            <span>
+                              <bdi className="font-medium">{d.plateNumber}</bdi>
+                              <span className="text-muted">
+                                {" "}
+                                ·{" "}
+                                {[d.carType, d.carModel, d.carColor]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                            </span>
+                          </p>
+                          <p className="text-muted flex flex-wrap items-center gap-x-3 text-xs">
+                            {r ? (
+                              <Link
+                                href={`/admin/ratings?driver=${d.id}`}
+                                className="inline-flex items-center gap-1 hover:text-ink"
+                              >
+                                <Stars value={r.avg} size="sm" />{" "}
+                                {formatNumber(r.avg, "ar", 1)} (
+                                {formatNumber(r.count, "ar")} تقييم)
+                              </Link>
+                            ) : (
+                              <span>لا تقييمات بعد</span>
+                            )}
+                            <span>
+                              {formatNumber(t?.done ?? 0, "ar")} رحلة منتهية،{" "}
+                              {formatNumber(t?.upcoming ?? 0, "ar")} قادمة
+                            </span>
+                            <span
+                              className={
+                                m.remaining > 0
+                                  ? "text-amber-deep font-medium"
+                                  : ""
+                              }
+                              data-testid="driver-owed"
+                            >
+                              الباقي له {formatSAR(m.remaining, "ar")}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </>
       )}
       {view === "requests" && rejected.length > 0 && (
@@ -475,16 +668,27 @@ export async function Drivers({
 }
 
 /** Earned / paid / remaining, the payouts, and a form to record a new one */
-function MoneyPanel({ d, m, payouts, open, notice }: { d: Row; m: DriverMoney; payouts: PayoutRow[]; open: boolean; notice: string | null }) {
+function MoneyPanel({
+  d,
+  m,
+  payouts,
+  open,
+  notice,
+}: {
+  d: Row;
+  m: DriverMoney;
+  payouts: PayoutRow[];
+  open: boolean;
+  notice: string | null;
+}) {
   return (
-    <details className="border-t border-line" open={open} data-testid="driver-money-admin">
-      <summary className="cursor-pointer px-4 py-3 text-sm text-sign flex flex-wrap gap-x-4 gap-y-1">
-        <span>المستحقات</span>
-        <span className="text-muted tabular">
-          المستحق {formatSAR(m.earned, "ar")} · المدفوع {formatSAR(m.paid, "ar")} · <span className={m.remaining > 0 ? "text-amber-deep font-medium" : ""}>الباقي {formatSAR(m.remaining, "ar")}</span>
-        </span>
-      </summary>
-      <div className="px-4 pb-5 space-y-4">
+    <Popup
+      label="المستحقات"
+      title={`مستحقات ${d.name}`}
+      testId="driver-money-admin"
+      defaultOpen={open}
+    >
+      <div className="space-y-4">
         {notice && (
           <p role="status" className="text-sm text-sign">
             {notice}
@@ -499,38 +703,77 @@ function MoneyPanel({ d, m, payouts, open, notice }: { d: Row; m: DriverMoney; p
           ].map(([k, v]) => (
             <div key={k as string} className="rounded-lg bg-stone px-3 py-2">
               <dt className="text-xs text-muted">{k}</dt>
-              <dd className="font-semibold tabular">{formatSAR(v as number, "ar")}</dd>
+              <dd className="font-semibold tabular">
+                {formatSAR(v as number, "ar")}
+              </dd>
             </div>
           ))}
         </dl>
-        {m.unpriced > 0 && <p className="text-xs text-amber-deep">عنده {formatNumber(m.unpriced, "ar")} رحلة بدون أجرة محددة. حدّدها من صفحة الحجز.</p>}
+        {m.unpriced > 0 && (
+          <p className="text-xs text-amber-deep">
+            عنده {formatNumber(m.unpriced, "ar")} رحلة بدون أجرة محددة. حدّدها
+            من صفحة الحجز.
+          </p>
+        )}
         <div className="text-sm">
           <p className="text-muted mb-1">الحساب البنكي</p>
-          <p className="whitespace-pre-line rounded-lg border border-line px-3 py-2 min-h-10">{d.bankAccount || "لم يضف حسابًا بنكيًا بعد."}</p>
+          <p className="whitespace-pre-line rounded-lg border border-line px-3 py-2 min-h-10">
+            {d.bankAccount || "لم يضف حسابًا بنكيًا بعد."}
+          </p>
         </div>
-        <ActionForm action={addDriverPayout} submitLabel="تسجيل الدفعة" submitClassName="btn btn-primary !min-h-10 text-sm" className="space-y-3">
+        <ActionForm
+          action={addDriverPayout}
+          submitLabel="تسجيل الدفعة"
+          submitClassName="btn btn-primary !min-h-10 text-sm"
+          className="space-y-3"
+        >
           <input type="hidden" name="driverId" value={d.id} />
           <PayoutFields today={todayInRiyadh()} />
         </ActionForm>
         {payouts.length > 0 && (
-          <ul className="divide-y divide-line border border-line rounded-lg text-sm" data-testid="payout-list">
+          <ul
+            className="divide-y divide-line border border-line rounded-lg text-sm"
+            data-testid="payout-list"
+          >
             {payouts.map((p) => (
-              <li key={p.id} className="px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+              <li
+                key={p.id}
+                className="px-3 py-2 flex flex-wrap items-center justify-between gap-2"
+              >
                 <span>
-                  {formatDate(p.paidOn, "ar")} · {p.method === "cash" ? "نقدًا" : "تحويل بنكي"}
+                  {formatDate(p.paidOn, "ar")} ·{" "}
+                  {p.method === "cash" ? "نقدًا" : "تحويل بنكي"}
                   {p.note && <span className="text-muted"> · {p.note}</span>}
                   {p.hasReceipt && (
-                    <a href={`/api/payouts/${p.id}/receipt`} target="_blank" rel="noopener noreferrer" className="ms-2 text-sign hover:underline">
+                    <a
+                      href={`/api/payouts/${p.id}/receipt`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ms-2 text-sign hover:underline"
+                    >
                       الإيصال
                     </a>
                   )}
-                  <a href={`/admin/payouts/${p.id}`} target="_blank" rel="noopener noreferrer" className="ms-2 text-sign hover:underline" data-testid="payout-voucher-link">
+                  <a
+                    href={`/admin/payouts/${p.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ms-2 text-sign hover:underline"
+                    data-testid="payout-voucher-link"
+                  >
                     سند الصرف
                   </a>
                 </span>
                 <span className="flex items-center gap-3">
-                  <span className="font-medium tabular">{formatSAR(p.amount, "ar")}</span>
-                  <ActionForm action={deleteDriverPayout} submitLabel="حذف" submitClassName="text-xs text-danger hover:underline" className="">
+                  <span className="font-medium tabular">
+                    {formatSAR(p.amount, "ar")}
+                  </span>
+                  <ActionForm
+                    action={deleteDriverPayout}
+                    submitLabel="حذف"
+                    submitClassName="text-xs text-danger hover:underline"
+                    className=""
+                  >
                     <input type="hidden" name="id" value={p.id} />
                   </ActionForm>
                 </span>
@@ -539,43 +782,69 @@ function MoneyPanel({ d, m, payouts, open, notice }: { d: Row; m: DriverMoney; p
           </ul>
         )}
       </div>
-    </details>
+    </Popup>
   );
 }
 
 /** Block, or suspend for a while; or lift either */
-function HoldControls({ d, hold }: { d: Row; hold: ReturnType<typeof driverHold> }) {
+function HoldControls({
+  d,
+  hold,
+}: {
+  d: Row;
+  hold: ReturnType<typeof driverHold>;
+}) {
   if (hold?.kind === "blocked")
     return (
-      <div className="border-t border-line px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-sm">
-        <span className="text-muted">
-          محظور منذ {formatDateTime(d.blockedAt!, "ar")}. لا يقدر يدخل ولا تُسند له رحلات ولا يقدر يقدّم طلبًا جديدًا برقمه.
-        </span>
-        <ActionForm action={unblockDriver} submitLabel="إلغاء الحظر" submitClassName="btn btn-ghost !min-h-9 !py-1 text-sm" className="">
+      <span
+        title={`محظور منذ ${formatDateTime(d.blockedAt!, "ar")}. لا يقدر يدخل ولا تُسند له رحلات ولا يقدر يقدّم طلبًا جديدًا برقمه.`}
+      >
+        <ActionForm
+          action={unblockDriver}
+          submitLabel="إلغاء الحظر"
+          submitClassName="btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm"
+          className=""
+        >
           <input type="hidden" name="id" value={d.id} />
         </ActionForm>
-      </div>
+      </span>
     );
   return (
-    <details className="border-t border-line" data-testid="hold-controls">
-      <summary className="cursor-pointer px-4 py-3 text-sm text-danger">
-        {hold ? "إنهاء الإيقاف أو الحظر" : "إيقاف مؤقت أو حظر"}
-      </summary>
-      <div className="px-4 pb-5 grid gap-4 md:grid-cols-2">
+    <Popup
+      label={hold ? "إنهاء الإيقاف أو الحظر" : "إيقاف مؤقت أو حظر"}
+      title={`إيقاف أو حظر: ${d.name}`}
+      testId="hold-controls"
+      buttonClassName="btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm !text-danger"
+    >
+      <div className="grid gap-4 md:grid-cols-2">
         {hold?.kind === "suspended" ? (
           <div className="rounded-lg border border-line p-4 space-y-3">
             <h3 className="font-medium">الإيقاف المؤقت</h3>
             <p className="text-sm text-muted">
-              ينتهي تلقائيًا في {formatDateTime(hold.until, "ar")}. تقدر تنهيه الآن.
+              ينتهي تلقائيًا في {formatDateTime(hold.until, "ar")}. تقدر تنهيه
+              الآن.
             </p>
-            <ActionForm action={endSuspension} submitLabel="إنهاء الإيقاف الآن" submitClassName="btn btn-ghost border border-line text-sm" className="space-y-2">
+            <ActionForm
+              action={endSuspension}
+              submitLabel="إنهاء الإيقاف الآن"
+              submitClassName="btn btn-ghost border border-line text-sm"
+              className="space-y-2"
+            >
               <input type="hidden" name="id" value={d.id} />
             </ActionForm>
           </div>
         ) : (
-          <ActionForm action={suspendDriver} submitLabel="إيقاف مؤقت" submitClassName="btn btn-ghost border border-line text-sm" className="rounded-lg border border-line p-4 space-y-3">
+          <ActionForm
+            action={suspendDriver}
+            submitLabel="إيقاف مؤقت"
+            submitClassName="btn btn-ghost border border-line text-sm"
+            className="rounded-lg border border-line p-4 space-y-3"
+          >
             <h3 className="font-medium">إيقاف مؤقت</h3>
-            <p className="text-xs text-muted">ما يقدر يدخل ولا تُسند له رحلات حتى تنتهي المدة، وبعدها يرجع تلقائيًا.</p>
+            <p className="text-xs text-muted">
+              ما يقدر يدخل ولا تُسند له رحلات حتى تنتهي المدة، وبعدها يرجع
+              تلقائيًا.
+            </p>
             <input type="hidden" name="id" value={d.id} />
             <Field label="المدة">
               <select name="period" defaultValue="1" className="field">
@@ -587,36 +856,99 @@ function HoldControls({ d, hold }: { d: Row; hold: ReturnType<typeof driverHold>
                 <option value="date">حتى تاريخ معيّن…</option>
               </select>
             </Field>
-            <Field label="حتى تاريخ" hint="يُستخدم إذا اخترت «حتى تاريخ معيّن». ينتهي الإيقاف آخر ذلك اليوم.">
-              <input type="date" name="until" min={todayInRiyadh()} className="field" />
+            <Field
+              label="حتى تاريخ"
+              hint="يُستخدم إذا اخترت «حتى تاريخ معيّن». ينتهي الإيقاف آخر ذلك اليوم."
+            >
+              <input
+                type="date"
+                name="until"
+                min={todayInRiyadh()}
+                className="field"
+              />
             </Field>
             <Field label="السبب (اختياري)">
-              <input name="reason" maxLength={300} className="field" placeholder="مثال: تأخر متكرر عن المواعيد" />
+              <input
+                name="reason"
+                maxLength={300}
+                className="field"
+                placeholder="مثال: تأخر متكرر عن المواعيد"
+              />
             </Field>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="tell" defaultChecked className="size-4 accent-sign" />
+              <input
+                type="checkbox"
+                name="tell"
+                defaultChecked
+                className="size-4 accent-sign"
+              />
               أبلغ السائق على واتساب
             </label>
           </ActionForm>
         )}
-        <ActionForm action={blockDriver} submitLabel="حظر السائق" submitClassName="btn btn-ghost border border-danger/40 !text-danger text-sm" className="rounded-lg border border-danger/30 p-4 space-y-3">
+        <ActionForm
+          action={blockDriver}
+          submitLabel="حظر السائق"
+          submitClassName="btn btn-ghost border border-danger/40 !text-danger text-sm"
+          className="rounded-lg border border-danger/30 p-4 space-y-3"
+        >
           <h3 className="font-medium text-danger">حظر</h3>
-          <p className="text-xs text-muted">إيقاف دائم: ما يقدر يدخل ولا تُسند له رحلات ولا يقدر يسجّل من جديد برقمه، لين تلغي الحظر بنفسك.</p>
+          <p className="text-xs text-muted">
+            إيقاف دائم: ما يقدر يدخل ولا تُسند له رحلات ولا يقدر يسجّل من جديد
+            برقمه، لين تلغي الحظر بنفسك.
+          </p>
           <input type="hidden" name="id" value={d.id} />
           <Field label="السبب (اختياري)">
             <input name="reason" maxLength={300} className="field" />
           </Field>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="tell" defaultChecked className="size-4 accent-sign" />
+            <input
+              type="checkbox"
+              name="tell"
+              defaultChecked
+              className="size-4 accent-sign"
+            />
             أبلغ السائق على واتساب
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="confirm" className="size-4 accent-sign" />
+            <input
+              type="checkbox"
+              name="confirm"
+              className="size-4 accent-sign"
+            />
             متأكد من حظر هذا السائق
           </label>
         </ActionForm>
       </div>
-    </details>
+    </Popup>
+  );
+}
+
+/** Small photos of the car and papers beside the driver's photo; each opens full size */
+function DocThumbs({ id, kinds }: { id: number; kinds: string[] }) {
+  const have = ALL_DOC_KINDS.filter((k) => kinds.includes(k));
+  if (!have.length) return null;
+  return (
+    <div className="grid grid-cols-4 gap-1 max-w-[13rem]">
+      {have.map((k) => (
+        <a
+          key={k}
+          href={`/api/admin/drivers/${id}/doc/${k}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={DOC_LABELS[k].ar}
+          className="block overflow-hidden rounded-md border border-line bg-stone"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- private document from our own API route */}
+          <img
+            src={`/api/admin/drivers/${id}/doc/${k}`}
+            alt={DOC_LABELS[k].ar}
+            loading="lazy"
+            className="size-[3.05rem] object-cover"
+          />
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -638,7 +970,11 @@ function DocGallery({ id, kinds }: { id: number; kinds: string[] }) {
                 src={`/api/admin/drivers/${id}/doc/${k}`}
                 alt={DOC_LABELS[k].ar}
                 className={`w-full ${CARD_DOCS.includes(k) ? "object-contain" : "h-28 object-cover"}`}
-                style={CARD_DOCS.includes(k) ? { aspectRatio: `${CARD_CM.w} / ${CARD_CM.h}` } : undefined}
+                style={
+                  CARD_DOCS.includes(k)
+                    ? { aspectRatio: `${CARD_CM.w} / ${CARD_CM.h}` }
+                    : undefined
+                }
               />
             </a>
           ) : (
@@ -662,10 +998,25 @@ const PHOTO_LABELS = {
   unreadable: "هذا الملف ليس صورة صالحة. اختر صورة PNG أو JPG أو WEBP.",
   cardSize: "تُقص بمقاس البطاقة: ٩٫٥٦ × ٦٫٤ سم",
   photoSize: "تُقص بمقاس صورة شخصية: ٤ × ٤ سم",
-  crop: { cropTitle: "قص الصورة", cropHint: "اسحب الصورة وكبّرها حتى يملأ الوجه الإطار.", zoom: "تكبير", rotate: "تدوير", cropOk: "اعتماد", cancel: "إلغاء" },
+  crop: {
+    cropTitle: "قص الصورة",
+    cropHint: "اسحب الصورة وكبّرها حتى يملأ الوجه الإطار.",
+    zoom: "تكبير",
+    rotate: "تدوير",
+    cropOk: "اعتماد",
+    cancel: "إلغاء",
+  },
 };
 
-function DriverFields({ d, vehicles, docs }: { d?: Row; vehicles: VehicleOption[]; docs?: string[] }) {
+function DriverFields({
+  d,
+  vehicles,
+  docs,
+}: {
+  d?: Row;
+  vehicles: VehicleOption[];
+  docs?: string[];
+}) {
   return (
     <ActionForm action={saveDriver} submitLabel={d ? "حفظ" : "إضافة السائق"}>
       {d && <input type="hidden" name="id" value={d.id} />}
@@ -695,11 +1046,27 @@ function DriverFields({ d, vehicles, docs }: { d?: Row; vehicles: VehicleOption[
             inputMode="tel"
           />
         </Field>
-        <Field label="البريد الإلكتروني (اختياري)" hint="يقدر السائق يدخل به أيضًا">
-          <input name="email" type="email" maxLength={200} defaultValue={d?.email ?? ""} dir="ltr" className="field text-start" autoComplete="off" />
+        <Field
+          label="البريد الإلكتروني (اختياري)"
+          hint="يقدر السائق يدخل به أيضًا"
+        >
+          <input
+            name="email"
+            type="email"
+            maxLength={200}
+            defaultValue={d?.email ?? ""}
+            dir="ltr"
+            className="field text-start"
+            autoComplete="off"
+          />
         </Field>
         <div className="sm:col-span-2">
-          <PlateFields value={d?.plateNumber} label="رقم اللوحة" lettersLabel="الحروف" digitsLabel="الأرقام" />
+          <PlateFields
+            value={d?.plateNumber}
+            label="رقم اللوحة"
+            lettersLabel="الحروف"
+            digitsLabel="الأرقام"
+          />
         </div>
         <Field label="نوع السيارة" hint="من قائمة السيارات في لوحة التحكم">
           <select
@@ -737,20 +1104,49 @@ function DriverFields({ d, vehicles, docs }: { d?: Row; vehicles: VehicleOption[
           <ColorSelect value={d?.carColor} lang="ar" required={false} />
         </Field>
         <div>
-          <PhotoField name="photo" label={d?.hasPhoto ? "صورة شخصية جديدة (اختياري)" : "الصورة الشخصية"} t={PHOTO_LABELS} required={false} />
+          <PhotoField
+            name="photo"
+            label={
+              d?.hasPhoto ? "صورة شخصية جديدة (اختياري)" : "الصورة الشخصية"
+            }
+            t={PHOTO_LABELS}
+            required={false}
+          />
           <p className="text-xs text-muted mt-1">تظهر للعميل في صفحة حجزه.</p>
         </div>
         {/* the same documents as the driver's own application page */}
-        <fieldset className="sm:col-span-2 space-y-2" data-testid="driver-docs-fields">
-          <legend className="text-sm font-medium mb-1">المستندات والصور {d ? "(اختر صورة فقط لما تبي تستبدلها)" : "(اختياري)"}</legend>
+        <fieldset
+          className="sm:col-span-2 space-y-2"
+          data-testid="driver-docs-fields"
+        >
+          <legend className="text-sm font-medium mb-1">
+            المستندات والصور{" "}
+            {d ? "(اختر صورة فقط لما تبي تستبدلها)" : "(اختياري)"}
+          </legend>
           <div className="grid gap-3 sm:grid-cols-2">
             {ALL_DOC_KINDS.map((k) => (
-              <PhotoField key={k} name={k} label={`${DOC_LABELS[k].ar}${d && docs?.includes(k) ? " ✓ موجودة" : ""}`} t={PHOTO_LABELS} required={false} />
+              <PhotoField
+                key={k}
+                name={k}
+                label={`${DOC_LABELS[k].ar}${d && docs?.includes(k) ? " ✓ موجودة" : ""}`}
+                t={PHOTO_LABELS}
+                required={false}
+              />
             ))}
           </div>
         </fieldset>
-        <Field label="الحساب البنكي للسائق" hint="اسم البنك والآيبان واسم صاحب الحساب. السائق يقدر يعدّله من حسابه" className="sm:col-span-2">
-          <textarea name="bankAccount" rows={2} maxLength={300} defaultValue={d?.bankAccount ?? ""} className="field" />
+        <Field
+          label="الحساب البنكي للسائق"
+          hint="اسم البنك والآيبان واسم صاحب الحساب. السائق يقدر يعدّله من حسابه"
+          className="sm:col-span-2"
+        >
+          <textarea
+            name="bankAccount"
+            rows={2}
+            maxLength={300}
+            defaultValue={d?.bankAccount ?? ""}
+            className="field"
+          />
         </Field>
         <Field label="ملاحظات داخلية (اختياري)">
           <input
