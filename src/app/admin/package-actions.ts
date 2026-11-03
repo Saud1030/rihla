@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
@@ -98,5 +99,6 @@ export async function markInstallment(_prev: ActionState, formData: FormData): P
   const b = await db.query.bookings.findFirst({ where: eq(s.bookings.id, inst.bookingId) });
   revalidatePath(`/admin/bookings/${b?.ref ?? ""}`);
   console.info("installment marked paid", { by: admin.email, id });
-  return { ok: true, message: "تم تسجيل الدفعة كمدفوعة." };
+  // its buttons go away once paid, so the note shows at the top of the page
+  redirect(`/admin/bookings/${b?.ref ?? ""}?inst=paid`);
 }

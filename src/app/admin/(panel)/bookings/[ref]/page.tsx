@@ -77,7 +77,9 @@ async function Detail({
   const { ref } = await params;
   const sp = await searchParams;
   const completedNote =
-    sp.cash === "1"
+    sp.inst === "paid"
+      ? "تم تسجيل الدفعة كمدفوعة."
+      : sp.cash === "1"
       ? "تم تسجيل استلام المبلغ كاش، ووصل العميل سند الصرف."
       : sp.einvoice === "reported"
         ? "تم إرسال الفاتورة لوافق والإبلاغ عنها لهيئة الزكاة."

@@ -187,6 +187,7 @@ export function CardCropper({
         </div>
       </div>
     </div>,
-    document.body,
+    // inside an open pop-up window (admin), so it isn't behind it; else on the page
+    (document.querySelector("dialog[open]") as HTMLElement | null) ?? document.body,
   );
 }
