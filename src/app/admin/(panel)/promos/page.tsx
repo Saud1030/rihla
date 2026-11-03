@@ -1,12 +1,14 @@
 import { Suspense } from "react";
-import { desc } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
-import { promoSettings } from "@/lib/promo";
+import { promoSettings, publicPromo } from "@/lib/promo";
+import { publicBaseUrl } from "@/lib/public-url";
+import { CopyText } from "@/components/admin/copy-text";
 import { formatNumber } from "@/lib/format";
 import { countryOptions } from "@/lib/countries";
-import { addPromoCustomer, resendPromo, savePromoSettings } from "../../promo-actions";
+import { addPromoCustomer, resendPromo, savePromoSettings, savePublicPromo } from "../../promo-actions";
 import { PhoneCountryField } from "@/components/site/phone-country-field";
 import { ActionForm } from "@/components/admin/action-form";
 import { Card, Field, PageHeader, Skeleton } from "@/components/admin/ui";
@@ -34,6 +36,14 @@ async function Promos() {
   ]);
   const cfg = promoSettings(st);
   const used = rows.filter((r) => r.p.usedAt).length;
+  const pub = publicPromo(st);
+  const [{ n: pubUsed }] = pub.code
+    ? await db.select({ n: count() }).from(s.bookings).where(and(eq(s.bookings.promoCode, pub.code), inArray(s.bookings.status, ["paid", "confirmed", "completed"])))
+    : [{ n: 0 }];
+  const site = await publicBaseUrl();
+  const pubMessage = pub.code
+    ? `عرض خاص من Mighty Hands Trans 🚘\nاستخدم الرمز ${pub.code} واحصل على خصم ${formatNumber(pub.percent, "ar")}٪ على حجزك.\nاحجز من هنا: ${site}/ar`
+    : "";
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -53,6 +63,44 @@ async function Promos() {
             </Field>
             <Field label="نسبة الخصم ٪" hint="من سعر الحجز قبل الضريبة">
               <input name="promo_percent" type="number" min={1} max={100} required defaultValue={cfg.percent} dir="ltr" className="field text-start" />
+            </Field>
+          </div>
+        </ActionForm>
+      </Card>
+
+      {/* one code for everyone: copy it and send it to all */}
+      <Card className="p-6" data-testid="promo-public">
+        <h2 className="font-semibold mb-1">رمز عام للكل</h2>
+        <p className="text-sm text-muted mb-4 max-w-[75ch]">
+          رمز واحد تنسخه وترسله لكل عملائك (واتساب، سناب، إنستقرام…). كل رقم جوال يستخدمه مرة وحدة، وتقدر توقفه أو تغيّره متى ما تبي.
+        </p>
+        {pub.code && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-stone px-4 py-3">
+            <span className="text-sm text-muted">الرمز:</span>
+            <bdi dir="ltr" className="font-mono text-xl font-semibold tracking-wider" data-testid="promo-public-code">
+              {pub.code}
+            </bdi>
+            <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${pub.enabled ? "bg-sign-soft text-sign" : "bg-danger-soft text-danger"}`} data-testid="promo-public-state">
+              {pub.enabled ? `شغّال · خصم ${formatNumber(pub.percent, "ar")}٪` : "موقوف"}
+            </span>
+            <span className="text-sm text-muted">استُخدم {formatNumber(pubUsed, "ar")} مرة</span>
+            <span className="ms-auto flex flex-wrap gap-2">
+              <CopyText text={pub.code} label="نسخ الرمز" testId="copy-public-code" />
+              <CopyText text={pubMessage} label="نسخ رسالة جاهزة" testId="copy-public-message" />
+            </span>
+          </div>
+        )}
+        <ActionForm action={savePublicPromo} submitLabel="حفظ الرمز العام">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="promo_public_enabled" defaultChecked={pub.enabled || !pub.code} className="size-4 accent-sign" />
+            تفعيل الرمز العام
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2 max-w-xl">
+            <Field label="الرمز" hint="حروف وأرقام إنجليزية؛ اتركه فاضي ونسوي لك رمز">
+              <input name="promo_public_code" maxLength={20} defaultValue={pub.code} dir="ltr" className="field text-start uppercase" placeholder="MHT2026" />
+            </Field>
+            <Field label="نسبة الخصم ٪">
+              <input name="promo_public_percent" type="number" min={1} max={100} required defaultValue={pub.percent} dir="ltr" className="field text-start" />
             </Field>
           </div>
         </ActionForm>

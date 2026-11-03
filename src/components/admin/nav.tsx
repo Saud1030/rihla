@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BadgePercent,
   CalendarCheck,
+  ChartColumn,
+  IdCard,
+  Moon,
   Car,
   Clock,
   Image as ImageIcon,
@@ -30,12 +34,16 @@ const ICONS: Record<string, LucideIcon> = {
   "/admin": LayoutDashboard,
   "/admin/my-trips": Navigation,
   "/admin/bookings": CalendarCheck,
+  "/admin/revenue": ChartColumn,
   "/admin/drivers": Users,
+  "/admin/driver-team": IdCard,
   "/admin/ratings": Star,
   "/admin/promos": TicketPercent,
   "/admin/messages": MessageSquare,
   "/admin/chat": MessagesSquare,
   "/admin/prices": Tags,
+  "/admin/seasons": Moon,
+  "/admin/offers": BadgePercent,
   "/admin/hourly-prices": Clock,
   "/admin/routes": Route,
   "/admin/destinations": MapPin,

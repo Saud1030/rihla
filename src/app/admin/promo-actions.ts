@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { invalidateCatalogCache } from "@/lib/catalog";
-import { newCode, promoSettings, sendPromo } from "@/lib/promo";
+import { cleanCode, newCode, promoSettings, sendPromo } from "@/lib/promo";
 import { readSettings } from "@/lib/notify";
 import { phoneWithCountry } from "@/lib/phone";
 import { DEFAULT_COUNTRY, dialCode } from "@/lib/countries";
@@ -63,4 +63,23 @@ export async function addPromoCustomer(_prev: ActionState, formData: FormData): 
   await sendPromo(row, "ar");
   revalidatePath("/admin/promos");
   return { ok: true, message: `تمت إضافة ${name} وإرسال الرمز ${row.code} له.` };
+}
+
+/** The one code for everyone: on/off, the code itself and its discount */
+export async function savePublicPromo(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("promos");
+  const code = cleanCode(formData.get("promo_public_code")) || newCode().replace(/^VIP/, "MHT");
+  if (!/^[A-Z0-9]{4,20}$/.test(code)) return { error: "الرمز من ٤ إلى ٢٠ حرفًا أو رقمًا إنجليزيًا." };
+  const percent = Number(digits(formData.get("promo_public_percent")));
+  if (!Number.isInteger(percent) || percent < 1 || percent > 100) return { error: "نسبة الخصم رقم من ١ إلى ١٠٠." };
+  // not the same as a customer's own code
+  if (await db.query.promoCodes.findFirst({ where: eq(s.promoCodes.code, code) })) return { error: "هذا الرمز مستخدم لعميل. اختر رمزًا آخر." };
+  const rows = { promo_public_enabled: formData.get("promo_public_enabled") === "on" ? "1" : "0", promo_public_code: code, promo_public_percent: String(percent) };
+  await db.transaction(async (tx) => {
+    for (const [key, value] of Object.entries(rows))
+      await tx.insert(s.settings).values({ key, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
+  });
+  invalidateCatalogCache();
+  revalidatePath("/admin/promos");
+  return { ok: true, message: rows.promo_public_enabled === "1" ? `تم الحفظ. الرمز ${code} شغّال للكل.` : "تم الحفظ. الرمز العام موقوف." };
 }

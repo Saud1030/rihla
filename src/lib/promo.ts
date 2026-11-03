@@ -34,11 +34,34 @@ export const cleanCode = (v: unknown) =>
 const ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 export const newCode = () => "VIP" + Array.from({ length: 6 }, () => ALPHABET[randomInt(ALPHABET.length)]).join("");
 
-/** a code that can still be used, or null */
-export async function usablePromo(code: string) {
+/** The one code for everyone (Admin -> Promo codes): the admin copies it and sends it to all. Once per mobile number. */
+export function publicPromo(st: Record<string, string>) {
+  const percent = Number(st.promo_public_percent);
+  const code = cleanCode(st.promo_public_code);
+  return {
+    enabled: st.promo_public_enabled === "1" && /^[A-Z0-9]{4,20}$/.test(code),
+    code,
+    percent: Number.isInteger(percent) && percent >= 1 && percent <= 100 ? percent : DEFAULT_PROMO_PERCENT,
+  };
+}
+
+/** a code that can still be used (a customer's own code, or the code for everyone), or null */
+export async function usablePromo(code: string, phone?: string): Promise<{ percent: number; general: boolean } | null> {
   if (!/^[A-Z0-9]{4,20}$/.test(code)) return null;
+  const pub = publicPromo(await readSettings());
+  if (pub.enabled && code === pub.code) {
+    // once per mobile number: a paid booking with it already counts
+    if (phone) {
+      const [{ n }] = await db
+        .select({ n: count() })
+        .from(s.bookings)
+        .where(and(eq(s.bookings.customerPhone, phone), eq(s.bookings.promoCode, code), inArray(s.bookings.status, ["paid", "confirmed", "completed"])));
+      if (n > 0) return null;
+    }
+    return { percent: pub.percent, general: true };
+  }
   const row = await db.query.promoCodes.findFirst({ where: and(eq(s.promoCodes.code, code), isNull(s.promoCodes.usedAt)) });
-  return row ?? null;
+  return row ? { percent: row.percent, general: false } : null;
 }
 
 /** the discount on a price before VAT */

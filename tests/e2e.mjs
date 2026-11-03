@@ -840,12 +840,12 @@ if (!ONLY || ONLY === "features") {
   });
   await check("chooser: from, to, date and time are required; each missing one is flagged", async () => {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.getByRole("button", { name: "حجز", exact: true }).click();
     await page.getByText("اختر نقطة الانطلاق أولًا.").waitFor();
     eq(await page.locator('form#search [aria-invalid="true"]').count(), 4, "four fields flagged");
     await pickPlace(page, 0, "منطقة الرياض", "الرياض", "مطار الملك خالد الدولي");
     await pickPlace(page, 1, "منطقة الرياض", "الدرعية", "حي الطريف");
-    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.getByRole("button", { name: "حجز", exact: true }).click();
     await page.getByText("اختر تاريخ الرحلة.").waitFor();
     assert(!page.url().includes("/search"), "not navigated");
     // server side too: no destination or no start -> back to the chooser
@@ -874,7 +874,7 @@ if (!ONLY || ONLY === "features") {
     await pickPlace(page, 1, "منطقة الرياض", "الدرعية", "حي الطريف");
     await page.fill('form#search input[name="date"]', day);
     await page.selectOption('form#search select[name="time"]', "18:00");
-    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.getByRole("button", { name: "حجز", exact: true }).click();
     await page.waitForURL(new RegExp(`/ar/trip\\?from=riyadh-airport&to=at-turaif&date=${day}&time=18%3A00$`), { waitUntil: "commit" });
     await page.getByText("حوالي ٣٥ كم").waitFor();
     eq(await page.inputValue("#date"), day, "date prefilled");
@@ -896,7 +896,7 @@ if (!ONLY || ONLY === "features") {
     await pickPlace(page, 1, "منطقة مكة المكرمة", "مكة المكرمة", "مكة المكرمة (الفنادق)", "routes-search");
     await page.fill('form#routes-search input[name="date"]', inDaysUTC(2));
     await page.selectOption('form#routes-search select[name="time"]', "09:30");
-    await page.locator("form#routes-search").getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.locator("form#routes-search").getByRole("button", { name: "حجز", exact: true }).click();
     await page.waitForURL(/\/ar\/routes\/jeddah-airport-makkah\?date=/, { waitUntil: "commit" });
     await page.waitForLoadState("networkidle");
     eq(await page.inputValue("#time"), "09:30", "time prefilled");
@@ -1191,7 +1191,7 @@ if (!ONLY || ONLY === "features") {
     await page.getByRole("tab", { name: "يومي", exact: true }).click();
     assert(page.url().endsWith("/ar"), "tab doesn't navigate away");
     eq(await page.locator("form#search button[aria-controls=search-panel]").count(), 2, "city and duration only");
-    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.getByRole("button", { name: "حجز", exact: true }).click();
     await page.getByText("اختر نقطة الانطلاق أولًا.").waitFor(); // the city is required
     // pick a city (not a place)
     await page.locator("form#search button[aria-controls=search-panel]").nth(0).click();
@@ -1211,7 +1211,7 @@ if (!ONLY || ONLY === "features") {
     await page.getByTestId("end-date").locator("input").fill(inDaysUTC(5));
     const sign = await page.getByTestId("ends-at").textContent();
     assert(sign.includes("٣ أيام") && sign.includes("بعد ٣ أيام"), "3 days on the sign: " + sign);
-    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.getByRole("button", { name: "حجز", exact: true }).click();
     await page.waitForURL(/\/ar\/hourly\?city=makkah&hours=24&days=3&date=/, { waitUntil: "commit" });
     await page.getByRole("heading", { name: /سيارة مع سائق · ٣ أيام/ }).waitFor();
     eq(await page.getByTestId("days-form").locator("select").inputValue(), "3", "days on the page");
@@ -1323,7 +1323,7 @@ if (!ONLY || ONLY === "features") {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     await page.getByRole("tab", { name: "رحلات متعددة" }).click();
     eq(await page.locator('[data-testid^="leg-"]').count(), 2, "two trips to start with");
-    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.getByRole("button", { name: "حجز", exact: true }).click();
     await page.getByText("اختر نقطة الانطلاق أولًا.").waitFor(); // every trip needs its places
     await pickPlace(page, 0, "منطقة مكة المكرمة", "جدة", "مطار الملك عبدالعزيز");
     await pickPlace(page, 1, "منطقة مكة المكرمة", "مكة المكرمة", "مكة المكرمة (الفنادق)");
@@ -1338,7 +1338,7 @@ if (!ONLY || ONLY === "features") {
     assert((await page.getByTestId("leg-3").innerText()).includes("المدينة المنورة (الفنادق)"), "starts where trip 2 ended");
     await page.getByRole("button", { name: "احذف هذا المشوار ٣" }).click();
     eq(await page.locator('[data-testid^="leg-"]').count(), 2, "back to two");
-    await page.getByRole("button", { name: "اعرض الأسعار" }).click();
+    await page.getByRole("button", { name: "حجز", exact: true }).click();
     await page.waitForURL(/\/ar\/multi\?l1=jeddah-airport%2Cmakkah%2C.*&l2=makkah%2Cmadinah%2C/, { waitUntil: "commit" });
     await page.waitForLoadState("networkidle");
     eq(await page.getByTestId("multi-legs").locator("li").count(), 2, "two trips");
@@ -1649,6 +1649,106 @@ if (!ONLY || ONLY === "features") {
     await a.goto(`${BASE}/admin/promos`, { waitUntil: "networkidle" });
     eq(await a.getByTestId("promo-list").locator(`tr[data-code="${code}"]`).getAttribute("data-status"), "used", "shown as used");
     sql("update settings set value='5' where key='promo_every'; update settings set value='10' where key='promo_percent'");
+  });
+
+  await check("general promo code: one code for everyone set and copied in the panel; once per mobile number; can be switched off", async () => {
+    sql("delete from settings where key like 'promo_public%'; delete from bookings where customer_phone in ('+966556667788','+966556667799','+966556667700')");
+    await a.goto(`${BASE}/admin/promos`, { waitUntil: "networkidle" });
+    const f = a.getByTestId("promo-public");
+    await f.locator('input[name="promo_public_code"]').fill("mht2026");
+    await f.locator('input[name="promo_public_percent"]').fill("15");
+    await f.getByRole("button", { name: "حفظ الرمز العام" }).click();
+    await a.getByText("الرمز MHT2026 شغّال للكل").waitFor();
+    await a.reload({ waitUntil: "networkidle" });
+    eq(await a.getByTestId("promo-public-code").innerText(), "MHT2026", "shown");
+    await a.getByTestId("copy-public-code").waitFor();
+    await a.getByTestId("copy-public-message").waitFor();
+    const price = Number(sql("select t.price from trips t join routes r on r.id=t.route_id join vehicles v on v.id=t.vehicle_id where r.slug='jeddah-airport-makkah' and v.slug='toyota-camry'"));
+    const use = (phone) => ({ vehicle: "تويوتا كامري", date: inDays(4), phone, name: "عميل العرض", before: async (p) => { await p.fill("#promo", "mht2026"); } });
+    const r1 = await makeBooking(cp, use("0556667788"));
+    eq(sql(`select promo_code, discount from bookings where ref='${r1}'`), `MHT2026|${Math.round(price * 0.15)}`, "15% off");
+    await payInBrowser(cp, r1, "pay");
+    // paid: the voucher downloads as a PDF from the booking page
+    const href = await cp.getByTestId("voucher-pdf").getAttribute("href");
+    const pdf = await cp.request.get(BASE + href);
+    eq(pdf.headers()["content-type"], "application/pdf", "voucher PDF");
+    // the same number again: refused; another number: fine
+    await fillBooking(cp, use("0556667788"));
+    await cp.getByText("الرمز الترويجي غير صحيح أو مستخدم من قبل.").waitFor();
+    const r2 = await makeBooking(cp, use("0556667799"));
+    eq(sql(`select discount from bookings where ref='${r2}'`), String(Math.round(price * 0.15)), "another customer gets it too");
+    await a.goto(`${BASE}/admin/promos`, { waitUntil: "networkidle" });
+    assert((await a.getByTestId("promo-public").innerText()).includes("استُخدم ١ مرة"), "use counted");
+    // switched off: refused
+    await a.getByTestId("promo-public").locator('input[name="promo_public_enabled"]').uncheck();
+    await a.getByTestId("promo-public").getByRole("button", { name: "حفظ الرمز العام" }).click();
+    await a.getByText("الرمز العام موقوف").waitFor();
+    await fillBooking(cp, use("0556667700"));
+    await cp.getByText("الرمز الترويجي غير صحيح أو مستخدم من قبل.").waitFor();
+    sql("delete from settings where key like 'promo_public%'");
+  });
+
+  await check("Hajj & Umrah seasons raise the price on Hijri season dates; offers take their % off in their dates; both switch off by hand", async () => {
+    const H = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { month: "numeric", day: "numeric", timeZone: "UTC" });
+    const hijri = (d) => Object.fromEntries(H.formatToParts(new Date(`${d}T12:00:00Z`)).filter((x) => x.type !== "literal").map((x) => [x.type, Number(x.value)]));
+    let ram;
+    for (let i = 2; i < 360 && !ram; i++) if (hijri(inDays(i)).month === 9 && hijri(inDays(i)).day === 10) ram = inDays(i);
+    assert(ram, "a Ramadan day within a year");
+    sql("delete from offers; delete from settings where key like 'season_%' or key='offers_enabled'");
+    const price = Number(sql("select t.price from trips t join routes r on r.id=t.route_id join vehicles v on v.id=t.vehicle_id where r.slug='jeddah-airport-makkah' and v.slug='toyota-camry'"));
+    // the season: +30% from 1 Ramadan to 5 Shawwal (the default dates)
+    await a.goto(`${BASE}/admin/seasons`, { waitUntil: "networkidle" });
+    const card = a.getByTestId("season-ramadan");
+    eq(await card.locator('select[name="fromMonth"]').inputValue(), "9", "starts in Ramadan");
+    eq(`${await card.locator('select[name="toDay"]').inputValue()}-${await card.locator('select[name="toMonth"]').inputValue()}`, "5-10", "ends 5 Shawwal");
+    await card.locator('input[name="percent"]').fill("30");
+    await card.getByRole("button", { name: "حفظ" }).click();
+    await a.getByText("تم حفظ موسم رمضان والعمرة.").waitFor();
+    assert(await a.locator(".admin-nav a[href='/admin/seasons']").count(), "in the menu");
+    await a.reload({ waitUntil: "networkidle" });
+    assert((await a.getByTestId("season-ramadan").getByTestId("season-dates").innerText()).length > 10, "shows the coming Gregorian dates");
+    // the booking form shows the increase for a Ramadan day, not for an ordinary day
+    await cp.goto(`${BASE}/ar/routes/jeddah-airport-makkah`, { waitUntil: "networkidle" });
+    await cp.getByRole("radiogroup").getByText("تويوتا كامري", { exact: true }).click();
+    await cp.fill("#date", ram);
+    await cp.getByTestId("price-season").waitFor();
+    await cp.fill("#date", inDays(4));
+    await cp.getByTestId("price-season").waitFor({ state: "detached" });
+    const extra = Math.round(price * 0.3);
+    const r1 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: ram });
+    eq(sql(`select price_adjust, subtotal from bookings where ref='${r1}'`), `${extra}|${price + extra}`, "season increase stored");
+    assert(sql(`select price_adjust_note from bookings where ref='${r1}'`).includes("موسم رمضان"), "and named");
+    // an offer: 10% off trips on days 10–12
+    await a.goto(`${BASE}/admin/offers`, { waitUntil: "networkidle" });
+    const add = a.getByTestId("offer-add");
+    await add.locator('input[name="nameAr"]').fill("عرض الاختبار");
+    await add.locator('input[name="percent"]').fill("10");
+    await add.locator('input[name="startDate"]').fill(inDays(10));
+    await add.locator('input[name="endDate"]').fill(inDays(12));
+    await add.getByRole("button", { name: "إضافة العرض" }).click();
+    await a.getByText("تمت إضافة العرض «عرض الاختبار».").waitFor();
+    const off = -Math.round(price * 0.1);
+    const r2 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: inDays(11), before: async (p) => { await p.getByTestId("price-offer").waitFor(); } });
+    eq(sql(`select price_adjust from bookings where ref='${r2}'`), String(off), "offer discount stored");
+    const r3 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: inDays(14) });
+    eq(sql(`select price_adjust from bookings where ref='${r3}'`), "0", "not outside its dates");
+    // this offer off by hand
+    await a.reload({ waitUntil: "networkidle" });
+    const row = a.getByTestId("offer-list").locator("li").filter({ hasText: "عرض الاختبار" });
+    await row.getByRole("button", { name: "إيقاف" }).click();
+    await a.getByText("تم إيقاف العرض.").waitFor();
+    const r4 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: inDays(11) });
+    eq(sql(`select price_adjust from bookings where ref='${r4}'`), "0", "a stopped offer does nothing");
+    // on again, then every offer off with the page switch
+    await a.reload({ waitUntil: "networkidle" });
+    await a.getByTestId("offer-list").locator("li").filter({ hasText: "عرض الاختبار" }).getByRole("button", { name: "تفعيل" }).click();
+    await a.getByText("تم تفعيل العرض.").waitFor();
+    await a.reload({ waitUntil: "networkidle" });
+    await a.getByTestId("offers-switch").getByRole("button", { name: "إيقاف كل العروض" }).click();
+    await a.getByText("تم إيقاف كل العروض.").waitFor();
+    const r5 = await makeBooking(cp, { vehicle: "تويوتا كامري", date: inDays(11) });
+    eq(sql(`select price_adjust from bookings where ref='${r5}'`), "0", "all offers off");
+    sql(`delete from offers; delete from settings where key like 'season_%' or key='offers_enabled'; delete from bookings where ref in ('${r1}','${r2}','${r3}','${r4}','${r5}')`);
   });
 
   await check("payment voucher on WhatsApp as soon as it's paid (not an invoice); the tax invoice comes with the rating when the trip ends", async () => {
@@ -2061,6 +2161,19 @@ if (!ONLY || ONLY === "features") {
     await bp.getByTestId("receipts").waitFor();
     assert((await bp.getByTestId("receipts").textContent()).includes("إيصال-التحويل.png"), "file name listed");
     eq(sql(`select r.mime||','||r.size from receipts r join bookings b on b.id=r.booking_id where b.ref='${rcRef}'`), `image/png,${PNG.length}`, "stored");
+  });
+  await check("receipt: right after the upload the customer gets a ready transfer notice to keep or print (under review until confirmed)", async () => {
+    await bp.goto(`${BASE}/ar/booking/${rcRef}`, { waitUntil: "networkidle" });
+    await bp.getByTestId("transfer-slip-link").click();
+    await bp.waitForURL(new RegExp(`/ar/booking/${rcRef}/transfer$`), { waitUntil: "commit" });
+    const slip = bp.getByTestId("transfer-slip");
+    await slip.waitFor();
+    const text = await slip.innerText();
+    for (const x of ["إشعار تحويل بنكي", rcRef, "إيصال-التحويل.png", "قيد المراجعة"]) assert(text.includes(x), "slip shows " + x);
+    // only for a booking that sent a receipt
+    const other = await makeBooking(bp, { date: inDaysUTC(4) });
+    await bp.goto(`${BASE}/ar/booking/${other}/transfer`, { waitUntil: "networkidle" });
+    assert((await bp.textContent("body")).includes("لم نجد هذه الصفحة"), "no slip without a transfer");
   });
   await check("receipt: admin sees it on the booking, the dashboard and the list; the file is admin-only", async () => {
     await a.goto(`${BASE}/admin/bookings/${rcRef}`, { waitUntil: "networkidle" });
@@ -2777,7 +2890,7 @@ if (!ONLY || ONLY === "drivers") {
     await a.getByText("ترتيب السائقين").waitFor();
     await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
     await a.getByTestId("booking-rating").getByText("سائق ملتزم").waitFor();
-    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     await a.getByTestId("driver-list").getByText("(١ تقييم)").waitFor();
   });
 
@@ -2809,7 +2922,7 @@ if (!ONLY || ONLY === "drivers") {
     const id = sql("select id from drivers where phone='+966551234321'");
     const card = () => a.locator(`[data-driver="${id}"]`);
     await mf("/__wa_reset");
-    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     await card().getByText("إيقاف مؤقت أو حظر").click();
     const f = card().locator("form").filter({ has: a.getByRole("button", { name: "إيقاف مؤقت" }) });
     await f.locator('select[name="period"]').selectOption("3");
@@ -2836,7 +2949,7 @@ if (!ONLY || ONLY === "drivers") {
     await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
     eq(await a.locator(`select[name="driverId"] option[value="${id}"]`).count(), 1, "back in the list when over");
     // suspend again with a date, then lift it early
-    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     await card().getByText("إيقاف مؤقت أو حظر").click();
     await f.locator('select[name="period"]').selectOption("date");
     await f.locator('input[name="until"]').fill(inDaysUTC(5));
@@ -2844,7 +2957,7 @@ if (!ONLY || ONLY === "drivers") {
     await f.getByRole("button", { name: "إيقاف مؤقت" }).click();
     await a.getByText("تم إيقاف فهد الحربي مؤقتًا حتى").waitFor();
     eq(sql(`select to_char(suspended_until at time zone 'Asia/Riyadh', 'YYYY-MM-DD HH24:MI') from drivers where id=${id}`), `${inDaysUTC(5)} 23:59`, "end of that day, Riyadh time");
-    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     await card().getByText("إنهاء الإيقاف أو الحظر").click();
     await card().getByRole("button", { name: "إنهاء الإيقاف الآن" }).click();
     await a.getByText("انتهى إيقاف فهد الحربي").waitFor();
@@ -2859,7 +2972,7 @@ if (!ONLY || ONLY === "drivers") {
     sql(`update bookings set driver_id=${id} where ref='${ref}'`);
     const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
     const card = () => a.locator(`[data-driver="${id}"]`);
-    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     await card().getByText("إيقاف مؤقت أو حظر").click();
     const f = card().locator("form").filter({ has: a.getByRole("button", { name: "حظر السائق" }) });
     await f.locator('input[name="reason"]').fill("سلوك غير لائق");
@@ -2885,7 +2998,7 @@ if (!ONLY || ONLY === "drivers") {
     await a.getByRole("button", { name: "إسناد وإرسال الرسائل" }).click();
     await a.getByText("فهد الحربي محظور").waitFor();
     eq(sql(`select coalesce(driver_id::text,'') from bookings where ref='${other}'`), "", "not assigned");
-    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     await card().getByRole("button", { name: "إلغاء الحظر" }).click();
     await a.getByText("تم إلغاء حظر فهد الحربي").waitFor();
     await adminLogin(drv, "0551234321", "Driver-Pass-123");
@@ -2923,7 +3036,7 @@ if (!ONLY || ONLY === "drivers") {
     const money = () => drv.getByTestId("driver-money").locator("[data-money]").allInnerTexts();
     // trip ends -> earned 150; a payout of 100 leaves 50
     sql(`update bookings set status='completed', completed_at=now() where ref='${r1}'`);
-    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     const card = a.locator(`[data-driver="${driverId}"]`);
     await card.getByTestId("driver-money-admin").locator("summary").click();
     const pf = card.locator("form").filter({ has: a.getByRole("button", { name: "تسجيل الدفعة" }) });
@@ -2950,12 +3063,25 @@ if (!ONLY || ONLY === "drivers") {
     await drv.getByTestId("driver-money").getByText("الدفعات التي استلمتها").click();
     await drv.getByTestId("my-payouts").getByText("حوالة الراجحي", { exact: false }).waitFor();
     await drv.getByTestId("my-payouts").getByRole("link", { name: "الإيصال" }).waitFor();
+    // a payment voucher (سند صرف) for each payout, cash or transfer, with signature lines; staff and that driver only
+    sql(`update driver_payouts set method='cash' where id=${pid}`);
+    const vp = await a.context().newPage();
+    await vp.goto(`${BASE}/admin/payouts/${pid}`, { waitUntil: "networkidle" });
+    const v = await vp.getByTestId("payout-voucher").innerText();
+    for (const x of ["سند صرف", `PAY-${String(pid).padStart(4, "0")}`, "فهد الحربي", "نقدًا (كاش)", "توقيع المستلم"]) assert(v.includes(x), "voucher shows " + x);
+    assert((await vp.getByTestId("payout-amount").innerText()).includes("١٠٠"), "amount");
+    await vp.close();
+    await drv.getByTestId("my-payouts").getByRole("link", { name: "سند الصرف" }).waitFor();
+    await drv.goto(`${BASE}/admin/payouts/${pid}`, { waitUntil: "networkidle" });
+    await drv.getByTestId("payout-voucher").waitFor();
+    await drv.goBack({ waitUntil: "networkidle" });
+    sql(`update driver_payouts set method='transfer' where id=${pid}`);
     // the driver adds his bank account; the admin sees it
     await drv.getByTestId("my-bank").locator("summary").click();
     await drv.getByTestId("my-bank").locator("textarea").fill("مصرف الإنماء SA4405000068201234567000 فهد الحربي");
     await drv.getByRole("button", { name: "حفظ الحساب البنكي" }).click();
     await drv.getByText("تم حفظ حسابك البنكي.").waitFor();
-    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     await a.locator(`[data-driver="${driverId}"]`).getByTestId("driver-money-admin").locator("summary").click();
     await a.locator(`[data-driver="${driverId}"]`).getByTestId("driver-money-admin").getByText("SA4405000068201234567000", { exact: false }).waitFor();
     // removing the payout puts the 150 back as owed
@@ -2967,7 +3093,7 @@ if (!ONLY || ONLY === "drivers") {
 
   await check("driver documents from the panel: the same photos as the join page (ID, licence, registration, car, IBAN), cropped, replaced one by one", async () => {
     sql(`delete from driver_documents where driver_id=${driverId}`);
-    await a.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     const card = a.locator(`[data-driver="${driverId}"]`);
     await card.getByText("تعديل بيانات السائق").click();
     const f = card.locator("form").filter({ has: a.getByRole("button", { name: "حفظ", exact: true }) }).first();
@@ -3075,10 +3201,15 @@ if (!ONLY || ONLY === "drivers") {
     await a.getByText("تم حذف الصورة.").waitFor();
   });
 
-  await check("bookings revenue: totals before and after VAT for the filtered list; show one or both", async () => {
+  await check("revenue page: totals before and after VAT for the filtered bookings; show one or both", async () => {
     const r1 = paidBooking({ name: "إيراد الفلتر", status: "confirmed" });
+    // the bookings page links to the revenue of the bookings it lists
     await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد الفلتر")}`, { waitUntil: "networkidle" });
+    eq(await a.getByTestId("bookings-revenue").count(), 0, "no revenue on the bookings page");
+    await a.getByTestId("revenue-link").click();
+    await a.waitForURL(/\/admin\/revenue\?customer=/, { waitUntil: "commit" });
     const rev = a.getByTestId("bookings-revenue");
+    await rev.waitFor();
     assert((await rev.locator('[data-revenue="net"]').innerText()).includes("٢٠٠"), "before VAT");
     assert((await rev.locator('[data-revenue="vat"]').innerText()).includes("٣٠"), "VAT");
     assert((await rev.locator('[data-revenue="gross"]').innerText()).includes("٢٣٠"), "after VAT");
@@ -3086,17 +3217,21 @@ if (!ONLY || ONLY === "drivers") {
     await a.waitForURL(/amounts=net/, { waitUntil: "commit" });
     await a.waitForLoadState("networkidle");
     eq(await a.locator('[data-revenue="gross"]').count(), 0, "after-VAT total hidden");
+    // the bookings table has the same switch
+    await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد الفلتر")}&amounts=net`, { waitUntil: "networkidle" });
     eq(await a.locator('[data-col="amount"]').count(), 0, "after-VAT column hidden");
     assert(await a.locator('[data-col="subtotal"]').count() > 0, "before-VAT column shown");
+    // in the admin menu
+    assert(await a.locator('.admin-nav a[href="/admin/revenue"]').count(), "revenue in the menu");
     sql(`delete from bookings where ref='${r1}'`);
   });
 
-  await check("bookings revenue: pick a period from one date to another; totals and a table of 7 days a page", async () => {
+  await check("revenue page: pick a period from one date to another; totals and a table of 7 days a page", async () => {
     const d1 = inDaysUTC(5), d2 = inDaysUTC(6), d3 = inDaysUTC(9);
     sql("delete from bookings where customer_name='إيراد الفترة'");
     const refs = [paidBooking({ name: "إيراد الفترة", date: d1 }), paidBooking({ name: "إيراد الفترة", date: d2, status: "confirmed" }), paidBooking({ name: "إيراد الفترة", date: d3 }), paidBooking({ name: "إيراد الفترة", date: d2, status: "pending_payment" })];
     sql(`update bookings set driver_fare=5000 where ref='${refs[0]}'`);
-    await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد الفترة")}`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/revenue?customer=${encodeURIComponent("إيراد الفترة")}`, { waitUntil: "networkidle" });
     eq(await a.getByTestId("daily-revenue").locator("tbody tr").count(), 3, "one row per day");
     eq(await a.getByTestId("daily-revenue").locator("tbody tr").first().getAttribute("data-day"), d3, "newest first");
     const rev = a.getByTestId("bookings-revenue");
@@ -3111,14 +3246,13 @@ if (!ONLY || ONLY === "drivers") {
     assert((await r.locator('[data-revenue="net"]').innerText()).includes("٤٠٠"), "before VAT");
     assert((await r.locator('[data-revenue="gross"]').innerText()).includes("٤٦٠"), "after VAT");
     assert((await r.locator('[data-revenue="fares"]').innerText()).includes("٥٠"), "driver fares");
-    eq(await a.locator("[data-testid=bookings-table] tbody tr").count(), 3, "the period's bookings listed (paid and unpaid)");
     await r.getByRole("link", { name: "كل التواريخ" }).click();
     await a.waitForURL((u) => !u.search.includes("from="), { waitUntil: "commit" });
     await a.getByTestId("revenue-range").waitFor({ state: "detached" });
     assert((await a.getByTestId("bookings-revenue").locator('[data-revenue="count"]').innerText()).includes("٣"), "back to all dates");
     // 10 days of revenue: 7 days a page
     const more = Array.from({ length: 7 }, (_, i) => paidBooking({ name: "إيراد الفترة", date: inDaysUTC(20 + i) }));
-    await a.goto(`${BASE}/admin/bookings?customer=${encodeURIComponent("إيراد الفترة")}`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/revenue?customer=${encodeURIComponent("إيراد الفترة")}`, { waitUntil: "networkidle" });
     const daily = a.getByTestId("daily-revenue");
     eq(await daily.locator("tbody tr").count(), 7, "7 days on the first page");
     await daily.getByRole("link", { name: "أيام أقدم" }).click();
@@ -3158,7 +3292,7 @@ if (!ONLY || ONLY === "drivers") {
     await sp.goto(`${BASE}/admin/bookings`, { waitUntil: "networkidle" });
     assert(sp.url().includes("/admin?denied=1"), "bookings refused");
     await sp.getByText("ليست لديك صلاحية لهذا القسم").waitFor();
-    await sp.goto(`${BASE}/admin/drivers`, { waitUntil: "networkidle" });
+    await sp.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     await sp.getByTestId("driver-list").waitFor();
     // owner turns the account off: next request is signed out
     sql("update admin_users set active=false where email='staff@example.com'");

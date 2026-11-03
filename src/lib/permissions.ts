@@ -1,6 +1,7 @@
 /** Sections of the admin panel a staff account can be given. Owners get all of them; drivers get none (only "my trips"). */
 export const SECTIONS = [
   { key: "bookings", label: "الحجوزات وإسناد السائقين" },
+  { key: "revenue", label: "الإيرادات" },
   { key: "drivers", label: "السائقين" },
   { key: "ratings", label: "التقييمات" },
   { key: "promos", label: "الرموز الترويجية" },
@@ -28,12 +29,16 @@ export function can(user: { role: Role; permissions: string[] } | null, section:
 /** Which admin path needs which section (used for the menu and the first page after sign-in) */
 export const PATH_SECTIONS: [prefix: string, section: Section | "users"][] = [
   ["/admin/bookings", "bookings"],
+  ["/admin/revenue", "revenue"],
   ["/admin/drivers", "drivers"],
+  ["/admin/driver-team", "drivers"],
   ["/admin/ratings", "ratings"],
   ["/admin/promos", "promos"],
   ["/admin/messages", "messages"],
   ["/admin/chat", "chat"],
   ["/admin/prices", "catalog"],
+  ["/admin/seasons", "catalog"],
+  ["/admin/offers", "catalog"],
   ["/admin/hourly-prices", "catalog"],
   ["/admin/routes", "catalog"],
   ["/admin/destinations", "catalog"],

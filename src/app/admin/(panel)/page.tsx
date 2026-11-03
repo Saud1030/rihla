@@ -100,7 +100,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<Record<string
       label: "عدد السائقين",
       value: formatNumber(d.drivers.total, "ar"),
       sub: d.drivers.available === d.drivers.total ? "كلهم متاحون" : `${formatNumber(d.drivers.available, "ar")} متاح للرحلات`,
-      href: "/admin/drivers",
+      href: "/admin/driver-team",
       id: "drivers",
     },
     { label: "حجوزات لم تُدفع", value: formatNumber(d.pendingPayment, "ar"), href: "/admin/bookings?status=pending_payment" },

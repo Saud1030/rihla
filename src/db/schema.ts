@@ -269,6 +269,9 @@ export const bookings = pgTable(
     /** promo code used for this booking, and the discount it gave (halalas, before VAT) */
     promoCode: text("promo_code"),
     discount: integer("discount").notNull().default(0),
+    /** season increase (+) and offer discount (-) by the trip date, halalas, before the promo code; and what they were */
+    priceAdjust: integer("price_adjust").notNull().default(0),
+    priceAdjustNote: text("price_adjust_note").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -649,3 +652,16 @@ export const promoCodes = pgTable(
   (t) => [uniqueIndex("promo_codes_customer_count").on(t.customerPhone, t.bookingsCount).where(sql`${t.bookingsCount} > 0`)],
 );
 export type PromoCode = typeof promoCodes.$inferSelect;
+
+/** Offers (Admin -> Offers): a % off trips whose date falls between two dates; on or off by hand */
+export const offers = pgTable("offers", {
+  id: serial("id").primaryKey(),
+  nameAr: text("name_ar").notNull(),
+  nameEn: text("name_en").notNull().default(""),
+  percent: integer("percent").notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export type OfferRow = typeof offers.$inferSelect;

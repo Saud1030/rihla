@@ -100,11 +100,12 @@ export async function saveDriver(_prev: ActionState, formData: FormData): Promis
     await saveDocs(id);
     await syncAccount(id, phone, parsed.data.email);
     revalidatePath("/admin/drivers");
+    revalidatePath("/admin/driver-team");
     return { ok: true, message: docs.length ? `تم حفظ بيانات السائق و${docs.length === 1 ? "صورة واحدة" : `${docs.length} صور`}.` : "تم حفظ بيانات السائق." };
   }
   const [row] = await db.insert(s.drivers).values(values).returning({ id: s.drivers.id });
   await saveDocs(row.id);
-  redirect("/admin/drivers?added=1");
+  redirect("/admin/driver-team?added=1");
 }
 
 export async function deleteDriver(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -116,8 +117,9 @@ export async function deleteDriver(_prev: ActionState, formData: FormData): Prom
     .where(and(eq(s.bookings.driverId, id), inArray(s.bookings.status, ["paid", "confirmed"])))
     .limit(1);
   if (upcoming.length) return { error: `لهذا السائق رحلة لم تنتهِ (${upcoming[0].ref}). أسندها لسائق آخر أولًا، أو أوقف السائق بدل حذفه.` };
-  await db.delete(s.drivers).where(eq(s.drivers.id, id));
-  redirect("/admin/drivers?deleted=1");
+  const [gone] = await db.delete(s.drivers).where(eq(s.drivers.id, id)).returning({ status: s.drivers.status });
+  // back to the list it was deleted from
+  redirect(gone?.status === "approved" ? "/admin/driver-team?deleted=1" : "/admin/drivers?deleted=1");
 }
 
 export async function removeDriverPhoto(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -127,6 +129,7 @@ export async function removeDriverPhoto(_prev: ActionState, formData: FormData):
     .set({ photo: null, photoMime: null, updatedAt: new Date() })
     .where(eq(s.drivers.id, Number(formData.get("id") ?? 0)));
   revalidatePath("/admin/drivers");
+  revalidatePath("/admin/driver-team");
   return { ok: true, message: "تم حذف الصورة." };
 }
 
@@ -209,7 +212,7 @@ export async function suspendDriver(_prev: ActionState, formData: FormData): Pro
   const when = formatDateTime(until, "ar");
   if (formData.get("tell") === "on")
     await tellDriver(d, "driver_suspended", `مرحبًا ${d.name}، تم إيقاف حسابك كسائق مؤقتًا حتى ${when}${reason ? ` (${reason})` : ""}. لن تصلك رحلات جديدة خلال هذه المدة.`, [d.name, when, reason || "-"]);
-  redirect(`/admin/drivers?suspended=${d.id}#driver-${d.id}`);
+  redirect(`/admin/driver-team?suspended=${d.id}#driver-${d.id}`);
 }
 
 export async function endSuspension(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -220,7 +223,7 @@ export async function endSuspension(_prev: ActionState, formData: FormData): Pro
     .where(eq(s.drivers.id, Number(formData.get("id") ?? 0)))
     .returning();
   if (!d) return { error: "السائق غير موجود." };
-  redirect(`/admin/drivers?resumed=${d.id}#driver-${d.id}`);
+  redirect(`/admin/driver-team?resumed=${d.id}#driver-${d.id}`);
 }
 
 /** Block: no sign-in, no trips, can't apply again with the same number, until unblocked */
@@ -236,7 +239,7 @@ export async function blockDriver(_prev: ActionState, formData: FormData): Promi
   if (!d) return { error: "السائق غير موجود." };
   if (formData.get("tell") === "on")
     await tellDriver(d, "driver_blocked", `مرحبًا ${d.name}، تم إيقاف حسابك كسائق لدينا${reason ? ` (${reason})` : ""}. للاستفسار تواصل مع الإدارة.`, [d.name, reason || "-"]);
-  redirect(`/admin/drivers?blocked=${d.id}#driver-${d.id}`);
+  redirect(`/admin/driver-team?blocked=${d.id}#driver-${d.id}`);
 }
 
 export async function unblockDriver(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -247,7 +250,7 @@ export async function unblockDriver(_prev: ActionState, formData: FormData): Pro
     .where(eq(s.drivers.id, Number(formData.get("id") ?? 0)))
     .returning();
   if (!d) return { error: "السائق غير موجود." };
-  redirect(`/admin/drivers?unblocked=${d.id}#driver-${d.id}`);
+  redirect(`/admin/driver-team?unblocked=${d.id}#driver-${d.id}`);
 }
 
 /**
@@ -390,14 +393,14 @@ export async function addDriverPayout(_prev: ActionState, formData: FormData): P
   const d = await db.query.drivers.findFirst({ where: eq(s.drivers.id, driverId), columns: { id: true } });
   if (!d) return { error: "السائق غير موجود." };
   await db.insert(s.driverPayouts).values({ driverId, amount, paidOn, note, method, ...(receipt ?? {}), createdBy: admin.email });
-  redirect(`/admin/drivers?paid=${driverId}#driver-${driverId}`);
+  redirect(`/admin/driver-team?paid=${driverId}#driver-${driverId}`);
 }
 
 export async function deleteDriverPayout(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("drivers");
   const [p] = await db.delete(s.driverPayouts).where(eq(s.driverPayouts.id, Number(formData.get("id") ?? 0))).returning();
   if (!p) return { error: "الدفعة غير موجودة." };
-  redirect(`/admin/drivers?unpaid=${p.driverId}#driver-${p.driverId}`);
+  redirect(`/admin/driver-team?unpaid=${p.driverId}#driver-${p.driverId}`);
 }
 
 /** The driver updates where he wants his money */

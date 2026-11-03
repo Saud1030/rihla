@@ -94,6 +94,9 @@ async function MyTrips({ searchParams }: { searchParams: Promise<Record<string, 
                         الإيصال
                       </a>
                     )}
+                    <a href={`/admin/payouts/${p.id}`} target="_blank" rel="noopener noreferrer" className="ms-2 text-sign hover:underline">
+                      سند الصرف
+                    </a>
                   </span>
                   <span className="font-medium tabular">{formatSAR(p.amount, "ar")}</span>
                 </li>

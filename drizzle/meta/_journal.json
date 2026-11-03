@@ -155,6 +155,13 @@
       "when": 1793635768929,
       "tag": "0021_promo_manual",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793717879496,
+      "tag": "0022_price_rules",
+      "breakpoints": true
     }
   ]
 }

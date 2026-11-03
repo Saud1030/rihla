@@ -10,6 +10,7 @@ import { displayPrice, withVat, type VatConfig } from "@/lib/pricing";
 import { PersonIcon, BagIcon, CheckIcon, LockIcon } from "@/components/icons";
 import { addToClock, formatEnd, isClock } from "@/lib/timespan";
 import { farEnough } from "@/lib/lead-time";
+import { adjustPrice, type PriceRules } from "@/lib/price-rules";
 import { useEarliest } from "./use-earliest";
 import { PhoneCountryField, type CountryOption } from "./phone-country-field";
 
@@ -50,9 +51,11 @@ type Props = {
   leadHours?: number;
   /** every country with its calling code, for the WhatsApp number */
   countries: CountryOption[];
+  /** Hajj & Umrah season increase and offers, by the trip date */
+  rules?: PriceRules;
 };
 
-export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action, schedule = [], leadHours = 0, countries }: Props) {
+export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action, schedule = [], leadHours = 0, countries, rules }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const v = state.values ?? {};
   const [tripId, setTripId] = useState<string>(v.tripId || initialTripId);
@@ -62,8 +65,11 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
   const [promo, setPromo] = useState<{ code: string; percent: number } | null>(null);
   const [promoMsg, setPromoMsg] = useState<"ok" | "bad" | null>(null);
   const [checking, setChecking] = useState(false);
-  const discount = promo ? Math.round((trip.price * promo.percent) / 100) : 0;
-  const money = withVat(trip.price - discount, vat.rateBp);
+  const [date, setDate] = useState(v.date ?? initialDate);
+  // season increase / offer discount for the chosen day, then the promo code on what is left
+  const adjusted = adjustPrice(trip.price, date, rules);
+  const discount = promo ? Math.round((adjusted.price * promo.percent) / 100) : 0;
+  const money = withVat(adjusted.price - discount, vat.rateBp);
   async function applyPromo() {
     const code = promoText.trim();
     if (!code) return;
@@ -80,7 +86,6 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
   }
   const err = (k: string) => !!state.errors?.[k as keyof NonNullable<BookingFormState["errors"]>];
   const E = t.form.errors;
-  const [date, setDate] = useState(v.date ?? initialDate);
   const [time, setTime] = useState(v.time ?? initialTime);
   const earliest = useEarliest(leadHours);
   const earliestText = earliest ? `${formatDate(earliest.date, lang)} - ${formatTime(earliest.time, lang)}` : "";
@@ -153,7 +158,7 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
                     {x.compareAtPrice && x.compareAtPrice > x.price && (
                       <span className="block text-xs text-muted line-through tabular">{formatSAR(displayPrice(x.compareAtPrice, vat), lang)}</span>
                     )}
-                    <span className="block font-display font-semibold tabular">{formatSAR(displayPrice(x.price, vat), lang)}</span>
+                    <span className="block font-display font-semibold tabular">{formatSAR(displayPrice(adjustPrice(x.price, date, rules).price, vat), lang)}</span>
                   </span>
                   {active && (
                     <span className="absolute -top-2.5 start-2 inline-flex items-center gap-1 rounded-full bg-sign text-white text-xs px-2 py-0.5">
@@ -245,7 +250,7 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
             )}
           </div>
 
-          {field("pickup", t.form.pickup, <input type="text" maxLength={300} defaultValue={v.pickup ?? ""} required className="field" {...a11y("pickup")} />, E.pickup, t.form.pickupHint)}
+          {field("pickup", t.form.pickup, <input type="text" minLength={2} maxLength={300} defaultValue={v.pickup ?? ""} required className="field" {...a11y("pickup")} />, E.pickup, t.form.pickupHint)}
           <div className="grid sm:grid-cols-2 gap-4">
             {field("dropoff", t.form.dropoff, <input type="text" maxLength={300} defaultValue={v.dropoff ?? ""} className="field" {...a11y("dropoff")} />)}
             {field("flight", t.form.flight, <input type="text" maxLength={20} defaultValue={v.flight ?? ""} className="field" dir="ltr" {...a11y("flight")} />)}
@@ -321,12 +326,26 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
           )}
         </div>
         <dl className="mt-4 pt-4 border-t border-line space-y-1.5 text-[15px] tabular" aria-live="polite">
+          {(discount > 0 || adjusted.lines.length > 0) && (
+            <div className="flex justify-between">
+              <dt className="text-muted">{t.form.price}</dt>
+              <dd>{formatSAR(trip.price, lang)}</dd>
+            </div>
+          )}
+          {adjusted.lines.map((l) => (
+            <div key={l.kind} className={`flex justify-between gap-3 ${l.kind === "offer" ? "text-sign" : "text-amber-deep"}`} data-testid={`price-${l.kind}`}>
+              <dt>
+                {l.name[lang]} ({l.amount > 0 ? "+" : "-"}
+                {formatNumber(l.percent, lang)}٪)
+              </dt>
+              <dd className="shrink-0">
+                {l.amount > 0 ? "+" : "-"}
+                {formatSAR(Math.abs(l.amount), lang)}
+              </dd>
+            </div>
+          ))}
           {discount > 0 && (
             <>
-              <div className="flex justify-between">
-                <dt className="text-muted">{t.form.price}</dt>
-                <dd>{formatSAR(trip.price, lang)}</dd>
-              </div>
               <div className="flex justify-between text-sign" data-testid="promo-discount">
                 <dt>{t.form.discount}</dt>
                 <dd>-{formatSAR(discount, lang)}</dd>

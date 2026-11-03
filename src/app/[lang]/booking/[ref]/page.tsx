@@ -128,7 +128,7 @@ async function BookingView({
           <h1 className="text-2xl font-semibold">{t.booking.bankTitle}</h1>
           <p className="mt-1 mb-4 text-muted">{t.booking.bankLead}</p>
           <BankDetails bank={bank} amount={formatSAR(b.amount, lang)} refCode={b.ref} labels={t.checkout.bank} />
-          <Receipts bookingId={b.id} justUploaded={sp.receipt === "1"} lang={lang} t={t} />
+          <Receipts bookingId={b.id} bookingRef={b.ref} justUploaded={sp.receipt === "1"} lang={lang} t={t} />
           <div className="mt-5 pt-5 border-t border-line">
             <ReceiptUpload
               action={uploadReceipt.bind(null, b.ref, lang)}
@@ -159,8 +159,18 @@ async function BookingView({
       {(b.receiptNo || b.invoiceNo) && (
         <div className="mt-4 flex flex-wrap gap-3" data-testid="customer-documents">
           {b.receiptNo && (
-            <Link href={`/${lang}/booking/${b.ref}/receipt`} className="btn btn-ghost border border-line">
-              {t.booking.receiptLink}
+            <>
+              <a href={`/api/booking/${b.ref}/receipt`} className="btn btn-primary" data-testid="voucher-pdf" download>
+                {t.booking.receiptPdf}
+              </a>
+              <Link href={`/${lang}/booking/${b.ref}/receipt`} className="btn btn-ghost border border-line">
+                {t.booking.receiptLink}
+              </Link>
+            </>
+          )}
+          {b.paymentMethod === "bank_transfer" && (await receiptCount(b.id)) > 0 && (
+            <Link href={`/${lang}/booking/${b.ref}/transfer`} className="btn btn-ghost border border-line">
+              {t.booking.transferSlip}
             </Link>
           )}
           {b.invoiceNo && (
@@ -225,7 +235,7 @@ async function receiptCount(bookingId: string) {
 }
 
 /** Receipts the customer already sent (names and times only; the files themselves are admin-only) */
-async function Receipts({ bookingId, justUploaded, lang, t }: { bookingId: string; justUploaded: boolean; lang: Locale; t: Dictionary }) {
+async function Receipts({ bookingId, bookingRef, justUploaded, lang, t }: { bookingId: string; bookingRef: string; justUploaded: boolean; lang: Locale; t: Dictionary }) {
   const rows = await db
     .select({ id: s.receipts.id, fileName: s.receipts.fileName, createdAt: s.receipts.createdAt })
     .from(s.receipts)
@@ -245,6 +255,10 @@ async function Receipts({ bookingId, justUploaded, lang, t }: { bookingId: strin
           </li>
         ))}
       </ul>
+      {/* a ready notice of the transfer, to keep or print, right away */}
+      <Link href={`/${lang}/booking/${bookingRef}/transfer`} className="btn btn-ghost border border-line mt-3 !min-h-9 !py-1 text-sm" data-testid="transfer-slip-link">
+        {t.booking.transferSlip}
+      </Link>
     </div>
   );
 }

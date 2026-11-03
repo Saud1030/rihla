@@ -241,3 +241,111 @@ export async function InvoiceSheet({ b, c, lang }: { b: Booking; c: Company; lan
 }
 
 export type { Company };
+
+/** إشعار تحويل بنكي: what the customer gets as soon as the transfer receipt is uploaded (the voucher follows once it is checked) */
+export function TransferSlipSheet({ b, c, lang, uploads }: { b: Booking; c: Company; lang: Locale; uploads: { fileName: string; createdAt: Date }[] }) {
+  const ar = lang === "ar";
+  const confirmed = !!b.receiptNo;
+  const last = uploads.at(-1);
+  const rows: [string, React.ReactNode][] = [
+    [ar ? "رقم الحجز" : "Booking", b.ref],
+    [ar ? "تاريخ الإرسال" : "Sent", last ? formatDate(last.createdAt, lang) : "—"],
+  ];
+  return (
+    <article className={sheet} data-testid="transfer-slip">
+      <Head c={c} title={ar ? "إشعار تحويل بنكي" : "Bank transfer notice"} rows={rows} lang={lang} />
+      <p className={`rounded-lg px-4 py-3 text-sm font-medium ${confirmed ? "bg-sign-soft text-sign" : "bg-amber/15 text-amber-deep"}`} data-testid="transfer-slip-state">
+        {confirmed
+          ? ar
+            ? `تم تأكيد استلام التحويل، وصدر سند الصرف رقم ${receiptNo(b.receiptNo)}.`
+            : `Transfer confirmed. Payment voucher ${receiptNo(b.receiptNo)} has been issued.`
+          : ar
+            ? "استلمنا إيصال التحويل وهو قيد المراجعة. يصلك سند الصرف على الواتساب بعد التأكد من وصول المبلغ."
+            : "We have your transfer receipt and are checking it. Your payment voucher follows on WhatsApp once the money arrives."}
+      </p>
+      <dl className="grid sm:grid-cols-[12rem_1fr] gap-x-4 gap-y-3 text-[15px]">
+        <dt className="text-muted">{ar ? "العميل" : "Customer"}</dt>
+        <dd className="font-medium">
+          {b.customerName} · <bdo dir="ltr">{maskPhone(b.customerPhone)}</bdo>
+        </dd>
+        <dt className="text-muted">{ar ? "المبلغ المحوّل" : "Amount transferred"}</dt>
+        <dd className="text-2xl font-semibold tabular">{formatSAR(b.amount, lang)}</dd>
+        <dt className="text-muted">{ar ? "وذلك عن" : "For"}</dt>
+        <dd>
+          {b.routeTitle} · {b.vehicleName}
+          <span className="block text-sm text-muted">
+            {ar ? "موعد الرحلة" : "Trip"}: {formatDate(b.pickupDate, lang)} · {formatTime(b.pickupTime, lang)}
+          </span>
+        </dd>
+        <dt className="text-muted">{ar ? "الإيصالات المرسلة" : "Receipts sent"}</dt>
+        <dd className="text-sm">
+          {uploads.map((u, i) => (
+            <span key={i} className="block">
+              <bdi>{u.fileName}</bdi> · <span className="tabular">{formatDateTime(u.createdAt, lang)}</span>
+            </span>
+          ))}
+        </dd>
+      </dl>
+      <p className="rounded-lg bg-stone px-4 py-3 text-sm">
+        {ar ? "هذا إشعار بإرسال التحويل وليس سند صرف ولا فاتورة." : "This notice confirms the transfer was sent; it is not a payment voucher or an invoice."}
+      </p>
+      <div className="flex flex-wrap justify-end gap-3 print:hidden">
+        {confirmed && (
+          <a href={`/api/booking/${b.ref}/receipt`} className="btn btn-ghost border border-line">
+            {T[lang].pdf}
+          </a>
+        )}
+        <PrintButton label={T[lang].print} />
+      </div>
+    </article>
+  );
+}
+
+export const payoutNo = (id: number) => `PAY-${String(id).padStart(4, "0")}`;
+
+/** سند صرف للسائق: money the company paid a driver (cash or transfer), with signature lines */
+export function PayoutSheet({ p, driver, c }: { p: { id: number; amount: number; paidOn: string; method: string; note: string; createdBy: string; createdAt: Date }; driver: { name: string; phone: string; plateNumber: string }; c: Company }) {
+  const rows: [string, React.ReactNode][] = [
+    ["الرقم", payoutNo(p.id)],
+    ["التاريخ", formatDate(p.paidOn, "ar")],
+  ];
+  return (
+    <article className={sheet} data-testid="payout-voucher">
+      <Head c={c} title="سند صرف" rows={rows} lang="ar" />
+      <dl className="grid sm:grid-cols-[12rem_1fr] gap-x-4 gap-y-3 text-[15px]">
+        <dt className="text-muted">صرفنا إلى السائق</dt>
+        <dd className="font-medium">
+          {driver.name} · <bdo dir="ltr">{driver.phone}</bdo>
+          {driver.plateNumber && <span className="block text-sm text-muted">اللوحة: {driver.plateNumber}</span>}
+        </dd>
+        <dt className="text-muted">مبلغ وقدره</dt>
+        <dd className="text-2xl font-semibold tabular" data-testid="payout-amount">
+          {formatSAR(p.amount, "ar")}
+        </dd>
+        <dt className="text-muted">طريقة الصرف</dt>
+        <dd data-testid="payout-method">{p.method === "cash" ? "نقدًا (كاش)" : "تحويل بنكي"}</dd>
+        <dt className="text-muted">وذلك عن</dt>
+        <dd>{p.note || "مستحقات رحلات"}</dd>
+        {p.createdBy && (
+          <>
+            <dt className="text-muted">سجّلها</dt>
+            <dd>{p.createdBy}</dd>
+          </>
+        )}
+      </dl>
+      <div className="grid grid-cols-2 gap-8 pt-10 text-sm">
+        <div>
+          <p className="text-muted">توقيع المستلم (السائق)</p>
+          <div className="mt-10 border-b border-ink/40" />
+        </div>
+        <div>
+          <p className="text-muted">توقيع المحاسب</p>
+          <div className="mt-10 border-b border-ink/40" />
+        </div>
+      </div>
+      <div className="flex flex-wrap justify-end gap-3 print:hidden">
+        <PrintButton label="طباعة / حفظ PDF" />
+      </div>
+    </article>
+  );
+}

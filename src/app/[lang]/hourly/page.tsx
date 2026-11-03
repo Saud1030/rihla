@@ -1,3 +1,4 @@
+import { getPriceRules } from "@/lib/price-rules-server";
 import type { Metadata } from "next";
 import { countryOptions } from "@/lib/countries";
 import Link from "next/link";
@@ -127,6 +128,7 @@ async function HourlyContent({
       <BookingForm
         leadHours={await getLeadHours()}
         countries={countryOptions(lang)}
+        rules={await getPriceRules()}
         lang={lang}
         t={{ route: t.route, form: t.form }}
         trips={trips}

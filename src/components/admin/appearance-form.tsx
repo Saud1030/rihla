@@ -265,7 +265,7 @@ export function AppearanceForm({ action, initialTheme, initialTexts, placeholder
             )}
             <div className="sign p-4 space-y-2">
               <p className="font-display font-semibold">مكة المكرمة</p>
-              <span className="btn btn-amber w-full !min-h-9 text-sm">اعرض الأسعار</span>
+              <span className="btn btn-amber w-full !min-h-9 text-sm">حجز</span>
             </div>
             <div className="bg-paper border border-line rounded-xl px-4 py-3 flex items-center justify-between">
               <span className="text-sm">جدة ← مكة</span>

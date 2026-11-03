@@ -14,7 +14,7 @@ import { Card, Field, PageHeader, Skeleton } from "@/components/admin/ui";
 export default function SettingsPage() {
   return (
     <>
-      <PageHeader title="الإعدادات والضريبة" />
+      <PageHeader title="الإعدادات" />
       <Suspense fallback={<Skeleton h="h-[600px]" />}>
         <Content />
       </Suspense>

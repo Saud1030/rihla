@@ -11,6 +11,8 @@ import { pairTitle, routeTitle } from "@/lib/catalog";
 import { maxBookingDate, newBookingRef, todayInRiyadh } from "@/lib/booking";
 import { earliestPickup, farEnough, parseLeadHours } from "@/lib/lead-time";
 import { cleanCode, discountFor, usablePromo } from "@/lib/promo";
+import { adjustPrice } from "@/lib/price-rules";
+import { getPriceRules } from "@/lib/price-rules-server";
 import { distancePrice, driveMinutes, parseVatConfig, roadKm, withVat } from "@/lib/pricing";
 import { cleanDays, durationText, hourlyPrice, isHourPackage } from "@/lib/policy";
 import { phoneWithCountry } from "@/lib/phone";
@@ -58,7 +60,7 @@ const schema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   passengers: z.coerce.number().int().min(1).max(100),
   bags: z.coerce.number().int().min(0).max(200),
-  pickup: z.string().trim().min(3).max(300),
+  pickup: z.string().trim().min(2).max(300),
   dropoff: z.string().trim().max(300).default(""),
   flight: z.string().trim().max(20).default(""),
   notes: z.string().trim().max(1000).default(""),
@@ -136,15 +138,19 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
 
   const settingRows = await db.select().from(s.settings).where(inArray(s.settings.key, ["vat_rate", "prices_include_vat", "vat_number"]));
   const vat = parseVatConfig(Object.fromEntries(settingRows.map((r) => [r.key, r.value])));
+  // Hajj & Umrah season increase and running offers, by the trip date
+  const adjusted = adjustPrice(resolved.price, d.date, await getPriceRules());
+  const priceAdjust = adjusted.price - resolved.price;
+  const priceAdjustNote = adjusted.lines.map((l) => `${l.name.ar} ${l.amount > 0 ? "+" : "-"}${l.percent}%`).join(" · ");
   // a promo code takes its percentage off the price before VAT
   const promoCode = cleanCode(d.promo);
   let discount = 0;
   if (promoCode) {
-    const promo = await usablePromo(promoCode);
+    const promo = await usablePromo(promoCode, phone);
     if (!promo) return { errors: { promo: true }, values };
-    discount = discountFor(resolved.price, promo.percent);
+    discount = discountFor(adjusted.price, promo.percent);
   }
-  const money = withVat(resolved.price - discount, vat.rateBp);
+  const money = withVat(adjusted.price - discount, vat.rateBp);
 
   // Retry on the (very unlikely) ref collision
   let ref = "";
@@ -179,6 +185,8 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
         notes: d.notes || null,
         subtotal: money.subtotal,
         promoCode: promoCode || null,
+        priceAdjust,
+        priceAdjustNote,
         discount,
         vatRate: vat.rateBp,
         vatAmount: money.vat,
