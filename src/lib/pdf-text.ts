@@ -10,6 +10,11 @@ import bidiFactory from "bidi-js";
 const FONTS = path.join(process.cwd(), "assets", "fonts");
 const REGULAR = path.join(FONTS, "IBMPlexSansArabic_400Regular.ttf");
 const BOLD = path.join(FONTS, "IBMPlexSansArabic_700Bold.ttf");
+// the new Saudi Riyal sign (U+20C1): the Arabic font has no glyph for it yet, so it is drawn with its own font
+const RIYAL_FONTS = path.join(process.cwd(), "public", "fonts", "riyal");
+const SAR_REGULAR = path.join(RIYAL_FONTS, "saudi-riyal.woff2");
+const SAR_BOLD = path.join(RIYAL_FONTS, "saudi-riyal-bold.woff2");
+const SIGN = "\u20C1";
 const bidi = bidiFactory();
 
 const ARABIC = /[\u0600-\u06FF]/;
@@ -51,6 +56,8 @@ export function visualRuns(text: string, base: "rtl" | "ltr" | "auto") {
 export function registerFonts(doc: PDFKit.PDFDocument) {
   doc.registerFont("r", REGULAR);
   doc.registerFont("b", BOLD);
+  doc.registerFont("sar-r", SAR_REGULAR);
+  doc.registerFont("sar-b", SAR_BOLD);
 }
 
 type LineOpts = { x: number; w: number; y: number; size: number; font?: "r" | "b"; color?: string; align?: "start" | "end" | "center" };
@@ -59,15 +66,35 @@ type LineOpts = { x: number; w: number; y: number; size: number; font?: "r" | "b
 export function pdfWriter(doc: PDFKit.PDFDocument, rtl: boolean, ink = "#1b2420") {
   function line(text: string, o: LineOpts) {
     doc.font(o.font ?? "r").fontSize(o.size).fillColor(o.color ?? ink);
-    const runs = visualRuns(text, rtl ? "rtl" : "ltr");
-    const widths = runs.map((r) => doc.widthOfString(drawable(r)));
+    const font = o.font ?? "r";
+    // each run in pieces: the riyal sign in its own font, the rest in the Arabic font
+    const pieces = visualRuns(text, rtl ? "rtl" : "ltr").flatMap((r) => {
+      const t = drawable(r);
+      const parts = t.split(SIGN);
+      const out: { t: string; f: string }[] = [];
+      parts.forEach((p, i) => {
+        if (i > 0) out.push({ t: SIGN, f: `sar-${font}` });
+        if (p) out.push({ t: p, f: font });
+      });
+      // the shaper draws an Arabic-script piece back to front; split up, the pieces must go back to front too
+      if (out.length > 1 && ARABIC.test(t)) out.reverse();
+      return out;
+    });
+    // a little room on both sides of the sign (the space next to it gets lost when the line is split)
+    const pad = o.size * 0.18;
+    const widths = pieces.map((p) => doc.font(p.f).widthOfString(p.t) + (p.t === SIGN ? pad * 2 : 0));
+    // pdfkit places text by its top; line the sign up on the same baseline as the words
+    const ascent = (f: string) => ((doc.font(f) as unknown as { _font: { ascender: number } })._font.ascender / 1000) * o.size;
+    const signDrop = pieces.some((p) => p.t === SIGN) ? ascent(font) - ascent(`sar-${font}`) : 0;
+    doc.font(font);
     const total = widths.reduce((a, b) => a + b, 0);
     const toRight = (o.align ?? "start") === "start" ? rtl : o.align === "end" ? !rtl : null;
     let x = toRight === null ? o.x + (o.w - total) / 2 : toRight ? o.x + o.w - total : o.x;
-    runs.forEach((r, i) => {
-      doc.text(drawable(r), x, o.y, { lineBreak: false });
+    pieces.forEach((p, i) => {
+      doc.font(p.f).text(p.t, x + (p.t === SIGN ? pad : 0), o.y + (p.t === SIGN ? signDrop : 0), { lineBreak: false });
       x += widths[i];
     });
+    doc.font(font);
   }
   function wrap(text: string, size: number, w: number, font: "r" | "b" = "r") {
     doc.font(font).fontSize(size);

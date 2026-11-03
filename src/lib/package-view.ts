@@ -1,7 +1,7 @@
 import "server-only";
 import { getSettings, getVehicles } from "./catalog";
 import { parseVatConfig, withVat } from "./pricing";
-import { splitAmount } from "./packages";
+import { dueSummary, splitAmount } from "./packages";
 import type { PackageRow } from "@/db/schema";
 import type { Locale } from "@/i18n/dictionaries";
 
@@ -21,6 +21,8 @@ export async function packageView(p: PackageRow, lang: Locale) {
       .filter(Boolean),
     total,
     parts,
+    /** e.g. "2 before the trip · 1 after it" (empty when all are before) */
+    due: dueSummary(parts.length, p.afterTrip, lang),
     passengers: p.passengers,
     vehicle: vehicle ? { name: lang === "ar" ? vehicle.nameAr : vehicle.nameEn, image: vehicle.imageUrl ?? `/vehicles/${vehicle.category}.svg` } : null,
   };

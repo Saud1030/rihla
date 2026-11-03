@@ -5,7 +5,7 @@ import PDFDocument from "pdfkit";
 import { getDictionary } from "@/i18n/dictionaries";
 import type { TableBooking } from "./admin-data";
 import type { Booking } from "@/db/schema";
-import { bookingNo, formatDate, formatDateTime, formatSARText as formatSAR, formatTime } from "./format";
+import { bookingNo, formatDate, formatDateTime, formatSAR, formatTime } from "./format";
 import { isolate, pdfWriter, registerFonts } from "./pdf-text";
 
 /** The bookings list (as filtered on the page) as an Excel sheet or a PDF table, headed by the company logo and name and when it was downloaded */
@@ -73,7 +73,8 @@ export async function bookingsXlsx(rows: Row[], title: string, h: ExportHead): P
   });
   for (const b of rows) ws.addRow(COLUMNS.map((c) => c.value(b)));
   COLUMNS.forEach((c, i) => {
-    if (c.money) ws.getColumn(i + 1).numFmt = "#,##0.00";
+    // the new Saudi Riyal sign after the amount (shows where the computer's fonts have it)
+    if (c.money) ws.getColumn(i + 1).numFmt = '#,##0.00 "\u20C1"';
   });
   // totals of the money columns
   if (rows.length) {

@@ -1851,6 +1851,47 @@ if (!ONLY || ONLY === "features") {
     sql("delete from packages");
   });
 
+  await check("packages: the panel decides which payments come after the trip; their link goes out by itself when the trip ends", async () => {
+    sql("delete from packages");
+    await a.goto(`${BASE}/admin/packages`, { waitUntil: "networkidle" });
+    const f = a.getByTestId("package-add");
+    await f.locator('input[name="nameAr"]').fill("باقة قبل وبعد");
+    await f.locator('input[name="price"]').fill("1000");
+    await f.locator('input[name="installments"]').fill("2");
+    await f.locator('input[name="afterTrip"]').fill("2");
+    await f.getByRole("button", { name: "إضافة الباقة" }).click();
+    await a.getByText("الدفعات بعد الرحلة أقل من عدد الدفعات").waitFor();
+    await f.locator('input[name="afterTrip"]').fill("1");
+    await f.getByRole("button", { name: "إضافة الباقة" }).click();
+    await a.getByText("تمت إضافة الباقة «باقة قبل وبعد».").waitFor();
+    const pid = sql("select id from packages where name_ar='باقة قبل وبعد'");
+    await cp.goto(`${BASE}/ar/packages`, { waitUntil: "networkidle" });
+    assert((await cp.locator(`[data-package="${pid}"]`).getByTestId("package-installments").innerText()).includes("١ بعد الرحلة"), "shown to the customer");
+    await cp.goto(`${BASE}/ar/packages/${pid}`, { waitUntil: "networkidle" });
+    const pf = cp.getByTestId("package-form");
+    await pf.locator("#date").fill(inDays(6));
+    await pf.locator("#time").fill("10:00");
+    await pf.locator("#pickup").fill("فندق");
+    await pf.locator("#name").fill("عميل بعد الرحلة");
+    await pf.locator("#phone").fill("0556660022");
+    await pf.getByRole("button", { name: "متابعة إلى دفع الدفعة الأولى" }).click();
+    await cp.waitForURL(/\/ar\/pay\/[A-Za-z0-9_-]+$/, { waitUntil: "commit" });
+    const ref = sql("select ref from bookings where customer_name='عميل بعد الرحلة' order by created_at desc limit 1");
+    eq(sql(`select string_agg(due, ',' order by seq) from installments i join bookings b on b.id=i.booking_id where b.ref='${ref}'`), "before,after", "first now, second after the trip");
+    await cp.getByTestId("installment-pay").getByRole("button", { name: /ادفع/ }).click();
+    await cp.waitForURL(/localhost:4010\/pay\/\d+$/, { waitUntil: "commit" });
+    await cp.click("#pay");
+    await cp.waitForURL(new RegExp(`/ar/booking/${ref}`), { waitUntil: "commit" });
+    await cp.getByTestId("booking-installments").locator('[data-due="after"]').getByText("بعد الرحلة").waitFor();
+    // the trip ends: the after-trip link goes out on WhatsApp by itself
+    await mf("/__wa_reset");
+    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
+    await a.getByRole("button", { name: /انتهت الرحلة/ }).first().click();
+    await a.waitForURL(/completed=/, { waitUntil: "commit" });
+    eq(sql(`select link_sent_at is not null from installments i join bookings b on b.id=i.booking_id where b.ref='${ref}' and i.seq=2`), "t", "link sent");
+    assert((await mf("/__wa")).some((m) => m.to === "966556660022" && (m.text?.body ?? "").includes("/ar/pay/")), "on WhatsApp");
+    sql("delete from packages");
+  });
   await check("payment voucher on WhatsApp as soon as it's paid (not an invoice); the tax invoice comes with the rating when the trip ends", async () => {
     const setSetting = (k, v) => sql(`insert into settings(key,value) values('${k}','${v}') on conflict (key) do update set value=excluded.value`);
     setSetting("rating_enabled", "1");

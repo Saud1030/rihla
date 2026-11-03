@@ -55,7 +55,7 @@ async function List({ lang, t }: { lang: Locale; t: Dictionary }) {
             <p className="font-display text-3xl font-semibold tabular">{formatSAR(p.total, lang)}</p>
             <p className="text-xs text-muted">{t.packages.inclVat}</p>
             <p className="mt-2 inline-block rounded-full bg-sign-soft px-3 py-1 text-sm text-sign font-medium" data-testid="package-installments">
-              {p.parts.length > 1 ? `${t.packages.installments.replace("{n}", formatNumber(p.parts.length, lang))} · ${t.packages.each.replace("{a}", formatSAR(p.parts[0], lang))}` : t.packages.oneShot}
+              {p.parts.length > 1 ? `${t.packages.installments.replace("{n}", formatNumber(p.parts.length, lang))} · ${t.packages.each.replace("{a}", formatSAR(p.parts[0], lang))}${p.due ? ` · ${p.due}` : ""}` : t.packages.oneShot}
             </p>
             <Link href={`/${lang}/packages/${p.id}`} className="btn btn-primary w-full mt-4">
               {t.packages.book}

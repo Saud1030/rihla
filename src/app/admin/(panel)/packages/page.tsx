@@ -4,7 +4,7 @@ import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
 import { parseVatConfig, withVat } from "@/lib/pricing";
-import { MAX_INSTALLMENTS, splitAmount } from "@/lib/packages";
+import { MAX_INSTALLMENTS, dueSummary, splitAmount } from "@/lib/packages";
 import { formatNumber, formatSAR } from "@/lib/format";
 import { addPackage, deletePackage, savePackage, togglePackage } from "../../package-actions";
 import { ActionForm } from "@/components/admin/action-form";
@@ -60,7 +60,7 @@ async function Packages() {
                     <p className="font-semibold">{p.nameAr}</p>
                     <span className="text-sm tabular">{formatSAR(total, "ar")} شامل الضريبة</span>
                     <span className="rounded-md bg-sign-soft text-sign px-2 py-0.5 text-xs font-medium">
-                      {p.installments > 1 ? `${formatNumber(p.installments, "ar")} دفعات · ${formatSAR(parts[0], "ar")}` : "دفعة واحدة"}
+                      {p.installments > 1 ? `${formatNumber(p.installments, "ar")} دفعات · ${formatSAR(parts[0], "ar")}${p.afterTrip > 0 ? ` · ${dueSummary(p.installments, p.afterTrip, "ar")}` : " · كلها قبل الرحلة"}` : "دفعة واحدة"}
                     </span>
                     <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${p.active ? "bg-amber/20 text-amber-deep" : "bg-stone text-muted"}`}>{p.active ? "ظاهرة" : "مخفية"}</span>
                     <span className="ms-auto flex gap-2">
@@ -104,6 +104,9 @@ function PackageFields({ p, vehicles }: { p?: PackageRow; vehicles: VehicleOptio
       </Field>
       <Field label="عدد الدفعات" hint="١ = دفعة واحدة؛ ٢ أو أكثر = على دفعات">
         <input name="installments" type="number" min={1} max={MAX_INSTALLMENTS} required defaultValue={p?.installments ?? 2} dir="ltr" className="field text-start" />
+      </Field>
+      <Field label="منها بعد الرحلة" hint="٠ = كل الدفعات قبل الرحلة. الأولى دائمًا وقت الحجز، ودفعات ما بعد الرحلة يوصل رابطها للعميل تلقائيًا لما تنتهي الرحلة">
+        <input name="afterTrip" type="number" min={0} max={MAX_INSTALLMENTS - 1} defaultValue={p?.afterTrip ?? 0} dir="ltr" className="field text-start" />
       </Field>
       <Field label="السيارة (اختياري)">
         <select name="vehicleId" defaultValue={p?.vehicleId ?? ""} className="field">

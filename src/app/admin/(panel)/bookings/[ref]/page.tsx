@@ -774,7 +774,10 @@ async function InstallmentsAdmin({ bookingId, lang }: { bookingId: string; lang:
             <li key={x.id} className="px-3 py-2.5 space-y-2" data-seq={x.seq} data-paid={x.paidAt ? "1" : "0"}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium">
-                  الدفعة {formatNumber(x.seq, "ar")} من {formatNumber(all.length, "ar")} · <span className="tabular">{formatSAR(x.amount, "ar")}</span>
+                  الدفعة {formatNumber(x.seq, "ar")} من {formatNumber(all.length, "ar")} · <span className="tabular">{formatSAR(x.amount, "ar")}</span>{" "}
+                  <span className="text-xs text-muted" data-due={x.due}>
+                    · {x.seq === 1 ? "وقت الحجز" : x.due === "after" ? "بعد الرحلة (يوصل رابطها تلقائيًا لما تنتهي)" : "قبل الرحلة"}
+                  </span>
                 </span>
                 {x.paidAt ? (
                   <span className="text-xs rounded-md px-2 py-0.5 bg-sign-soft text-sign">

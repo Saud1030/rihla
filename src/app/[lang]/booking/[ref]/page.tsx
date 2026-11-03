@@ -347,7 +347,12 @@ async function Installments({ bookingId, lang, t }: { bookingId: string; lang: L
       <ol className="divide-y divide-line text-[15px]">
         {all.map((x) => (
           <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2" data-paid={x.paidAt ? "1" : "0"}>
-            <span>{t.packages.payment.replace("{k}", n(x.seq)).replace("{n}", n(all.length))}</span>
+            <span>
+              {t.packages.payment.replace("{k}", n(x.seq)).replace("{n}", n(all.length))}{" "}
+              <span className="text-xs text-muted" data-due={x.due}>
+                · {x.due === "after" ? t.packages.afterTrip : t.packages.beforeTrip}
+              </span>
+            </span>
             <span className="flex items-center gap-3 tabular">
               {formatSAR(x.amount, lang)}
               {x.paidAt ? (

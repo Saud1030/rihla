@@ -99,7 +99,7 @@ export async function createPackageBooking(lang: string, packageId: number, _pre
       return { formError: "generic", values };
     }
   }
-  const [first] = await createInstallments(bookingId, money.total, pkg.installments);
+  const [first] = await createInstallments(bookingId, money.total, pkg.installments, pkg.afterTrip);
   redirect(`/${locale}/pay/${first.token}`);
 }
 

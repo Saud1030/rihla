@@ -190,6 +190,13 @@
       "when": 1793724440898,
       "tag": "0026_einvoice",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793728507798,
+      "tag": "0027_installment_due",
+      "breakpoints": true
     }
   ]
 }

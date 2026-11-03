@@ -697,6 +697,8 @@ export const packages = pgTable("packages", {
   price: integer("price").notNull(),
   /** how many payments: the first when booking, the rest by links the admin sends */
   installments: integer("installments").notNull().default(2),
+  /** of those, how many are paid after the trip (the rest before it; the first is always at booking) */
+  afterTrip: integer("after_trip").notNull().default(0),
   vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
   passengers: integer("passengers").notNull().default(4),
   active: boolean("active").notNull().default(true),
@@ -714,6 +716,8 @@ export const installments = pgTable(
       .notNull()
       .references(() => bookings.id, { onDelete: "cascade" }),
     seq: integer("seq").notNull(),
+    /** before or after the trip (Admin -> Packages) */
+    due: text("due").notNull().default("before"),
     /** halalas, VAT included */
     amount: integer("amount").notNull(),
     token: text("token").notNull().unique(),

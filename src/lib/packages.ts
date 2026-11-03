@@ -24,8 +24,10 @@ export function splitAmount(total: number, n: number): number[] {
 
 export const newToken = () => randomBytes(18).toString("base64url");
 
-export async function createInstallments(bookingId: string, total: number, n: number) {
-  const rows = splitAmount(total, n).map((amount, i) => ({ bookingId, seq: i + 1, amount, token: newToken() }));
+/** the payments of a package booking: the first at booking, the last `afterTrip` of them after the trip */
+export async function createInstallments(bookingId: string, total: number, n: number, afterTrip = 0) {
+  const parts = splitAmount(total, n);
+  const rows = parts.map((amount, i) => ({ bookingId, seq: i + 1, amount, token: newToken(), due: i > 0 && i >= parts.length - afterTrip ? "after" : "before" }));
   return db.insert(s.installments).values(rows).returning();
 }
 
@@ -100,4 +102,25 @@ export async function sendInstallmentLink(inst: Installment, b: Booking, total: 
   const sent = await notify({ bookingId: b.id, channel: "whatsapp", kind: "installment_link", recipient: b.customerPhone, recipientName: b.customerName, body, params: [b.customerName, String(inst.seq), link] });
   await db.update(s.installments).set({ linkSentAt: new Date() }).where(eq(s.installments.id, inst.id));
   return sent;
+}
+
+/** "٢ قبل الرحلة · ١ بعد الرحلة" */
+export function dueSummary(n: number, afterTrip: number, lang: "ar" | "en") {
+  const before = n - afterTrip;
+  if (afterTrip <= 0) return "";
+  return lang === "ar"
+    ? `${formatNumber(before, "ar")} قبل الرحلة · ${formatNumber(afterTrip, "ar")} بعد الرحلة`
+    : `${before} before the trip · ${afterTrip} after it`;
+}
+
+/** The trip ended: the payments due after it get their links on WhatsApp. Never throws. */
+export async function afterTripPayments(bookingId: string) {
+  try {
+    const b = await db.query.bookings.findFirst({ where: eq(s.bookings.id, bookingId) });
+    if (!b) return;
+    const all = await installmentsOf(bookingId);
+    for (const inst of all) if (inst.due === "after" && !inst.paidAt && !inst.linkSentAt) await sendInstallmentLink(inst, b, all.length);
+  } catch (e) {
+    console.error("after-trip payment links failed", e);
+  }
 }

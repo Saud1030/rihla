@@ -1,4 +1,5 @@
 import "server-only";
+import { afterTripPayments } from "./packages";
 import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { readSettings, retryDue } from "./notify";
@@ -26,7 +27,10 @@ export async function sweep() {
         ),
       )
       .returning({ id: s.bookings.id });
-    for (const b of due) await requestRating(b.id);
+    for (const b of due) {
+      await requestRating(b.id);
+      await afterTripPayments(b.id);
+    }
   }
   await retryDue();
 }

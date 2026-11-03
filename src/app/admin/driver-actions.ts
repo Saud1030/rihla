@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { afterTripPayments } from "@/lib/packages";
 import { recordCashPayment } from "@/lib/cash";
 import { sarToHalalas } from "@/lib/money-input";
 import { redirect } from "next/navigation";
@@ -343,6 +344,8 @@ async function finishTrip(id: string, driverId: number | null): Promise<ActionSt
     .returning();
   if (!done.length) return { error: driverId ? "هذه الرحلة ليست لك أو انتهت." : "لا يمكن إنهاء هذا الحجز." };
   const msg = await requestRating(done[0].id);
+  // package payments due after the trip: their links go out now
+  await afterTripPayments(done[0].id);
   revalidatePath("/admin/my-trips");
   revalidatePath(`/admin/bookings/${done[0].ref}`);
   return { ok: true, ref: done[0].ref, rating: !msg ? "none" : msg.status === "sent" ? "sent" : "ready" };

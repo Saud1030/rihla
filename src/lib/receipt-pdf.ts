@@ -2,7 +2,7 @@ import "server-only";
 import PDFDocument from "pdfkit";
 import { isolate, pdfWriter, registerFonts } from "./pdf-text";
 import type { Booking } from "@/db/schema";
-import { formatDate, formatDateTime, formatSARText as formatSAR, formatTime } from "./format";
+import { formatDate, formatDateTime, formatSAR, formatTime } from "./format";
 import { receiptNo } from "./documents";
 import { maskPhone } from "./booking";
 

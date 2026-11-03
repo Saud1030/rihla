@@ -21,11 +21,14 @@ function readPackage(formData: FormData) {
   const passengers = Number(digits(formData.get("passengers")));
   const vehicleId = Number(formData.get("vehicleId") ?? 0) || null;
   const sortOrder = Number(digits(formData.get("sortOrder"))) || 0;
+  const afterTrip = Number(digits(formData.get("afterTrip")) || "0");
   if (nameAr.length < 2) return { error: "اكتب اسم الباقة." } as const;
   if (price == null || price <= 0) return { error: "السعر: اكتب المبلغ بالريال قبل الضريبة، مثل 1500" } as const;
   if (!Number.isInteger(installments) || installments < 1 || installments > MAX_INSTALLMENTS) return { error: `عدد الدفعات من ١ إلى ${MAX_INSTALLMENTS.toLocaleString("ar-SA")}.` } as const;
+  if (!Number.isInteger(afterTrip) || afterTrip < 0 || (installments > 0 && afterTrip >= installments))
+    return { error: "الدفعات بعد الرحلة أقل من عدد الدفعات (الدفعة الأولى دائمًا وقت الحجز)." } as const;
   if (!Number.isInteger(passengers) || passengers < 1 || passengers > 100) return { error: "عدد الركاب من ١ إلى ١٠٠." } as const;
-  return { values: { nameAr, nameEn, detailsAr, detailsEn, price, installments, passengers, vehicleId, sortOrder } } as const;
+  return { values: { nameAr, nameEn, detailsAr, detailsEn, price, installments, afterTrip, passengers, vehicleId, sortOrder } } as const;
 }
 
 function done() {
