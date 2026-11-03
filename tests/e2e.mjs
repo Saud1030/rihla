@@ -1785,7 +1785,7 @@ if (!ONLY || ONLY === "features") {
     await cp.goto(`${BASE}/ar/booking/${ref}/invoice`, { waitUntil: "networkidle" });
     eq(await cp.getByTestId("invoice").count(), 0, "no invoice before the trip ends");
     await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
-    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "سند الصرف", "only the voucher link");
+    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "تحميل سند الصرف (PDF)|سند الصرف", "only the voucher (PDF and page), no invoice yet");
     // trip ends -> invoice + rating in one message
     await mf("/__wa_reset");
     await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
@@ -1806,7 +1806,7 @@ if (!ONLY || ONLY === "features") {
     eq(sub + vat, amt, "totals add up");
     await inv.getByText(`REC-${String(rno).padStart(4, "0")}`, { exact: false }).waitFor();
     await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
-    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "سند الصرف|الفاتورة", "both links");
+    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "تحميل سند الصرف (PDF)|سند الصرف|الفاتورة", "both links");
     await a.reload({ waitUntil: "networkidle" });
     assert((await a.getByTestId("booking-documents").innerText()).includes(`INV-${String(ino).padStart(4, "0")}`), "admin sees both");
     // the next paid booking gets the next voucher number
@@ -2174,6 +2174,7 @@ if (!ONLY || ONLY === "features") {
     const other = await makeBooking(bp, { date: inDaysUTC(4) });
     await bp.goto(`${BASE}/ar/booking/${other}/transfer`, { waitUntil: "networkidle" });
     assert((await bp.textContent("body")).includes("لم نجد هذه الصفحة"), "no slip without a transfer");
+    await bp.goto(`${BASE}/ar/booking/${rcRef}`, { waitUntil: "networkidle" }); // back for the next checks
   });
   await check("receipt: admin sees it on the booking, the dashboard and the list; the file is admin-only", async () => {
     await a.goto(`${BASE}/admin/bookings/${rcRef}`, { waitUntil: "networkidle" });
@@ -2694,7 +2695,7 @@ if (!ONLY || ONLY === "drivers") {
     const toDriver = msgs.find((m) => m.to === "966551234321");
     const toCustomer = msgs.find((m) => m.to === "966551112299");
     assert(toDriver && toCustomer, "one to each");
-    const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
+    const no = "MHT" + sql(`select lpad(number::text, greatest(2, length(number::text)), '0') from bookings where ref='${ref}'`);
     for (const x of ["سلمان الدوسري", "+966551112299", "صالة ١", "فندق الصفوة", "كرسي أطفال", no]) assert(toDriver.text.body.includes(x), "driver message has " + x);
     for (const x of ["فهد الحربي", "+966551234321", "تويوتا كامري", "ر س ع 5555", `/ar/booking/${ref}`]) assert(toCustomer.text.body.includes(x), "customer message has " + x);
     eq(sql(`select string_agg(status::text, ',' order by id) from notifications where booking_id=(select id from bookings where ref='${ref}')`), "sent,sent", "logged as sent");
@@ -2711,7 +2712,7 @@ if (!ONLY || ONLY === "drivers") {
   });
 
   await check("bookings list: running number MHT.., date, time, from, to, car, customer, mobiles and driver each in its own column; search by number", async () => {
-    const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
+    const no = "MHT" + sql(`select lpad(number::text, greatest(2, length(number::text)), '0') from bookings where ref='${ref}'`);
     await a.goto(`${BASE}/admin/bookings?q=${no}`, { waitUntil: "networkidle" });
     const heads = await a.getByTestId("bookings-table").locator("thead th").allInnerTexts();
     eq(heads.join("|"), "رقم الحجز|التاريخ|الوقت|من|إلى|السيارة|العميل|جوال العميل|السائق|جوال السائق|قبل الضريبة|بعد الضريبة|أجرة السائق|الحالة", "columns");
@@ -2836,7 +2837,7 @@ if (!ONLY || ONLY === "drivers") {
     await drv.locator("nav[aria-label='لوحة التحكم'] a", { hasText: "رحلاتي" }).waitFor();
     const nav = (await drv.locator("nav[aria-label='لوحة التحكم'] a").allInnerTexts()).join("|");
     eq(nav, "رحلاتي|حسابي", "driver menu");
-    const tripNo = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
+    const tripNo = "MHT" + sql(`select lpad(number::text, greatest(2, length(number::text)), '0') from bookings where ref='${ref}'`);
     const trip = drv.getByTestId("my-trips").locator("li").filter({ hasText: tripNo });
     await trip.getByText("سلمان الدوسري").waitFor();
     await trip.getByRole("button", { name: "بدأت الرحلة" }).click();
@@ -2859,7 +2860,7 @@ if (!ONLY || ONLY === "drivers") {
   await check("driver doesn't see other drivers' trips", async () => {
     const other = paidBooking({ status: "confirmed" });
     await drv.reload({ waitUntil: "networkidle" });
-    const otherNo = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${other}'`);
+    const otherNo = "MHT" + sql(`select lpad(number::text, greatest(2, length(number::text)), '0') from bookings where ref='${other}'`);
     eq(await drv.getByText(otherNo).count(), 0, "not in his list");
   });
 
@@ -2970,7 +2971,7 @@ if (!ONLY || ONLY === "drivers") {
     const id = sql("select id from drivers where phone='+966551234321'");
     const ref = paidBooking({ name: "رحلة قادمة", status: "confirmed" });
     sql(`update bookings set driver_id=${id} where ref='${ref}'`);
-    const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${ref}'`);
+    const no = "MHT" + sql(`select lpad(number::text, greatest(2, length(number::text)), '0') from bookings where ref='${ref}'`);
     const card = () => a.locator(`[data-driver="${id}"]`);
     await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
     await card().getByText("إيقاف مؤقت أو حظر").click();
@@ -3021,7 +3022,7 @@ if (!ONLY || ONLY === "drivers") {
     await ff.getByText("تم حفظ أجرة السائق").waitFor();
     eq(sql(`select driver_fare from bookings where ref='${r1}'`), "15000", "stored in halalas");
     // the bookings list shows it in its own column
-    const no = "MHT" + sql(`select lpad(number::text, 2, '0') from bookings where ref='${r1}'`);
+    const no = "MHT" + sql(`select lpad(number::text, greatest(2, length(number::text)), '0') from bookings where ref='${r1}'`);
     await a.goto(`${BASE}/admin/bookings?q=${no}`, { waitUntil: "networkidle" });
     assert((await a.locator('[data-col="driver-fare"]').first().innerText()).includes("١٥٠"), "fare column");
     // the driver sees it at once
@@ -3288,7 +3289,7 @@ if (!ONLY || ONLY === "drivers") {
     // the menu streams in after the page (a placeholder shows first)
     await sp.locator("nav[aria-label='لوحة التحكم'] a", { hasText: "حسابي" }).waitFor();
     const nav = (await sp.locator("nav[aria-label='لوحة التحكم'] a").allInnerTexts()).join("|");
-    eq(nav, "الرئيسية|السائقين|التقييمات|حسابي", "staff menu");
+    eq(nav, "الرئيسية|طلبات السائقين|فريق السائقين|التقييمات|حسابي", "staff menu");
     await sp.goto(`${BASE}/admin/bookings`, { waitUntil: "networkidle" });
     assert(sp.url().includes("/admin?denied=1"), "bookings refused");
     await sp.getByText("ليست لديك صلاحية لهذا القسم").waitFor();

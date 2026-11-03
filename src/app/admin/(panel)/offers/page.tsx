@@ -54,7 +54,7 @@ async function Offers() {
 
       <Card className="p-6" data-testid="offer-add">
         <h2 className="font-semibold mb-4">إضافة عرض</h2>
-        <ActionForm action={addOffer} submitLabel="إضافة العرض" key={rows.length}>
+        <ActionForm action={addOffer} submitLabel="إضافة العرض">
           <OfferFields />
         </ActionForm>
       </Card>
