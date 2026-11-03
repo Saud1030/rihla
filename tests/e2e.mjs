@@ -699,6 +699,7 @@ if (!ONLY || ONLY === "ux") {
     eq(await dp.evaluate(() => document.documentElement.dataset.theme), "light", "starts light");
     await dp.getByTestId("theme-toggle").first().click();
     eq(await dp.evaluate(() => document.documentElement.dataset.theme), "dark", "now dark");
+    await dp.waitForTimeout(800); // the colours fade over
     const bg = await dp.evaluate(() => getComputedStyle(document.body).backgroundColor);
     assert(/rgb\((\d+), (\d+), (\d+)\)/.exec(bg).slice(1).every((n) => Number(n) < 60), "dark page background: " + bg);
     await dp.goto(BASE + "/ar/fleet", { waitUntil: "networkidle" });
@@ -2015,10 +2016,10 @@ if (!ONLY || ONLY === "features") {
   await check("top bar: Home first and Contact right after My booking (both languages)", async () => {
     for (const [lang, labels] of [["ar", ["الرئيسية", "الرحلات والأسعار", "السيارات", "حجزي", "تواصل معنا"]], ["en", ["Home", "Routes & prices", "Vehicles", "My booking", "Contact"]]]) {
       await page.goto(`${BASE}/${lang}/fleet`, { waitUntil: "networkidle" });
-      const got = (await page.locator('header nav[aria-label="Main"] a').allTextContents()).map((x) => x.trim());
+      const got = (await page.locator('header [data-testid=glass-nav]:visible nav a').allTextContents()).map((x) => x.trim());
       eq(JSON.stringify(got), JSON.stringify(labels), `${lang} nav`);
     }
-    await page.locator('header nav[aria-label="Main"] a').first().click();
+    await page.locator('header [data-testid=glass-nav]:visible nav a').first().click();
     await page.waitForURL(/\/en$/, { waitUntil: "commit" });
   });
   await check("contact page: WhatsApp, phone and email links; empty message is refused; message opens WhatsApp", async () => {

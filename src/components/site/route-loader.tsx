@@ -50,8 +50,8 @@ export function RouteLoader({ label, mark }: { label: string; mark: string }) {
           new Promise<void>((done) => {
             const finish = () => {
               arrived.current = null;
-              // one frame for the new page to paint
-              requestAnimationFrame(() => done());
+              // a moment for the new page's DOM to settle (no animation frames run while the old page is frozen)
+              setTimeout(done, 30);
             };
             arrived.current = finish;
             router.push(href);
