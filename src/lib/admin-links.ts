@@ -23,6 +23,7 @@ export const LINKS = [
   { href: "/admin/appearance", label: "المظهر والشعار" },
   { href: "/admin/banners", label: "الخلفية والبنرات" },
   { href: "/admin/settings", label: "الإعدادات" },
+  { href: "/admin/integrations", label: "بوابات الدفع والفوترة" },
   { href: "/admin/users", label: "المستخدمين والصلاحيات" },
   { href: "/admin/account", label: "حسابي" },
 ];

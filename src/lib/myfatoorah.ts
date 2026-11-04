@@ -3,6 +3,7 @@ import { issueReceipt } from "./documents";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { mfConfig, onlinePaymentOn } from "./integrations";
 import type { Booking } from "@/db/schema";
 
 /**
@@ -23,11 +24,8 @@ import type { Booking } from "@/db/schema";
  * Docs: https://docs.myfatoorah.com
  */
 
-const API_BASE = () => (process.env.MYFATOORAH_API_BASE || "https://apitest.myfatoorah.com").replace(/\/$/, "");
-
-export function isGatewayConfigured() {
-  return !!process.env.MYFATOORAH_API_KEY;
-}
+/** offered at checkout only when chosen in Admin -> Payment gateways (with its key) */
+export const isGatewayConfigured = onlinePaymentOn;
 
 /** PaymentId values are long digit strings; anything else is rejected before any API call */
 const PAYMENT_ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
@@ -38,11 +36,12 @@ export class GatewayError extends Error {}
 type MfResponse<T> = { IsSuccess: boolean; Message?: string | null; ValidationErrors?: { Name: string; Error: string }[] | null; Data: T };
 
 async function call<T>(path: string, body: unknown): Promise<{ status: number; json: MfResponse<T> | null }> {
-  const key = process.env.MYFATOORAH_API_KEY;
-  if (!key) throw new GatewayError("MYFATOORAH_API_KEY is not set");
+  const cfg = await mfConfig();
+  if (!cfg) throw new GatewayError("MyFatoorah API key is not set");
+  const key = cfg.key;
   let res: Response;
   try {
-    res = await fetch(`${API_BASE()}${path}`, {
+    res = await fetch(`${cfg.base}${path}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(body),

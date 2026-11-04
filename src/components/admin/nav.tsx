@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BadgePercent,
   CalendarCheck,
+  CreditCard,
   ChartColumn,
   IdCard,
   Moon,
@@ -53,6 +54,7 @@ const ICONS: Record<string, LucideIcon> = {
   "/admin/appearance": Palette,
   "/admin/banners": ImageIcon,
   "/admin/settings": Settings,
+  "/admin/integrations": CreditCard,
   "/admin/users": UserCog,
   "/admin/account": UserCircle,
 };

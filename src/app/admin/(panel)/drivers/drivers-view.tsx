@@ -508,6 +508,14 @@ export async function Drivers({
                               >
                                 <WhatsAppIcon className="size-4" />
                               </a>
+                              <Popup
+                                label={`صور الهوية والسيارة (${formatNumber(kinds.length, "ar")})`}
+                                title={`صور ${d.name}: الهوية والرخصة والسيارة`}
+                                testId="driver-docs"
+                                wide
+                              >
+                                <DocGallery id={d.id} kinds={kinds} />
+                              </Popup>
                               <MoneyPanel
                                 d={d}
                                 m={m}
@@ -611,15 +619,6 @@ export async function Drivers({
                           </p>
                         </div>
                       </div>
-                      {/* the car and papers in the same box, like the join request review (each opens full size) */}
-                      {kinds.length > 0 && (
-                        <div
-                          className="mt-2 border-t border-line pt-2"
-                          data-testid="driver-photos"
-                        >
-                          <DocThumbs id={d.id} kinds={kinds} />
-                        </div>
-                      )}
                     </Card>
                   </li>
                 );
@@ -926,38 +925,6 @@ function HoldControls({
         </ActionForm>
       </div>
     </Popup>
-  );
-}
-
-/** The car and papers beside the driver's photo, labelled like the join request review; each opens full size */
-function DocThumbs({ id, kinds }: { id: number; kinds: string[] }) {
-  const have = ALL_DOC_KINDS.filter((k) => kinds.includes(k));
-  if (!have.length) return null;
-  return (
-    <div className="flex gap-2 overflow-x-auto pb-0.5">
-      {have.map((k) => (
-        <figure key={k} className="shrink-0 w-16 text-[10px] leading-tight">
-          <a
-            href={`/api/admin/drivers/${id}/doc/${k}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={DOC_LABELS[k].ar}
-            className="block overflow-hidden rounded-md border border-line bg-stone"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- private document from our own API route */}
-            <img
-              src={`/api/admin/drivers/${id}/doc/${k}`}
-              alt={DOC_LABELS[k].ar}
-              loading="lazy"
-              className="h-12 w-16 object-cover"
-            />
-          </a>
-          <figcaption className="mt-0.5 text-muted truncate">
-            {DOC_LABELS[k].ar}
-          </figcaption>
-        </figure>
-      ))}
-    </div>
   );
 }
 

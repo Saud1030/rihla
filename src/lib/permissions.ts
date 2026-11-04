@@ -47,5 +47,6 @@ export const PATH_SECTIONS: [prefix: string, section: Section | "users"][] = [
   ["/admin/appearance", "appearance"],
   ["/admin/banners", "appearance"],
   ["/admin/settings", "settings"],
+  ["/admin/integrations", "settings"],
   ["/admin/users", "users"],
 ];

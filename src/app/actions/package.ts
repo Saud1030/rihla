@@ -112,7 +112,7 @@ export async function payInstallment(token: string, lang: string, _prev: Install
   if (!inst) redirect(`/${locale}`);
   const b = await db.query.bookings.findFirst({ where: eq(s.bookings.id, inst.bookingId) });
   if (!b || inst.paidAt || b.status === "cancelled") redirect(`/${locale}/pay/${token}`);
-  if (!isGatewayConfigured()) return { error: "not_configured" };
+  if (!(await isGatewayConfigured())) return { error: "not_configured" };
   const count = (await installmentsOf(b.id)).length;
   let url: string;
   try {

@@ -71,7 +71,7 @@ async function Checkout({ lang, t, params }: { lang: Locale; t: Dictionary; para
 /** Ways to pay: MyFatoorah's hosted page, a bank transfer the admin confirms, or cash to the driver. */
 async function PaymentOptions({ b, lang, t }: { b: Booking; lang: Locale; t: Dictionary }) {
   const bank = await getBankConfig();
-  const mf = isGatewayConfigured();
+  const mf = await isGatewayConfigured();
   const cash = cashEnabled(await getSettings());
   if (!mf && !bank && !cash) return <p className="text-danger bg-danger-soft rounded-md p-4 text-sm">{t.checkout.notConfigured}</p>;
   return (

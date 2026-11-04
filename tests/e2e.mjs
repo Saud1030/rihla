@@ -112,6 +112,9 @@ async function adminLogin(p, email = "admin@example.com", password = "Admin12345
 }
 
 /* ======================================================================= */
+// online payment is off until a gateway is chosen in the panel; the tests pay through the MyFatoorah mock
+sql("insert into settings(key,value) values('pay_gateway','myfatoorah') on conflict (key) do update set value=excluded.value");
+
 if (!ONLY || ONLY === "flow") {
   section = "Booking & payment flow";
   console.log(`\n${section}`);
@@ -3291,6 +3294,15 @@ if (!ONLY || ONLY === "drivers") {
     eq(sql(`select email, phone from admin_users where driver_id=${driverId}`), "fahad.driver@example.com|+966551234321", "his sign-in account follows: email and mobile each in its own field");
     eq((await a.request.get(`${BASE}/api/admin/drivers/${driverId}/doc/iban`)).status(), 200, "IBAN photo for staff");
     eq((await fetch(`${BASE}/api/admin/drivers/${driverId}/doc/iban`)).status, 404, "not public");
+    // on the team list the photos open with a button, like the money window
+    await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
+    const card = a.locator(`[data-driver="${driverId}"]`);
+    eq(await card.locator('img[src*="/doc/"]').evaluateAll((els) => els.filter((e) => e.offsetParent).length), 0, "no photos on the list itself");
+    await card.getByRole("button", { name: /صور الهوية والسيارة/ }).click();
+    const docs = card.getByTestId("driver-docs");
+    await docs.locator('img[src*="/doc/iban"]').waitFor();
+    assert((await docs.locator('img[src*="/doc/"]').count()) >= 3, "ID, licence, car... in the window");
+    await docs.getByRole("button", { name: "إغلاق" }).click();
   });
 
   await check("bookings list downloads as Excel and PDF, with the page's filters, the company logo and name, and when it was downloaded; staff only", async () => {
@@ -3447,9 +3459,38 @@ if (!ONLY || ONLY === "drivers") {
     sql(`delete from bookings where ref in (${[...refs, ...more].map((x) => `'${x}'`).join(",")})`);
   });
 
+  await check("payment gateways page: online payment off by default here (bank transfer and cash only); a gateway not connected yet keeps its keys but can't be switched on; MyFatoorah switched back on", async () => {
+    await a.goto(`${BASE}/admin/integrations`, { waitUntil: "networkidle" });
+    assert(await a.locator(".admin-nav a[href='/admin/integrations']").count(), "in the menu");
+    const choice = a.getByTestId("gateway-choice");
+    await choice.locator('select[name="pay_gateway"]').selectOption("");
+    await choice.getByRole("button", { name: "حفظ" }).click();
+    await a.getByText("تم إيقاف الدفع الإلكتروني").waitFor();
+    const ref = await makeBooking(page, { date: inDaysUTC(3) });
+    await page.locator("[data-method]").first().waitFor();
+    eq(await page.locator('[data-method="myfatoorah"]').count(), 0, "no card payment");
+    eq(await page.locator("[data-method]").count(), 2, "transfer and cash");
+    // another gateway: keys saved for later, not switchable yet
+    await a.reload({ waitUntil: "networkidle" });
+    const moy = a.locator('[data-integration="moyasar"]');
+    await moy.locator('input[name="gw_moyasar_public"]').fill("pk_test_123456");
+    await moy.locator('input[name="gw_moyasar_secret"]').fill("sk_test_abcdef123");
+    await moy.getByRole("button", { name: "حفظ المفاتيح" }).click();
+    await a.getByText("تم حفظ مفاتيح ميسر Moyasar. تشتغل بعد ربطها.").waitFor();
+    eq(sql("select value from settings where key='gw_moyasar_secret'"), "sk_test_abcdef123", "kept for later");
+    eq(await a.getByTestId("gateway-choice").locator('option[value="moyasar"]').evaluate((o) => o.disabled), true, "not selectable yet");
+    // MyFatoorah back on: card payment offered again
+    await a.getByTestId("gateway-choice").locator('select[name="pay_gateway"]').selectOption("myfatoorah");
+    await a.getByTestId("gateway-choice").getByRole("button", { name: "حفظ" }).click();
+    await a.getByText("تم تشغيل ماي فاتورة MyFatoorah").waitFor();
+    await page.goto(`${BASE}/ar/checkout/${ref}`, { waitUntil: "networkidle" });
+    eq(await page.locator('[data-method="myfatoorah"]').count(), 1, "card payment back");
+    sql("delete from settings where key like 'gw_moyasar_%'");
+  });
+
   await check("e-invoicing: a finished trip's tax invoice goes to Wafeq by API (customer, line, VAT) and is reported to ZATCA; a failure shows on the booking with 'send again'", async () => {
     sql("delete from settings where key like 'wafeq_%' or key in ('einv_provider','einv_report')");
-    await a.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
+    await a.goto(`${BASE}/admin/integrations`, { waitUntil: "networkidle" });
     const f = a.getByTestId("einvoice-settings");
     await f.locator('select[name="einv_provider"]').selectOption("wafeq");
     await f.locator('input[name="wafeq_api_key"]').fill("test-wafeq-key");

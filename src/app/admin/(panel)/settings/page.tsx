@@ -3,9 +3,8 @@ import { MAX_LEAD_HOURS, parseLeadHours } from "@/lib/lead-time";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
 import { cashEnabled } from "@/lib/cash";
-import { maskKey } from "@/lib/einvoice";
 import {
-  savePolicySettings, saveBankSettings, saveCashSetting, saveEinvoiceSettings, testEinvoice,
+  savePolicySettings, saveBankSettings, saveCashSetting,
   savePricingSettings,
   saveSettings,
 } from "../../actions";
@@ -193,38 +192,15 @@ async function Content() {
           </ActionForm>
         </Card>
 
-        <Card className="p-6" data-testid="einvoice-settings">
-          <h2 className="font-semibold mb-1">الفوترة الإلكترونية (منصة خارجية)</h2>
-          <p className="text-sm text-muted mb-4 max-w-[75ch]">
-            لما تنتهي الرحلة تصدر فاتورتها هنا، وتنرسل نفس الفاتورة تلقائيًا لمنصة <a href="https://wafeq.com" target="_blank" rel="noopener noreferrer" className="text-sign underline">وافق</a> عن طريق API (العميل، الوصف، المبلغ والضريبة)،
-            ووافق يصدرها فاتورة إلكترونية معتمدة من هيئة الزكاة (فاتورة). المفتاح من وافق: الإعدادات ← API.
+        <Card className="p-6">
+          <h2 className="font-semibold mb-1">بوابات الدفع والفوترة الإلكترونية</h2>
+          <p className="text-sm text-muted">
+            تشغيل وإيقاف بوابة الدفع الإلكتروني ومنصة الفوترة، ومفاتيح كل وحدة، صارت في صفحة{" "}
+            <a href="/admin/integrations" className="text-sign underline">
+              بوابات الدفع والفوترة
+            </a>
+            .
           </p>
-          <ActionForm action={saveEinvoiceSettings} submitLabel="حفظ">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Field label="المنصة">
-                <select name="einv_provider" defaultValue={values.einv_provider ?? ""} className="field">
-                  <option value="">بدون (الفاتورة من الموقع فقط)</option>
-                  <option value="wafeq">وافق Wafeq</option>
-                </select>
-              </Field>
-              <Field label="مفتاح API" hint={values.wafeq_api_key ? `المحفوظ: ${maskKey(values.wafeq_api_key)} (اتركه فاضي لإبقائه)` : "من وافق: الإعدادات ← API Keys"}>
-                <input name="wafeq_api_key" type="password" autoComplete="off" maxLength={200} className="field" dir="ltr" />
-              </Field>
-              <Field label="حساب المبيعات (الإيرادات) في وافق" hint="مثل acc_… — اضغط «اختبار الاتصال» يعرض لك الحسابات">
-                <input name="wafeq_account" maxLength={100} defaultValue={values.wafeq_account ?? ""} className="field" dir="ltr" />
-              </Field>
-              <Field label="معرّف ضريبة ١٥٪ في وافق (اختياري)" hint="مثل tax_… — بدونه تنرسل الفاتورة بدون ضريبة على البند">
-                <input name="wafeq_tax_rate" maxLength={100} defaultValue={values.wafeq_tax_rate ?? ""} className="field" dir="ltr" />
-              </Field>
-              <label className="flex items-center gap-2 sm:col-span-2">
-                <input type="checkbox" name="einv_report" defaultChecked={values.einv_report === "1"} className="size-4 accent-sign" />
-                إبلاغ هيئة الزكاة (فاتورة) تلقائيًا بعد إنشاء الفاتورة في وافق
-              </label>
-            </div>
-          </ActionForm>
-          <ActionForm action={testEinvoice} submitLabel="اختبار الاتصال" submitClassName="btn btn-ghost border border-line mt-3" className="">
-            <span />
-          </ActionForm>
         </Card>
 
         <Card className="p-6" data-testid="cash-settings">

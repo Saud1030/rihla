@@ -197,6 +197,13 @@
       "when": 1793728507798,
       "tag": "0027_installment_due",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793794908065,
+      "tag": "0028_integrations_off",
+      "breakpoints": true
     }
   ]
 }

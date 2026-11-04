@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { mfConfig } from "@/lib/integrations";
 import { GatewayError, getPaymentStatus, isValidPaymentId, settlePayment, verifyWebhookSignature } from "@/lib/myfatoorah";
 
 /**
@@ -12,7 +13,7 @@ import { GatewayError, getPaymentStatus, isValidPaymentId, settlePayment, verify
  * before anything changes, so a replayed or forged body can't mark a booking paid.
  */
 export async function POST(req: NextRequest) {
-  const secret = process.env.MYFATOORAH_WEBHOOK_SECRET;
+  const secret = (await mfConfig())?.webhookSecret;
   if (!secret) return NextResponse.json({ error: "webhook not configured" }, { status: 503 });
 
   let body: {

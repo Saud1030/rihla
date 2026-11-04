@@ -18,7 +18,7 @@ export async function startPayment(ref: string, lang: string, _prev: PayState, _
   const b = await getBookingByRef(ref);
   if (!b) redirect(`/${locale}/booking`);
   if (b.status !== "pending_payment") redirect(`/${locale}/booking/${b.ref}`);
-  if (!isGatewayConfigured()) return { error: "not_configured" };
+  if (!(await isGatewayConfigured())) return { error: "not_configured" };
 
   let url: string;
   try {

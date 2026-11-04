@@ -1060,7 +1060,7 @@ export async function saveEinvoiceSettings(_prev: ActionState, formData: FormDat
     for (const [k, value] of Object.entries(rows)) await tx.insert(s.settings).values({ key: k, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
   });
   invalidateCatalogCache();
-  revalidatePath("/admin/settings");
+  revalidatePath("/admin/integrations");
   return { ok: true, message: provider ? "تم الحفظ. الفواتير تنرسل لوافق تلقائيًا لما تنتهي الرحلة." : "تم الحفظ. الربط مع منصة الفوترة موقوف." };
 }
 
