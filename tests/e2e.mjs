@@ -379,8 +379,22 @@ if (!ONLY || ONLY === "security") {
   // admin session for the next checks
   const admin = await ctx.newPage();
   admin.on("dialog", (d) => { pageErrors.push("DIALOG OPENED (admin): " + d.message()); d.dismiss(); });
-  await adminLogin(admin);
-  await admin.waitForURL(`${BASE}/admin`, { waitUntil: "commit" });
+  await check("sign-in page: a wrong password says so and keeps the email; the right one shows the welcome tick, then opens the panel", async () => {
+    await adminLogin(admin, "admin@example.com", "not-the-password");
+    await admin.getByRole("alert").getByText("غير صحيحة").waitFor();
+    eq(await admin.inputValue('input[name="email"]'), "admin@example.com", "email kept");
+    await admin.locator('input[name="password"]').fill("Admin12345");
+    await admin.getByRole("button", { name: "إظهار كلمة المرور" }).click();
+    eq(await admin.getAttribute('input[name="password"]', "type"), "text", "password shown");
+    await admin.getByRole("button", { name: "دخول" }).click();
+    await admin.getByRole("status").getByText("أهلًا بعودتك!").waitFor();
+    eq(await admin.evaluate(() => document.documentElement.dataset.welcome), "1", "the car flashes its lights");
+    await admin.waitForURL(`${BASE}/admin`, { waitUntil: "commit" });
+  });
+  if (!admin.url().endsWith("/admin")) {
+    await adminLogin(admin);
+    await admin.waitForURL(`${BASE}/admin`, { waitUntil: "commit" });
+  }
 
   await check("XSS name is harmless in admin list and detail", async () => {
     await admin.goto(`${BASE}/admin/bookings`, { waitUntil: "networkidle" });

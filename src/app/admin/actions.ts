@@ -31,7 +31,7 @@ import { driverHold } from "@/lib/driver-hold";
 import { formatDateTime } from "@/lib/format";
 import { CORNERS, DEFAULT_THEME, FONTS, parseTheme, themeWarnings, type CornerKey, type FontKey } from "@/lib/theme";
 
-export type ActionState = { ok?: boolean; error?: string; message?: string };
+export type ActionState = { ok?: boolean; error?: string; message?: string; /** sign-in: where to go once the welcome check has shown */ to?: string };
 
 // Compared against when the email doesn't exist, so timing doesn't reveal valid emails
 let dummyHash: string | null = null;
@@ -72,7 +72,8 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
   }
   clearLoginFailures(key);
   await createSession({ uid: user.id, email: user.email ?? user.phone ?? "", name: user.name });
-  redirect(user.role === "driver" ? "/admin/my-trips" : "/admin");
+  // the sign-in page shows its "welcome back" tick, then opens this page
+  return { ok: true, to: user.role === "driver" ? "/admin/my-trips" : "/admin" };
 }
 
 export async function logout() {

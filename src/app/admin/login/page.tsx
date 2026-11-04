@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { LoginForm } from "./login-form";
+import { LoginScene } from "./login-scene";
 import { Suspense } from "react";
 import { site } from "@/config/site";
 import { getBrand } from "@/lib/brand";
@@ -14,20 +15,19 @@ async function BrandName() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-dvh grid place-items-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="sign px-6 py-5 mb-6">
-          <p className="font-display text-xl font-semibold">
+    <div className="login-page min-h-dvh grid place-items-center px-4 py-10">
+      <LoginScene />
+      <div className="relative z-10 w-full max-w-sm">
+        <LoginForm
+          brand={
             <Suspense fallback={site.name.ar}>
               <BrandName />
             </Suspense>
-          </p>
-          <p className="text-white/80 text-sm">لوحة التحكم</p>
-        </div>
-        <LoginForm />
-        <p className="mt-4 text-center text-sm text-muted">
+          }
+        />
+        <p className="mt-5 text-center text-sm text-white/80">
           سائق جديد؟{" "}
-          <Link href="/ar/drivers/join" className="text-sign font-medium hover:underline">
+          <Link href="/ar/drivers/join" className="font-medium text-amber-200 underline underline-offset-4 hover:text-white">
             سجّل طلب انضمام
           </Link>
         </p>
