@@ -113,7 +113,10 @@ async function adminLogin(p, email = "admin@example.com", password = "Admin12345
 
 /* ======================================================================= */
 // online payment is off until a gateway is chosen in the panel; the tests pay through the MyFatoorah mock
-sql("insert into settings(key,value) values('pay_gateway','myfatoorah') on conflict (key) do update set value=excluded.value");
+if (sql("select coalesce((select value from settings where key='pay_gateway'), '')") !== "myfatoorah") {
+  sql("insert into settings(key,value) values('pay_gateway','myfatoorah') on conflict (key) do update set value=excluded.value");
+  await new Promise((r) => setTimeout(r, 61_000)); // the site re-reads its settings at most a minute later
+}
 
 if (!ONLY || ONLY === "flow") {
   section = "Booking & payment flow";
@@ -3296,10 +3299,10 @@ if (!ONLY || ONLY === "drivers") {
     eq((await fetch(`${BASE}/api/admin/drivers/${driverId}/doc/iban`)).status, 404, "not public");
     // on the team list the photos open with a button, like the money window
     await a.goto(`${BASE}/admin/driver-team`, { waitUntil: "networkidle" });
-    const card = a.locator(`[data-driver="${driverId}"]`);
-    eq(await card.locator('img[src*="/doc/"]').evaluateAll((els) => els.filter((e) => e.offsetParent).length), 0, "no photos on the list itself");
-    await card.getByRole("button", { name: /صور الهوية والسيارة/ }).click();
-    const docs = card.getByTestId("driver-docs");
+    const row = a.locator(`[data-driver="${driverId}"]`);
+    eq(await row.locator('img[src*="/doc/"]').evaluateAll((els) => els.filter((e) => e.offsetParent).length), 0, "no photos on the list itself");
+    await row.getByRole("button", { name: /صور الهوية والسيارة/ }).click();
+    const docs = row.getByTestId("driver-docs");
     await docs.locator('img[src*="/doc/iban"]').waitFor();
     assert((await docs.locator('img[src*="/doc/"]').count()) >= 3, "ID, licence, car... in the window");
     await docs.getByRole("button", { name: "إغلاق" }).click();
