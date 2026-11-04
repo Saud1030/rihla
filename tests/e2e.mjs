@@ -2294,7 +2294,7 @@ if (!ONLY || ONLY === "features") {
   });
   await check("contact page: WhatsApp, phone and email links; empty message is refused; message opens WhatsApp", async () => {
     await page.goto(`${BASE}/ar/contact`, { waitUntil: "networkidle" });
-    assert(await page.locator('main a[href^="https://wa.me/966500000000"]').count(), "WhatsApp link");
+    assert(await page.locator('main a[href^="https://wa.me/966557002715"]').count(), "WhatsApp link");
     assert(await page.locator('main a[href^="tel:"]').count(), "phone link");
     assert(await page.locator('main a[href^="mailto:"]').count(), "email link");
     await page.getByRole("button", { name: "أرسل عبر واتساب" }).click();
@@ -2303,7 +2303,7 @@ if (!ONLY || ONLY === "features") {
     await page.locator('main textarea[name="message"]').fill("أبغى أسأل عن حجز جماعي");
     await page.getByRole("button", { name: "أرسل عبر واتساب" }).click();
     const url = await page.evaluate(() => window.__opened);
-    assert(url && url.startsWith("https://wa.me/966500000000?text=") && decodeURIComponent(url).includes("حجز جماعي"), "opened " + url);
+    assert(url && url.startsWith("https://wa.me/966557002715?text=") && decodeURIComponent(url).includes("حجز جماعي"), "opened " + url);
   });
 
   /* ---------- receipts uploaded on the site ---------- */
@@ -2540,7 +2540,7 @@ if (!ONLY || ONLY === "features") {
       await saveBot(() => a.check('input[name="chat_handoff"][value="whatsapp"]'));
       await openChat();
       const link = chat.getByRole("link", { name: "تكلم مع موظف" });
-      assert((await link.getAttribute("href")).startsWith("https://wa.me/966500000000"), "opens WhatsApp");
+      assert((await link.getAttribute("href")).startsWith("https://wa.me/966557002715"), "opens WhatsApp");
       await saveBot(() => a.uncheck('input[name="chat_enabled"]'));
       await chp.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
       eq(await chp.getByTestId("chat-launcher").count(), 0, "no bot");
