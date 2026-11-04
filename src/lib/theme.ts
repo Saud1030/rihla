@@ -132,8 +132,8 @@ export function themeCss(t: Theme) {
     "--color-stone": t.background,
     "--color-line": mix(t.background, "#17201d", 0.13),
     // "Country Flags" first: draws 🇸🇦 flags on Windows (see globals.css)
-    "--font-display": `"Country Flags", ${f.display}, "IBM Plex Sans Arabic", system-ui, sans-serif`,
-    "--font-sans": `"Country Flags", ${f.body}, "IBM Plex Sans Arabic", system-ui, sans-serif`,
+    "--font-display": `"Country Flags", "Saudi Riyal", ${f.display}, "IBM Plex Sans Arabic", system-ui, sans-serif`,
+    "--font-sans": `"Country Flags", "Saudi Riyal", ${f.body}, "IBM Plex Sans Arabic", system-ui, sans-serif`,
     "--radius-md": c.md,
     "--radius-lg": c.lg,
     "--radius-xl": c.xl,

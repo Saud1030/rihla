@@ -474,14 +474,10 @@ export async function Drivers({
                     )}
                     <Card className={`p-3 ${hold ? "border-danger/30" : ""}`}>
                       <div className="flex items-start gap-3">
-                        {/* photos together, like the join request: the driver, then his car and papers (each opens full size) */}
-                        <div
-                          className="flex items-start gap-1.5"
-                          data-testid="driver-photos"
-                        >
-                          <DriverPhoto d={d} className="size-16 rounded-lg" />
-                          <DocThumbs id={d.id} kinds={kinds} />
-                        </div>
+                        <DriverPhoto
+                          d={d}
+                          className="size-16 shrink-0 rounded-lg"
+                        />
                         <div className="min-w-0 flex-1 text-sm space-y-1">
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <p className="font-semibold text-[15px] flex flex-wrap items-center gap-x-2">
@@ -615,6 +611,15 @@ export async function Drivers({
                           </p>
                         </div>
                       </div>
+                      {/* the car and papers in the same box, like the join request review (each opens full size) */}
+                      {kinds.length > 0 && (
+                        <div
+                          className="mt-2 border-t border-line pt-2"
+                          data-testid="driver-photos"
+                        >
+                          <DocThumbs id={d.id} kinds={kinds} />
+                        </div>
+                      )}
                     </Card>
                   </li>
                 );
@@ -924,29 +929,33 @@ function HoldControls({
   );
 }
 
-/** Small photos of the car and papers beside the driver's photo; each opens full size */
+/** The car and papers beside the driver's photo, labelled like the join request review; each opens full size */
 function DocThumbs({ id, kinds }: { id: number; kinds: string[] }) {
   const have = ALL_DOC_KINDS.filter((k) => kinds.includes(k));
   if (!have.length) return null;
   return (
-    <div className="grid grid-cols-4 gap-1 max-w-[13rem]">
+    <div className="flex gap-2 overflow-x-auto pb-0.5">
       {have.map((k) => (
-        <a
-          key={k}
-          href={`/api/admin/drivers/${id}/doc/${k}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={DOC_LABELS[k].ar}
-          className="block overflow-hidden rounded-md border border-line bg-stone"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element -- private document from our own API route */}
-          <img
-            src={`/api/admin/drivers/${id}/doc/${k}`}
-            alt={DOC_LABELS[k].ar}
-            loading="lazy"
-            className="size-[3.05rem] object-cover"
-          />
-        </a>
+        <figure key={k} className="shrink-0 w-16 text-[10px] leading-tight">
+          <a
+            href={`/api/admin/drivers/${id}/doc/${k}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={DOC_LABELS[k].ar}
+            className="block overflow-hidden rounded-md border border-line bg-stone"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- private document from our own API route */}
+            <img
+              src={`/api/admin/drivers/${id}/doc/${k}`}
+              alt={DOC_LABELS[k].ar}
+              loading="lazy"
+              className="h-12 w-16 object-cover"
+            />
+          </a>
+          <figcaption className="mt-0.5 text-muted truncate">
+            {DOC_LABELS[k].ar}
+          </figcaption>
+        </figure>
       ))}
     </div>
   );
