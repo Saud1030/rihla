@@ -1311,7 +1311,9 @@ if (!ONLY || ONLY === "features") {
     assert((await page.getByRole("radiogroup").textContent()).includes("٥٥٠"), "other cities keep the car's own price");
     await card.locator(`input[name="p_${camry}_10"]`).fill("");
     await card.getByRole("button", { name: "حفظ أسعار مكة المكرمة" }).click();
-    await card.getByText("تم حفظ أسعار مدينة مكة المكرمة.").waitFor();
+    // the same message is still on screen from the first save: wait for the change itself
+    const left = () => sql(`select count(*) from city_hourly_prices where city='makkah' and vehicle_id=${camry} and hours=10`);
+    for (let i = 0; i < 50 && left() !== "0"; i++) await a.waitForTimeout(200);
     eq(sql(`select count(*) from city_hourly_prices where city='makkah' and vehicle_id=${camry} and hours=10`), "0", "cleared back to the car's price");
   });
   await check("hourly tampering: fake vehicle, 7 hours, unknown city are rejected", async () => {
