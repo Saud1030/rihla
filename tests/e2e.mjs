@@ -496,7 +496,8 @@ if (!ONLY || ONLY === "admin") {
     eq(bookingRow(ref).status, "confirmed", "confirmed");
     await a.selectOption('select[name="status"]', "completed");
     await a.getByRole("button", { name: "حفظ" }).click();
-    await a.getByText("تم حفظ التغييرات.").waitFor();
+    // the same message is already on screen from the first save: wait for the change itself
+    for (let i = 0; i < 50 && bookingRow(ref).status !== "completed"; i++) await a.waitForTimeout(200);
     eq(bookingRow(ref).status, "completed", "completed");
     await a.evaluate(() => { const s = document.querySelector('select[name="status"]'); const o = document.createElement("option"); o.value = "pending_payment"; s.appendChild(o); s.value = "pending_payment"; });
     await a.getByRole("button", { name: "حفظ" }).click();
