@@ -84,7 +84,13 @@ export const companyName = (st: Record<string, string>, lang: "ar" | "en") =>
   st[`company_name_${lang}`]?.trim() || site.name[lang];
 
 const WA_BASE = () => (process.env.WHATSAPP_API_BASE || "https://graph.facebook.com/v21.0").replace(/\/$/, "");
-export const whatsappConfigured = () => !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+/** The WhatsApp Cloud API number: from the panel (Admin -> Payment gateways & integrations), else the server's .env */
+export function waConfig(st: Record<string, string> = {}) {
+  const token = (st.wa_token || process.env.WHATSAPP_TOKEN || "").trim();
+  const phoneId = (st.wa_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "").trim();
+  return token && phoneId ? { token, phoneId } : null;
+}
+export const whatsappConfigured = (st: Record<string, string> = {}) => !!waConfig(st);
 export const emailConfigured = () => process.env.EMAIL_TRANSPORT === "log" || !!(process.env.SMTP_HOST && process.env.SMTP_FROM);
 
 type NewMessage = {
@@ -134,7 +140,7 @@ export async function deliver(row: Notification): Promise<Notification> {
   const st = await readSettings();
   let result: { ok: true; id: string } | { ok: false; error: string } | null = null;
   if (row.channel === "whatsapp") {
-    if (whatsappConfigured() && st.wa_auto !== "0") result = await sendWhatsApp(row, st);
+    if (whatsappConfigured(st) && st.wa_auto !== "0") result = await sendWhatsApp(row, st);
   } else if (emailConfigured()) {
     result = await sendEmail(row);
   }
@@ -177,9 +183,10 @@ async function sendWhatsApp(row: Notification, st: Record<string, string>) {
       : // plain text only reaches people who wrote to your WhatsApp number in the last 24 hours
         { messaging_product: "whatsapp", to, type: "text", text: { preview_url: true, body: row.body } };
   try {
-    const res = await fetch(`${WA_BASE()}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+    const wa = waConfig(st)!;
+    const res = await fetch(`${WA_BASE()}/${wa.phoneId}/messages`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${wa.token}`, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
@@ -229,9 +236,30 @@ export async function retryDue() {
       ),
     )
     .limit(20);
+  const st = await readSettings();
   for (const r of rows) {
-    if (r.status === "pending" && r.channel === "whatsapp" && !whatsappConfigured()) continue;
+    if (r.status === "pending" && r.channel === "whatsapp" && !whatsappConfigured(st)) continue;
     if (r.status === "pending" && r.channel === "email" && !emailConfigured()) continue;
     await deliver(r);
+  }
+}
+
+/** The panel's test: Meta's ready "hello_world" template (needs no approval) to one number */
+export async function testWhatsApp(to: string, st: Record<string, string>) {
+  const wa = waConfig(st);
+  if (!wa) return { ok: false as const, error: "اكتب Phone Number ID و Access Token أولًا واحفظها." };
+  try {
+    const res = await fetch(`${WA_BASE()}/${wa.phoneId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${wa.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to: waNumber(to), type: "template", template: { name: "hello_world", language: { code: "en_US" } } }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    });
+    const json = (await res.json().catch(() => null)) as { messages?: { id: string }[]; error?: { message?: string; code?: number } } | null;
+    if (res.ok && json?.messages?.[0]?.id) return { ok: true as const };
+    return { ok: false as const, error: `واتساب رفض: ${json?.error?.message ?? res.status}${json?.error?.code ? ` (${json.error.code})` : ""}` };
+  } catch (e) {
+    return { ok: false as const, error: `تعذّر الاتصال بواتساب: ${(e as Error).message}` };
   }
 }

@@ -44,7 +44,20 @@ export const EINVOICE_PLATFORMS: Integration[] = [
   { id: "daftra", name: "دفترة Daftra", site: "https://daftra.com", ready: false, fields: [{ key: "einv_daftra_domain", label: "رابط الحساب (subdomain)" }, { key: "einv_daftra_key", label: "API Key", secret: true }] },
 ];
 
-export const allIntegrationKeys = () => [...GATEWAYS, ...EINVOICE_PLATFORMS].flatMap((g) => g.fields);
+/** WhatsApp Business Cloud API (Meta): the company's own number sends the booking messages */
+export const WHATSAPP: Integration = {
+  id: "whatsapp",
+  name: "واتساب للأعمال WhatsApp Cloud API",
+  site: "https://developers.facebook.com/apps",
+  ready: true,
+  fields: [
+    { key: "wa_phone_id", label: "Phone Number ID", hint: "من Meta: تطبيقك ← WhatsApp ← API Setup (رقم طويل، مو رقم الجوال)" },
+    { key: "wa_token", label: "Access Token (دائم)", secret: true, hint: "من Business Settings ← System users ← Generate token (صلاحية whatsapp_business_messaging)" },
+    { key: "wa_waba_id", label: "WhatsApp Business Account ID (اختياري)", hint: "للرجوع له فقط" },
+  ],
+};
+
+export const allIntegrationKeys = () => [...GATEWAYS, ...EINVOICE_PLATFORMS, WHATSAPP].flatMap((g) => g.fields);
 
 /** Online payment is offered only when a connected gateway is chosen in the panel and has its key */
 export async function onlinePaymentOn() {

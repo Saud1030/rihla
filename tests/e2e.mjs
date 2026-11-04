@@ -3476,6 +3476,33 @@ if (!ONLY || ONLY === "drivers") {
     sql(`delete from bookings where ref in (${[...refs, ...more].map((x) => `'${x}'`).join(",")})`);
   });
 
+  await check("WhatsApp number linked from the panel: Phone Number ID and token saved (token masked), a test message goes out through that number; a wrong token is reported", async () => {
+    sql("delete from settings where key like 'wa_phone_id' or key in ('wa_token','wa_waba_id')");
+    await a.goto(`${BASE}/admin/integrations`, { waitUntil: "networkidle" });
+    const card = a.locator('[data-integration="whatsapp"]');
+    await card.locator('input[name="wa_phone_id"]').fill("998877665544");
+    await card.locator('input[name="wa_token"]').fill("wrong-token-123");
+    await card.getByRole("button", { name: "حفظ المفاتيح" }).click();
+    await a.getByText("تم حفظ مفاتيح واتساب للأعمال").waitFor();
+    const test = a.getByTestId("whatsapp-test");
+    await test.locator('input[name="to"]').fill("0501112299");
+    await test.getByRole("button", { name: "إرسال رسالة تجريبية" }).click();
+    await a.getByText("واتساب رفض: Invalid OAuth access token.").waitFor();
+    // the right token: the message goes out from that number
+    await a.reload({ waitUntil: "networkidle" });
+    assert((await a.locator('[data-integration="whatsapp"]').innerText()).includes("المحفوظ: wron…-123"), "token shown masked");
+    await a.locator('[data-integration="whatsapp"]').locator('input[name="wa_token"]').fill("test-wa-token");
+    await a.locator('[data-integration="whatsapp"]').getByRole("button", { name: "حفظ المفاتيح" }).click();
+    await a.getByText("تم حفظ مفاتيح واتساب للأعمال").waitFor();
+    await mf("/__wa_reset");
+    await a.getByTestId("whatsapp-test").locator('input[name="to"]').fill("0501112299");
+    await a.getByTestId("whatsapp-test").getByRole("button", { name: "إرسال رسالة تجريبية" }).click();
+    await a.getByText("تم الإرسال").waitFor();
+    const sent = (await mf("/__wa")).find((m) => m.to === "966501112299");
+    assert(sent && sent.phoneNumberId === "998877665544" && sent.template?.name === "hello_world", "sent from the panel's number: " + JSON.stringify(sent));
+    sql("delete from settings where key in ('wa_phone_id','wa_token','wa_waba_id')"); // back to the .env number
+  });
+
   await check("payment gateways page: online payment off by default here (bank transfer and cash only); a gateway not connected yet keeps its keys but can't be switched on; MyFatoorah switched back on", async () => {
     await a.goto(`${BASE}/admin/integrations`, { waitUntil: "networkidle" });
     assert(await a.locator(".admin-nav a[href='/admin/integrations']").count(), "in the menu");

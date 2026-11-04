@@ -2,16 +2,17 @@ import { Suspense } from "react";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
 import { maskKey } from "@/lib/einvoice";
-import { EINVOICE_PLATFORMS, GATEWAYS, type Integration } from "@/lib/integrations";
+import { EINVOICE_PLATFORMS, GATEWAYS, WHATSAPP, type Integration } from "@/lib/integrations";
+import { whatsappConfigured } from "@/lib/notify";
 import { saveEinvoiceSettings, testEinvoice } from "../../actions";
-import { chooseGateway, saveIntegrationKeys } from "../../integration-actions";
+import { chooseGateway, saveIntegrationKeys, sendWhatsAppTest } from "../../integration-actions";
 import { ActionForm } from "@/components/admin/action-form";
 import { Card, Field, PageHeader, Skeleton } from "@/components/admin/ui";
 
 export default function IntegrationsPage() {
   return (
     <>
-      <PageHeader title="بوابات الدفع والفوترة" />
+      <PageHeader title="بوابات الدفع والفوترة والواتساب" />
       <Suspense fallback={<Skeleton h="h-[600px]" />}>
         <Content />
       </Suspense>
@@ -23,10 +24,56 @@ async function Content() {
   await requireSection("settings");
   const values = await getSettings();
   const active = GATEWAYS.find((g) => g.id === values.pay_gateway) ?? null;
-  const hasKeys = (g: Integration) => g.fields.some((f) => (values[f.key] ?? "").trim()) || (g.id === "myfatoorah" && !!process.env.MYFATOORAH_API_KEY);
+  const hasKeys = (g: Integration) =>
+    g.fields.some((f) => (values[f.key] ?? "").trim()) || (g.id === "myfatoorah" && !!process.env.MYFATOORAH_API_KEY) || (g.id === "whatsapp" && !!process.env.WHATSAPP_TOKEN);
+  const waOn = whatsappConfigured(values);
 
   return (
     <div className="space-y-8 max-w-5xl">
+      {/* the company's WhatsApp number, through Meta's Cloud API */}
+      <section className="space-y-4" aria-labelledby="wa-title" data-testid="whatsapp-settings">
+        <h2 id="wa-title" className="text-xl font-semibold">
+          رقم الواتساب (API)
+        </h2>
+        <Card className={`p-5 space-y-2 ${waOn ? "" : "border-amber/50"}`}>
+          <p className="font-medium" data-testid="whatsapp-state">
+            {waOn ? "الواتساب مربوط: رسائل الحجز والسندات تنرسل تلقائيًا من رقمك." : "الواتساب غير مربوط: الرسائل تُحفظ في «رسائل واتساب والبريد» وترسلها بنفسك."}
+          </p>
+          <ol className="text-sm text-muted list-decimal ps-5 space-y-1">
+            <li>
+              أنشئ تطبيقًا في{" "}
+              <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-sign underline">
+                Meta for Developers
+              </a>{" "}
+              (نوع Business) وأضف له منتج WhatsApp.
+            </li>
+            <li>من WhatsApp ← API Setup: أضف رقمك ووثّقه بكود SMS، وانسخ «Phone Number ID».</li>
+            <li>من Business Settings ← System users: أنشئ مستخدمًا وولّد Access Token دائم بصلاحية whatsapp_business_messaging.</li>
+            <li>الصق القيم تحت واحفظ، ثم «إرسال رسالة تجريبية» لجوالك.</li>
+            <li>
+              للعملاء اللي ما راسلوك قبل: اعتمد قوالب الرسائل في Meta واكتب أسماءها في{" "}
+              <a href="/admin/messages" className="text-sign underline">
+                رسائل واتساب والبريد
+              </a>
+              .
+            </li>
+          </ol>
+          <p className="text-xs text-muted">ملاحظة: الرقم اللي تربطه بالـAPI ما يشتغل بعدها في تطبيق واتساب العادي على الجوال.</p>
+        </Card>
+        <div className="grid gap-4 md:grid-cols-2">
+          <IntegrationCard g={WHATSAPP} values={values} on={waOn} saved={hasKeys(WHATSAPP)} />
+          <Card className="p-5 space-y-3" data-testid="whatsapp-test">
+            <h3 className="font-semibold">إرسال رسالة تجريبية</h3>
+            <p className="text-sm text-muted">تنرسل رسالة Meta الجاهزة «Hello World» للرقم، وتتأكد إن الربط شغّال.</p>
+            <ActionForm action={sendWhatsAppTest} submitLabel="إرسال رسالة تجريبية" pendingLabel="جارٍ الإرسال…" className="space-y-3">
+              <Field label="رقم جوالك">
+                <input name="to" required inputMode="tel" dir="ltr" placeholder="0501234567" className="field text-start" />
+              </Field>
+            </ActionForm>
+          </Card>
+        </div>
+      </section>
+
       <section className="space-y-4" aria-labelledby="gw-title">
         <h2 id="gw-title" className="text-xl font-semibold">
           بوابة الدفع الإلكتروني

@@ -74,7 +74,7 @@ async function Messages({ searchParams }: { searchParams: Promise<Record<string,
       .limit(100),
     getSettings(),
   ]);
-  const wa = whatsappConfigured();
+  const wa = whatsappConfigured(st);
   const mail = emailConfigured();
 
   return (

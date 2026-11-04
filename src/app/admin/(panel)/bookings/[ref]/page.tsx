@@ -426,7 +426,7 @@ async function Detail({
                     <input type="hidden" name="bookingId" value={b.id} />
                     <Field
                       label={driver ? "سائق آخر" : "اختر السائق"}
-                      hint={`تصل للسائق بيانات العميل، وللعميل بيانات السائق على واتساب${whatsappConfigured() ? " تلقائيًا" : ""}.`}
+                      hint={`تصل للسائق بيانات العميل، وللعميل بيانات السائق على واتساب${whatsappConfigured(settings) ? " تلقائيًا" : ""}.`}
                     >
                       <select
                         name="driverId"

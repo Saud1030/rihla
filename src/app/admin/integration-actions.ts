@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { invalidateCatalogCache } from "@/lib/catalog";
-import { EINVOICE_PLATFORMS, GATEWAYS } from "@/lib/integrations";
+import { EINVOICE_PLATFORMS, GATEWAYS, WHATSAPP } from "@/lib/integrations";
+import { testWhatsApp } from "@/lib/notify";
+import { normalizePhone } from "@/lib/phone";
 import { readSettings } from "@/lib/notify";
 import type { ActionState } from "./actions";
 
@@ -37,7 +39,7 @@ export async function chooseGateway(_prev: ActionState, formData: FormData): Pro
 export async function saveIntegrationKeys(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("settings");
   const id = String(formData.get("id") ?? "");
-  const item = [...GATEWAYS, ...EINVOICE_PLATFORMS].find((x) => x.id === id);
+  const item = [...GATEWAYS, ...EINVOICE_PLATFORMS, WHATSAPP].find((x) => x.id === id);
   if (!item) return { error: "غير موجود." };
   const rows: Record<string, string> = {};
   for (const f of item.fields) {
@@ -50,4 +52,13 @@ export async function saveIntegrationKeys(_prev: ActionState, formData: FormData
   if (formData.get("clear") === "1") for (const f of item.fields) rows[f.key] = "";
   await save(rows);
   return { ok: true, message: formData.get("clear") === "1" ? `تم حذف مفاتيح ${item.name}.` : item.ready ? `تم حفظ مفاتيح ${item.name}.` : `تم حفظ مفاتيح ${item.name}. تشتغل بعد ربطها.` };
+}
+
+/** Send Meta's ready "hello_world" message to a number, to check the WhatsApp keys */
+export async function sendWhatsAppTest(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("settings");
+  const to = normalizePhone(String(formData.get("to") ?? ""));
+  if (!to) return { error: "اكتب رقم جوال صحيح (مثل 0501234567 أو ‎+9665…)." };
+  const r = await testWhatsApp(to, await readSettings());
+  return r.ok ? { ok: true, message: `تم الإرسال. تأكد أن رسالة "Hello World" وصلت على ${to}.` } : { error: r.error };
 }
