@@ -10,7 +10,7 @@ import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
 
 const t = getDictionary("ar");
 
-export default function VehiclesPage() {
+export default function VehiclesPage({ searchParams }: PageProps<"/admin/vehicles">) {
   return (
     <>
       <PageHeader
@@ -21,10 +21,23 @@ export default function VehiclesPage() {
           </Link>
         }
       />
+      <Suspense fallback={null}>
+        <Deleted searchParams={searchParams} />
+      </Suspense>
       <Suspense fallback={<Skeleton />}>
         <List />
       </Suspense>
     </>
+  );
+}
+
+async function Deleted({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const name = (await searchParams).deleted;
+  if (typeof name !== "string") return null;
+  return (
+    <p role="status" className="mb-4 rounded-lg bg-sign-soft border border-sign/20 px-4 py-3 text-sign">
+      تم حذف السيارة «{name.slice(0, 80)}».
+    </p>
   );
 }
 
@@ -45,7 +58,10 @@ async function List() {
                   {t.fleet.category[v.category]} · {formatNumber(v.passengers, "ar")} ركاب · {formatNumber(v.bags, "ar")} حقائب
                 </span>
               </span>
-              {!v.active && <span className="text-sm text-danger">غير مفعّلة</span>}
+              <span className="text-sm">
+                {!v.active && <span className="text-danger">غير مفعّلة · </span>}
+                <span className="text-sign">تعديل أو حذف</span>
+              </span>
             </Link>
           </li>
         ))}

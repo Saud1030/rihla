@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { requireSection } from "@/lib/auth";
 import { db, schema as s } from "@/db";
-import { saveVehicle } from "../../../actions";
+import { deleteVehicle, saveVehicle } from "../../../actions";
 import { getDictionary } from "@/i18n/dictionaries";
 import { formatSAR } from "@/lib/format";
 import { distancePrice } from "@/lib/pricing";
@@ -220,6 +220,19 @@ async function Editor({ params }: { params: Promise<{ id: string }> }) {
           </div>
         </ActionForm>
       </Card>
+      {v && (
+        <Card className="p-5 mt-6 border-danger/30" data-testid="vehicle-delete">
+          <details>
+            <summary className="cursor-pointer font-medium text-danger">حذف السيارة</summary>
+            <p className="text-sm text-muted mt-2 mb-3">
+              تنحذف السيارة نهائيًا مع أسعارها في الرحلات الثابتة والمدن. الحجوزات القديمة تبقى باسم السيارة. إذا تبي توقفها مؤقتًا، شيل «مفعّلة وتظهر للعملاء» بدل الحذف.
+            </p>
+            <ActionForm action={deleteVehicle} submitLabel="حذف السيارة نهائيًا" pendingLabel="جارٍ الحذف…" submitClassName="btn !bg-danger !text-white" className="">
+              <input type="hidden" name="id" value={v.id} />
+            </ActionForm>
+          </details>
+        </Card>
+      )}
     </div>
   );
 }

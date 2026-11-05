@@ -560,6 +560,26 @@ if (!ONLY || ONLY === "admin") {
     eq(await site.getByText("فان اختبار").count(), 0, "hidden when inactive");
     sql(`delete from assets where key='vehicle:${id}'; delete from vehicles where slug='test-van'`);
   });
+  await check("vehicles: deleted for good from its page (with its route prices); refused while a booking still uses it", async () => {
+    const id = sql("insert into vehicles (slug, name_ar, name_en, category, passengers, bags) values ('del-test-car', 'سيارة للحذف', 'Delete me', 'sedan', 4, 2) returning id").split("\n")[0];
+    const rid = sql("select id from routes order by id limit 1");
+    sql(`insert into trips (route_id, vehicle_id, price) values (${rid}, ${id}, 12345)`);
+    const ref = "V" + Math.random().toString(36).slice(2, 9).toUpperCase().replace(/[^A-Z0-9]/g, "X").padEnd(7, "Z");
+    sql(`insert into bookings (ref, route_title, vehicle_name, vehicle_id, customer_name, customer_phone, passengers, bags, pickup_date, pickup_time, pickup_address, subtotal, vat_rate, vat_amount, amount, status) values ('${ref}', 'x', 'سيارة للحذف', ${id}, 'عميل', '+966500000099', 1, 0, '${inDaysUTC(3)}', '10:00', 'x', 100, 0, 0, 100, 'paid')`);
+    await a.goto(`${BASE}/admin/vehicles/${id}`, { waitUntil: "networkidle" });
+    const box = a.getByTestId("vehicle-delete");
+    await box.getByText("حذف السيارة").first().click();
+    await box.getByRole("button", { name: "حذف السيارة نهائيًا" }).click();
+    await a.getByText(`عليها حجز لم ينتهِ (${ref})`).waitFor();
+    sql(`update bookings set status='completed' where ref='${ref}'`);
+    await box.getByRole("button", { name: "حذف السيارة نهائيًا" }).click();
+    await a.waitForURL(/\/admin\/vehicles\?deleted=/, { waitUntil: "commit" });
+    await a.getByText("تم حذف السيارة «سيارة للحذف»").waitFor();
+    eq(sql(`select count(*) from vehicles where id=${id}`), "0", "gone");
+    eq(sql(`select count(*) from trips where vehicle_id=${id}`), "0", "its prices too");
+    eq(sql(`select vehicle_name, vehicle_id is null from bookings where ref='${ref}'`), "سيارة للحذف|t", "the old booking keeps the car's name");
+    sql(`delete from bookings where ref='${ref}'`);
+  });
   await check("vehicles: the car photo is uploaded from the device (no link), shown on the site, can be removed", async () => {
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
     const id = sql("select id from vehicles where active order by sort_order limit 1");

@@ -257,6 +257,28 @@ export async function saveVehicle(_prev: ActionState, formData: FormData): Promi
   return { ok: true, message: "تم الحفظ." };
 }
 
+/**
+ * Delete a car for good: its prices on fixed routes and in cities go with it; past bookings keep the car's name.
+ * Refused while a booking still waiting or upcoming uses it (hide the car instead, or move those bookings).
+ */
+export async function deleteVehicle(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSection("catalog");
+  const id = Number(formData.get("id") ?? 0);
+  const v = await db.query.vehicles.findFirst({ where: eq(s.vehicles.id, id) });
+  if (!v) return { error: "السيارة غير موجودة." };
+  const open = await db
+    .select({ ref: s.bookings.ref })
+    .from(s.bookings)
+    .where(and(eq(s.bookings.vehicleId, id), inArray(s.bookings.status, ["pending_payment", "paid", "confirmed"])))
+    .limit(1);
+  if (open.length) return { error: `عليها حجز لم ينتهِ (${open[0].ref}). أخفِ السيارة بدل حذفها (شيل «مفعّلة وتظهر للعملاء»)، أو انتظر لين تنتهي حجوزاتها.` };
+  await db.delete(s.vehicles).where(eq(s.vehicles.id, id));
+  await db.delete(s.assets).where(eq(s.assets.key, `vehicle:${id}`));
+  invalidateCatalogCache();
+  revalidatePath("/admin/vehicles");
+  redirect(`/admin/vehicles?deleted=${encodeURIComponent(v.nameAr)}`);
+}
+
 /* ---------- Locations & routes ---------- */
 
 /* ---------- Destinations & cities ---------- */
