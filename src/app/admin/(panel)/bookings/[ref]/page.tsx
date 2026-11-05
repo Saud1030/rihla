@@ -96,6 +96,9 @@ async function Detail({
   ]);
   if (!b) notFound();
   const einvoiceOn = !!einvoiceConfig(settings);
+  // the e-invoicing platform's name: Wafeq or Alostaz
+  const einvName = (settings.einv_provider ?? (b.einvoiceId && /^\d+$/.test(b.einvoiceId) ? "alostaz" : "wafeq")) === "alostaz" ? "الأستاذ" : "وافق";
+  const einvTo = einvName === "الأستاذ" ? "للأستاذ" : "لوافق";
   const [drivers, messages, [rating]] = await Promise.all([
     db
       .select({
@@ -197,7 +200,7 @@ async function Detail({
           role="status"
           className="mt-3 rounded-lg bg-sign-soft border border-sign/20 px-4 py-3 text-sign"
         >
-          {completedNote}
+          {completedNote?.replace("لوافق", einvTo)}
         </p>
       )}
       <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_360px] items-start">
@@ -580,12 +583,12 @@ async function Detail({
           {/* the invoice on the e-invoicing platform (Wafeq) */}
           {b.invoiceNo && (b.einvoiceStatus || einvoiceOn) && (
             <Card className="p-5 space-y-2" data-testid="einvoice-status">
-              <h2 className="font-semibold">الفاتورة في منصة الفوترة (وافق)</h2>
+              <h2 className="font-semibold">الفاتورة في منصة الفوترة ({einvName})</h2>
               <p className="text-sm">
                 {b.einvoiceStatus === "reported"
-                  ? "أُرسلت لوافق وتم الإبلاغ عنها لهيئة الزكاة."
+                  ? `أُرسلت ${einvTo} وتم الإبلاغ عنها لهيئة الزكاة.`
                   : b.einvoiceStatus === "sent"
-                    ? "أُرسلت لوافق."
+                    ? `أُرسلت ${einvTo}.`
                     : b.einvoiceStatus === "failed"
                       ? `لم تُرسل: ${b.einvoiceError ?? ""}`
                       : "لم تُرسل بعد."}
@@ -597,7 +600,7 @@ async function Detail({
                 )}
               </p>
               {b.einvoiceStatus !== "reported" && (
-                <ActionForm action={resendEinvoice} submitLabel="إرسال الفاتورة لوافق" pendingLabel="جارٍ الإرسال…" submitClassName="btn btn-ghost border border-line !min-h-9 !py-1 text-sm" className="">
+                <ActionForm action={resendEinvoice} submitLabel={`إرسال الفاتورة ${einvTo}`} pendingLabel="جارٍ الإرسال…" submitClassName="btn btn-ghost border border-line !min-h-9 !py-1 text-sm" className="">
                   <input type="hidden" name="id" value={b.id} />
                 </ActionForm>
               )}

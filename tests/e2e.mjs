@@ -3578,6 +3578,38 @@ if (!ONLY || ONLY === "drivers") {
     sql(`delete from settings where key like 'wafeq_%' or key in ('einv_provider','einv_report'); delete from bookings where ref in ('${r1}','${r2}')`);
   });
 
+  await check("e-invoicing with Alostaz (برنامج الأستاذ): URL and token saved, 'test' sets up the VAT, storehouse and product; a finished trip's invoice is created there and submitted to ZATCA", async () => {
+    sql("delete from settings where key like 'alostaz_%' or key in ('einv_provider','einv_report')");
+    await a.goto(`${BASE}/admin/integrations`, { waitUntil: "networkidle" });
+    const f = a.getByTestId("einvoice-settings");
+    await f.locator('select[name="einv_provider"]').selectOption("alostaz");
+    await f.locator('input[name="alostaz_base_url"]').fill("http://localhost:4010/alostaz");
+    await f.locator('input[name="alostaz_token"]').fill("test-alostaz-token");
+    await f.locator('input[name="einv_report"]').check();
+    await f.getByRole("button", { name: "حفظ", exact: true }).click();
+    await a.getByText("اضغط «اختبار الاتصال» عشان نجهّز").waitFor();
+    await a.getByTestId("einvoice-settings").getByRole("button", { name: "اختبار الاتصال" }).click();
+    await a.getByText("الاتصال بالأستاذ ناجح وجاهز").waitFor();
+    eq(sql("select string_agg(key||'='||value, ',' order by key) from settings where key in ('alostaz_product_id','alostaz_storehouse_id','alostaz_tax_id')"), "alostaz_product_id=101,alostaz_storehouse_id=2,alostaz_tax_id=4", "VAT 15%, the storehouse and a new 'transport service' product");
+    assert(!(await a.content()).includes("test-alostaz-token"), "the token is never shown back");
+    const r1 = paidBooking();
+    sql(`update bookings set driver_id=${driverId}, status='confirmed' where ref='${r1}'`);
+    await a.goto(`${BASE}/admin/bookings/${r1}`, { waitUntil: "networkidle" });
+    await a.getByRole("button", { name: "انتهت الرحلة (اطلب التقييم)" }).click();
+    await a.waitForURL(/completed=/, { waitUntil: "commit" });
+    await a.waitForLoadState("networkidle");
+    const [st, id, no] = sql(`select einvoice_status, einvoice_id, invoice_no from bookings where ref='${r1}'`).split("|");
+    eq(st, "reported", "created and submitted");
+    const m = await mf("/__alostaz");
+    const inv = m.invoices.find((x) => String(x.id) === id);
+    assert(inv && inv.code === `INV-${String(no).padStart(4, "0")}` && inv.partner_reference_code === r1, "the invoice: " + JSON.stringify(inv));
+    eq(`${inv.line_items[0].unit_price}|${inv.line_items[0].unit_quantity}|${inv.line_items[0].taxes?.[0]?.id}|${inv.line_items[0].product_id}`, "20000|1|4|101", "before VAT in halalas, one, 15% VAT, the service product");
+    assert(m.partners.some((x) => x.id === inv.partner_id && x.name && x.contacts[0].mobile), "the customer as a client");
+    assert(m.submitted.includes(inv.id), "submitted to ZATCA");
+    await a.getByTestId("einvoice-status").getByText("أُرسلت للأستاذ وتم الإبلاغ عنها").waitFor();
+    sql(`delete from settings where key like 'alostaz_%' or key in ('einv_provider','einv_report'); delete from bookings where ref='${r1}'`);
+  });
+
   await check("staff account: only the sections it was given, in the menu and on the server", async () => {
     await a.goto(`${BASE}/admin/users`, { waitUntil: "networkidle" });
     const f = a.locator("form").filter({ has: a.getByRole("button", { name: "إضافة الحساب" }) });

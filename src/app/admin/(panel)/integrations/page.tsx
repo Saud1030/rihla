@@ -112,14 +112,15 @@ async function Content() {
         <Card className="p-6" data-testid="einvoice-settings">
           <h2 className="font-semibold mb-1">الفوترة الإلكترونية (منصة خارجية)</h2>
           <p className="text-sm text-muted mb-4 max-w-[75ch]">
-            لما تنتهي الرحلة تصدر فاتورتها هنا، وتنرسل نفس الفاتورة تلقائيًا لمنصة <a href="https://wafeq.com" target="_blank" rel="noopener noreferrer" className="text-sign underline">وافق</a> عن طريق API (العميل، الوصف، المبلغ والضريبة)،
-            ووافق يصدرها فاتورة إلكترونية معتمدة من هيئة الزكاة (فاتورة). المفتاح من وافق: الإعدادات ← API.
+            لما تنتهي الرحلة تصدر فاتورتها هنا، وتنرسل نفس الفاتورة تلقائيًا لمنصة الفوترة اللي تختارها عن طريق API (العميل، الوصف، المبلغ والضريبة)،
+            والمنصة تصدرها فاتورة إلكترونية معتمدة من هيئة الزكاة (فاتورة).
           </p>
           <ActionForm action={saveEinvoiceSettings} submitLabel="حفظ">
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label="المنصة">
                 <select name="einv_provider" defaultValue={values.einv_provider ?? ""} className="field">
                   <option value="">بدون (الفاتورة من الموقع فقط)</option>
+                  <option value="alostaz">الأستاذ alostaz.io</option>
                   <option value="wafeq">وافق Wafeq</option>
                   {EINVOICE_PLATFORMS.filter((x) => !x.ready).map((x) => (
                     <option key={x.id} value={x.id} disabled>
@@ -128,6 +129,29 @@ async function Content() {
                   ))}
                 </select>
               </Field>
+              <fieldset className="sm:col-span-2 grid sm:grid-cols-2 gap-4 rounded-lg border border-line p-4" data-testid="alostaz-fields">
+                <legend className="px-1 text-sm font-semibold">الأستاذ alostaz.io</legend>
+                <p className="sm:col-span-2 text-xs text-muted">
+                  من لوحة الأستاذ: الإعدادات ← تكامل API (API Integration) ← أنشئ عميل API جديد. يعطيك «رابط API» و«Bearer token»؛ انسخهم هنا واحفظ، ثم اضغط «اختبار الاتصال»
+                  ونجهّز لك الضريبة والمستودع ومنتج «خدمة نقل» تلقائيًا.
+                </p>
+                <Field label="رابط API (API Base URL)">
+                  <input name="alostaz_base_url" maxLength={300} defaultValue={values.alostaz_base_url ?? ""} placeholder="https://…" className="field text-start" dir="ltr" />
+                </Field>
+                <Field label="التوكن (Bearer token)" hint={values.alostaz_token ? `المحفوظ: ${maskKey(values.alostaz_token)} (اتركه فاضي لإبقائه)` : "يطلع مرة وحدة لما تنشئ عميل API"}>
+                  <input name="alostaz_token" type="password" autoComplete="off" maxLength={2000} className="field" dir="ltr" />
+                </Field>
+                <Field label="رقم الفرع (Branch ID)" hint="غالبًا ١ إذا عندك فرع واحد">
+                  <input name="alostaz_branch_id" maxLength={9} defaultValue={values.alostaz_branch_id ?? "1"} className="field text-start" dir="ltr" />
+                </Field>
+                <div className="text-xs text-muted self-end" data-testid="alostaz-ready">
+                  {values.alostaz_product_id && values.alostaz_storehouse_id
+                    ? `جاهز: المنتج #${values.alostaz_product_id} · المستودع #${values.alostaz_storehouse_id} · الضريبة ${values.alostaz_tax_id ? `#${values.alostaz_tax_id}` : "بدون"}`
+                    : "لم يتجهّز بعد: احفظ ثم اضغط «اختبار الاتصال»"}
+                </div>
+              </fieldset>
+              <fieldset className="sm:col-span-2 grid sm:grid-cols-2 gap-4 rounded-lg border border-line p-4">
+                <legend className="px-1 text-sm font-semibold">وافق Wafeq</legend>
               <Field label="مفتاح API" hint={values.wafeq_api_key ? `المحفوظ: ${maskKey(values.wafeq_api_key)} (اتركه فاضي لإبقائه)` : "من وافق: الإعدادات ← API Keys"}>
                 <input name="wafeq_api_key" type="password" autoComplete="off" maxLength={200} className="field" dir="ltr" />
               </Field>
@@ -137,6 +161,7 @@ async function Content() {
               <Field label="معرّف ضريبة ١٥٪ في وافق (اختياري)" hint="مثل tax_… — بدونه تنرسل الفاتورة بدون ضريبة على البند">
                 <input name="wafeq_tax_rate" maxLength={100} defaultValue={values.wafeq_tax_rate ?? ""} className="field" dir="ltr" />
               </Field>
+              </fieldset>
               <label className="flex items-center gap-2 sm:col-span-2">
                 <input type="checkbox" name="einv_report" defaultChecked={values.einv_report === "1"} className="size-4 accent-sign" />
                 إبلاغ هيئة الزكاة (فاتورة) تلقائيًا بعد إنشاء الفاتورة في وافق

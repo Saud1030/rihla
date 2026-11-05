@@ -26,6 +26,7 @@ const refunds = [];
 let nextRefund = 900;
 const waMessages = [];
 const wafeqInvoices = [];
+const alostaz = { partners: [], invoices: [], products: [{ id: 7, name: "منتج قديم" }], submitted: [] };
 const WA_TOKEN = process.env.WA_TOKEN ?? fs.readFileSync(".env", "utf8").match(/^WHATSAPP_TOKEN=(.*)$/m)?.[1]?.trim();
 
 const json = (res, code, body) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(body)); };
@@ -76,6 +77,42 @@ http
         return json(res, 200, { status: "REPORTED" });
       }
       return json(res, 404, { detail: "Not found." });
+    }
+    // ---- Alostaz (alostaz.io) stand-in: /alostaz/... with "Authorization: Bearer test-alostaz-token" and the required headers ----
+    if (url.pathname === "/__alostaz") return json(res, 200, alostaz);
+    if (url.pathname.startsWith("/alostaz/")) {
+      if (req.headers.authorization !== "Bearer test-alostaz-token") return json(res, 401, { message: "Unauthenticated." });
+      if (req.headers["x-branch-id"] !== "1" || !req.headers["x-api-version"] || !["ar", "en"].includes(req.headers["x-locale"])) return json(res, 422, { message: "missing headers" });
+      const p = url.pathname.slice("/alostaz".length);
+      if (p === "/taxes" && req.method === "GET") return json(res, 200, { data: [{ id: 3, name: "معفى", percentage: 0 }, { id: 4, name: "ضريبة القيمة المضافة", percentage: 15 }] });
+      if (p === "/storehouses" && req.method === "GET") return json(res, 200, { data: [{ id: 2, name: "المستودع الرئيسي" }] });
+      if (p === "/products" && req.method === "GET") return json(res, 200, { data: alostaz.products.filter((x) => x.name.includes(url.searchParams.get("search") ?? "")) });
+      const body = JSON.parse((await readBody(req)) || "{}");
+      if (p === "/products" && req.method === "POST") {
+        if (!body.name || !Array.isArray(body.units) || body.supports_inventory !== 0) return json(res, 422, { errors: { name: ["required"] } });
+        const row = { id: 100 + alostaz.products.length, ...body };
+        alostaz.products.push(row);
+        return json(res, 201, { data: row });
+      }
+      if (p === "/partners" && req.method === "POST") {
+        if (body.type !== "client" || !body.name || !body.nature) return json(res, 422, { errors: { name: ["required"] } });
+        const row = { id: 500 + alostaz.partners.length, ...body };
+        alostaz.partners.push(row);
+        return json(res, 201, { data: row });
+      }
+      if (p === "/invoices" && req.method === "POST") {
+        const ok = body.variant === "standard" && body.nature === "sale" && body.status === "issued" && alostaz.partners.some((x) => x.id === body.partner_id) && (body.line_items ?? []).every((l) => alostaz.products.some((x) => x.id === l.product_id) && l.storehouse_id === 2 && Number.isInteger(l.unit_quantity) && l.unit_price > 0);
+        if (!ok) return json(res, 422, { errors: { line_items: ["invalid"] } });
+        const row = { id: 900 + alostaz.invoices.length, ...body };
+        alostaz.invoices.push(row);
+        return json(res, 201, { data: row });
+      }
+      if (p === "/helpers/zatca/submit" && req.method === "POST") {
+        if (!alostaz.invoices.some((x) => x.id === body.invoice_id)) return json(res, 404, { message: "Not found" });
+        alostaz.submitted.push(body.invoice_id);
+        return json(res, 200, { data: { status: "reported" } });
+      }
+      return json(res, 404, { message: "Not found" });
     }
     if (url.pathname === "/__wa") return json(res, 200, waMessages);
     if (url.pathname === "/__wa_reset") { waMessages.length = 0; return json(res, 200, { ok: true }); }

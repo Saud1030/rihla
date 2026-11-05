@@ -24,7 +24,7 @@ import { cancelPaidBooking, requestRefund } from "@/lib/cancellation";
 import { driveMinutes, roadKm } from "@/lib/pricing";
 import { detectFile, IMAGE_TYPES, MB } from "@/lib/files";
 import { recordCashPayment } from "@/lib/cash";
-import { pushEinvoice, wafeqAccounts } from "@/lib/einvoice";
+import { alostazSetup, pushEinvoice, wafeqAccounts } from "@/lib/einvoice";
 import { readSettings } from "@/lib/notify";
 import { issueReceipt } from "@/lib/documents";
 import { driverHold } from "@/lib/driver-hold";
@@ -1044,31 +1044,67 @@ export async function saveCityHourlyPrices(_prev: ActionState, formData: FormDat
 
 /* ---------- E-invoicing platform (Wafeq) ---------- */
 
-/** Provider, API key (kept when left empty), sales account, tax rate and ZATCA reporting */
+/** Provider and its keys (secrets kept when left empty), and ZATCA reporting */
 export async function saveEinvoiceSettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("settings");
-  const provider = formData.get("einv_provider") === "wafeq" ? "wafeq" : "";
+  const pv = formData.get("einv_provider");
+  const provider = pv === "wafeq" || pv === "alostaz" ? pv : "";
+  const st = await readSettings();
+  const rows: Record<string, string> = { einv_provider: provider, einv_report: formData.get("einv_report") === "on" ? "1" : "0" };
+  // Wafeq
   const key = String(formData.get("wafeq_api_key") ?? "").trim();
   const account = String(formData.get("wafeq_account") ?? "").trim().slice(0, 100);
   const taxRate = String(formData.get("wafeq_tax_rate") ?? "").trim().slice(0, 100);
   if (key && !/^[\w.\-:]{8,200}$/.test(key)) return { error: "مفتاح وافق غير صحيح." };
-  const st = await readSettings();
-  if (provider && !(key || st.wafeq_api_key)) return { error: "اكتب مفتاح API من وافق." };
-  if (provider && !account) return { error: "اختر حساب المبيعات (الإيرادات) في وافق." };
-  const rows: Record<string, string> = { einv_provider: provider, wafeq_account: account, wafeq_tax_rate: taxRate, einv_report: formData.get("einv_report") === "on" ? "1" : "0" };
+  if (provider === "wafeq" && !(key || st.wafeq_api_key)) return { error: "اكتب مفتاح API من وافق." };
+  if (provider === "wafeq" && !account) return { error: "اختر حساب المبيعات (الإيرادات) في وافق." };
+  Object.assign(rows, { wafeq_account: account, wafeq_tax_rate: taxRate });
   if (key) rows.wafeq_api_key = key;
+  // Alostaz
+  const base = String(formData.get("alostaz_base_url") ?? "").trim().replace(/\/$/, "");
+  const token = String(formData.get("alostaz_token") ?? "").trim();
+  const branch = String(formData.get("alostaz_branch_id") ?? "").trim() || "1";
+  if (base && !/^https?:\/\/[^\s]+$/.test(base)) return { error: "رابط API الأستاذ غير صحيح (يبدأ بـ https://)." };
+  if (token && token.length < 10) return { error: "توكن الأستاذ غير صحيح." };
+  if (!/^\d{1,9}$/.test(branch)) return { error: "رقم الفرع رقم فقط." };
+  if (provider === "alostaz" && !(base || st.alostaz_base_url)) return { error: "اكتب رابط API من الأستاذ." };
+  if (provider === "alostaz" && !(token || st.alostaz_token)) return { error: "اكتب التوكن (Bearer token) من الأستاذ." };
+  rows.alostaz_branch_id = branch;
+  if (base) rows.alostaz_base_url = base;
+  if (token) rows.alostaz_token = token;
   await db.transaction(async (tx) => {
     for (const [k, value] of Object.entries(rows)) await tx.insert(s.settings).values({ key: k, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
   });
   invalidateCatalogCache();
   revalidatePath("/admin/integrations");
-  return { ok: true, message: provider ? "تم الحفظ. الفواتير تنرسل لوافق تلقائيًا لما تنتهي الرحلة." : "تم الحفظ. الربط مع منصة الفوترة موقوف." };
+  if (provider === "alostaz" && !(st.alostaz_product_id && st.alostaz_storehouse_id))
+    return { ok: true, message: "تم الحفظ. اضغط «اختبار الاتصال» عشان نجهّز الضريبة والمستودع والمنتج في الأستاذ." };
+  return { ok: true, message: provider ? `تم الحفظ. الفواتير تنرسل ${provider === "alostaz" ? "للأستاذ" : "لوافق"} تلقائيًا لما تنتهي الرحلة.` : "تم الحفظ. الربط مع منصة الفوترة موقوف." };
 }
 
-/** Try the saved key: lists the accounts so the right sales account can be chosen */
+/** Try the saved keys. Wafeq: lists the accounts. Alostaz: also picks the VAT, storehouse and product it needs and saves them. */
 export async function testEinvoice(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("settings");
-  const key = String(formData.get("wafeq_api_key") ?? "").trim() || (await readSettings()).wafeq_api_key;
+  const st = await readSettings();
+  if (st.einv_provider === "alostaz") {
+    if (!st.alostaz_base_url || !st.alostaz_token) return { error: "احفظ رابط API والتوكن من الأستاذ أولًا." };
+    try {
+      const r = await alostazSetup({ baseUrl: st.alostaz_base_url, token: st.alostaz_token, branchId: st.alostaz_branch_id || "1" });
+      const rows: Record<string, string> = { alostaz_product_id: String(r.product.id), alostaz_storehouse_id: String(r.store.id), alostaz_tax_id: r.tax ? String(r.tax.id) : "" };
+      await db.transaction(async (tx) => {
+        for (const [k, value] of Object.entries(rows)) await tx.insert(s.settings).values({ key: k, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });
+      });
+      invalidateCatalogCache();
+      revalidatePath("/admin/integrations");
+      return {
+        ok: true,
+        message: `الاتصال بالأستاذ ناجح وجاهز. المنتج: ${r.product.name} · المستودع: ${r.store.name} · الضريبة: ${r.tax ? r.tax.name : "ما لقينا ضريبة ١٥٪، الفواتير تنرسل بدون ضريبة على البند"}`,
+      };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "تعذّر الاتصال بالأستاذ." };
+    }
+  }
+  const key = String(formData.get("wafeq_api_key") ?? "").trim() || st.wafeq_api_key;
   if (!key) return { error: "اكتب مفتاح API أولًا." };
   try {
     const accounts = await wafeqAccounts(key);
