@@ -90,7 +90,17 @@ export function waConfig(st: Record<string, string> = {}) {
   const phoneId = (st.wa_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "").trim();
   return token && phoneId ? { token, phoneId } : null;
 }
-export const whatsappConfigured = (st: Record<string, string> = {}) => !!waConfig(st);
+/**
+ * WATI (wati.io): a WhatsApp provider that holds the number for you. Its endpoint carries your tenant
+ * (https://live-mt-server.wati.io/123456) and a Bearer token. When both are saved, messages go through WATI
+ * (its approved templates, the same names and {{1}} {{2}} order as on the Messages page) instead of Meta's API.
+ */
+export function watiConfig(st: Record<string, string> = {}) {
+  const endpoint = (st.wati_endpoint || "").trim().replace(/\/+$/, "").replace(/\/api(\/.*)?$/, "");
+  const token = (st.wati_token || "").trim().replace(/^Bearer\s+/i, "");
+  return /^https:\/\/[^\s]+$/.test(endpoint) || /^http:\/\/localhost(:\d+)?\//.test(endpoint) ? (token ? { endpoint, token } : null) : null;
+}
+export const whatsappConfigured = (st: Record<string, string> = {}) => !!watiConfig(st) || !!waConfig(st);
 export const emailConfigured = () => process.env.EMAIL_TRANSPORT === "log" || !!(process.env.SMTP_HOST && process.env.SMTP_FROM);
 
 type NewMessage = {
@@ -161,6 +171,8 @@ async function sendWhatsApp(row: Notification, st: Record<string, string>) {
   const tpl = row.kind in TEMPLATES ? TEMPLATES[row.kind as keyof typeof TEMPLATES] : null;
   const templateName = tpl ? (st[tpl.setting] ?? "").trim() : "";
   const to = waNumber(row.recipient);
+  const wati = watiConfig(st);
+  if (wati) return sendWati(wati, row, templateName, to);
   const doc = row.attachmentUrl ? { link: row.attachmentUrl, filename: row.attachmentName || "document.pdf" } : null;
   const payload = templateName
     ? {
@@ -196,6 +208,58 @@ async function sendWhatsApp(row: Notification, st: Record<string, string>) {
     return { ok: false as const, error: `WhatsApp ${res.status}: ${json?.error?.message ?? "رفض غير معروف"}${json?.error?.code ? ` (${json.error.code})` : ""}` };
   } catch (e) {
     return { ok: false as const, error: `WhatsApp غير متاح: ${(e as Error).message}` };
+  }
+}
+
+type WatiReply = { result?: boolean | string; success?: boolean; info?: string; message?: string; error?: string; errors?: unknown; validWhatsAppNumber?: boolean; broadcast_id?: string; id?: string; messages?: { id?: string }[] } | null;
+
+async function wati(cfg: { endpoint: string; token: string }, method: "GET" | "POST", path: string, body?: unknown) {
+  const res = await fetch(`${cfg.endpoint}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${cfg.token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  const json = (await res.json().catch(() => null)) as WatiReply;
+  return { res, json };
+}
+
+const watiError = (status: number, json: WatiReply) =>
+  status === 401 || status === 403 ? `WATI ${status}: التوكن غير صحيح أو ناقصه صلاحية (messagetemplate:read / messagetemplate:write / conversations:write)` : `WATI ${status}: ${String(json?.info ?? json?.message ?? json?.error ?? JSON.stringify(json?.errors ?? "رفض غير معروف")).slice(0, 300)}`;
+
+/**
+ * Through WATI: an approved template by name with its {{1}} {{2}} values; without a template, a session
+ * message (only reaches people who wrote to the number in the last 24 hours). A file goes as its link in the text.
+ */
+async function sendWati(cfg: { endpoint: string; token: string }, row: Notification, templateName: string, to: string) {
+  try {
+    const { res, json } = templateName
+      ? await wati(cfg, "POST", `/api/v1/sendTemplateMessage?whatsappNumber=${to}`, {
+          template_name: templateName,
+          broadcast_name: `${row.kind}_${row.id}`.slice(0, 60),
+          parameters: row.params.map((value, i) => ({ name: String(i + 1), value })),
+        })
+      : await wati(cfg, "POST", `/api/v1/sendSessionMessage/${to}?messageText=${encodeURIComponent((row.attachmentUrl ? `${row.body}\n${row.attachmentUrl}` : row.body).slice(0, 4000))}`);
+    const ok = res.ok && json?.result !== false && json?.result !== "false" && json?.success !== false && json?.validWhatsAppNumber !== false;
+    if (ok) return { ok: true as const, id: String(json?.broadcast_id ?? json?.id ?? json?.messages?.[0]?.id ?? `wati-${row.id}`) };
+    return { ok: false as const, error: watiError(res.status, json) };
+  } catch (e) {
+    return { ok: false as const, error: `WATI غير متاح: ${(e as Error).message}` };
+  }
+}
+
+/** The panel's check for WATI: reads the account's templates (sends nothing) */
+export async function testWati(st: Record<string, string>) {
+  const cfg = watiConfig(st);
+  if (!cfg) return { ok: false as const, error: "اكتب API Endpoint و API Token من WATI أولًا واحفظها." };
+  try {
+    const { res, json } = await wati(cfg, "GET", "/api/v1/getMessageTemplates?pageSize=100");
+    const list = (json as { messageTemplates?: { elementName?: string; status?: string }[] } | null)?.messageTemplates;
+    if (!res.ok || !Array.isArray(list)) return { ok: false as const, error: watiError(res.status, json) };
+    return { ok: true as const, templates: list.filter((t) => !t.status || /approved/i.test(t.status)).map((t) => t.elementName ?? "").filter(Boolean).slice(0, 30) };
+  } catch (e) {
+    return { ok: false as const, error: `تعذّر الاتصال بـ WATI: ${(e as Error).message}` };
   }
 }
 

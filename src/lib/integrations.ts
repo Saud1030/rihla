@@ -7,7 +7,7 @@ import { getSettings } from "./catalog";
  * The others keep their keys until they are connected (a small code change each).
  */
 
-export type IntegrationField = { key: string; label: string; secret?: boolean; hint?: string; options?: [value: string, label: string][] };
+export type IntegrationField = { key: string; label: string; secret?: boolean; hint?: string; options?: [value: string, label: string][]; max?: number };
 export type Integration = { id: string; name: string; site: string; ready: boolean; fields: IntegrationField[] };
 
 export const GATEWAYS: Integration[] = [
@@ -57,7 +57,19 @@ export const WHATSAPP: Integration = {
   ],
 };
 
-export const allIntegrationKeys = () => [...GATEWAYS, ...EINVOICE_PLATFORMS, WHATSAPP].flatMap((g) => g.fields);
+/** WATI (wati.io): a WhatsApp provider that registers the number with Meta for you; when its keys are saved it is used instead of Meta's API */
+export const WATI: Integration = {
+  id: "wati",
+  name: "واتي WATI",
+  site: "https://app.wati.io",
+  ready: true,
+  fields: [
+    { key: "wati_endpoint", label: "API Endpoint", hint: "من WATI: API ← API Endpoint، مثل https://live-mt-server.wati.io/123456", max: 300 },
+    { key: "wati_token", label: "API Token", secret: true, hint: "من WATI: API Tokens ← توكن بصلاحيات messagetemplate:read و messagetemplate:write و conversations:write", max: 4000 },
+  ],
+};
+
+export const allIntegrationKeys = () => [...GATEWAYS, ...EINVOICE_PLATFORMS, WHATSAPP, WATI].flatMap((g) => g.fields);
 
 /** Online payment is offered only when a connected gateway is chosen in the panel and has its key */
 export async function onlinePaymentOn() {

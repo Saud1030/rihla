@@ -114,6 +114,25 @@ http
       }
       return json(res, 404, { message: "Not found" });
     }
+    // ---- WATI stand-in: /wati/123456/api/v1/... with "Authorization: Bearer test-wati-token" ----
+    if (url.pathname.startsWith("/wati/123456/api/v1/")) {
+      if (req.headers.authorization !== "Bearer test-wati-token") return json(res, 401, { message: "Unauthorized" });
+      const p = url.pathname.slice("/wati/123456/api/v1".length);
+      if (p === "/getMessageTemplates") return json(res, 200, { result: "success", messageTemplates: [{ elementName: "payment_receipt_ar", status: "APPROVED" }, { elementName: "draft_one", status: "PENDING" }] });
+      const body = JSON.parse((await readBody(req)) || "{}");
+      if (p === "/sendTemplateMessage") {
+        const to = url.searchParams.get("whatsappNumber") ?? "";
+        if (!/^\d{8,15}$/.test(to) || !body.template_name || !Array.isArray(body.parameters)) return json(res, 400, { result: false, info: "invalid" });
+        waMessages.push({ id: `wati${waMessages.length + 1}`, via: "wati", to, type: "template", template: { name: body.template_name }, parameters: body.parameters });
+        return json(res, 200, { result: true, validWhatsAppNumber: true });
+      }
+      const sm = p.match(/^\/sendSessionMessage\/(\d+)$/);
+      if (sm) {
+        waMessages.push({ id: `wati${waMessages.length + 1}`, via: "wati", to: sm[1], type: "text", text: { body: url.searchParams.get("messageText") } });
+        return json(res, 200, { result: true });
+      }
+      return json(res, 404, { message: "Not found" });
+    }
     if (url.pathname === "/__wa") return json(res, 200, waMessages);
     if (url.pathname === "/__wa_reset") { waMessages.length = 0; return json(res, 200, { ok: true }); }
     const wa = url.pathname.match(/^\/v\d+\.\d+\/([^/]+)\/messages$/);

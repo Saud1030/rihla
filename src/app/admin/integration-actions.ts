@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { invalidateCatalogCache } from "@/lib/catalog";
-import { EINVOICE_PLATFORMS, GATEWAYS, WHATSAPP } from "@/lib/integrations";
-import { testWhatsApp } from "@/lib/notify";
+import { EINVOICE_PLATFORMS, GATEWAYS, WATI, WHATSAPP } from "@/lib/integrations";
+import { testWati, testWhatsApp, watiConfig } from "@/lib/notify";
 import { normalizePhone } from "@/lib/phone";
 import { readSettings } from "@/lib/notify";
 import type { ActionState } from "./actions";
@@ -39,13 +39,13 @@ export async function chooseGateway(_prev: ActionState, formData: FormData): Pro
 export async function saveIntegrationKeys(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireSection("settings");
   const id = String(formData.get("id") ?? "");
-  const item = [...GATEWAYS, ...EINVOICE_PLATFORMS, WHATSAPP].find((x) => x.id === id);
+  const item = [...GATEWAYS, ...EINVOICE_PLATFORMS, WHATSAPP, WATI].find((x) => x.id === id);
   if (!item) return { error: "غير موجود." };
   const rows: Record<string, string> = {};
   for (const f of item.fields) {
-    const v = String(formData.get(f.key) ?? "").trim().slice(0, 300);
+    const v = String(formData.get(f.key) ?? "").trim().replace(/^Bearer\s+/i, "").slice(0, f.max ?? 300);
     if (f.options && v && !f.options.some(([o]) => o === v)) return { error: `${f.label}: اختيار غير صحيح.` };
-    if (v && !f.options && !/^[\w.\-:/+=@]{2,300}$/.test(v)) return { error: `${f.label}: قيمة غير صحيحة.` };
+    if (v && !f.options && !new RegExp(`^[\\w.\\-:/+=@]{2,${f.max ?? 300}}$`).test(v)) return { error: `${f.label}: قيمة غير صحيحة.` };
     if (f.secret && !v) continue; // keep the saved secret
     rows[f.key] = v;
   }
@@ -59,6 +59,11 @@ export async function sendWhatsAppTest(_prev: ActionState, formData: FormData): 
   await requireSection("settings");
   const to = normalizePhone(String(formData.get("to") ?? ""));
   if (!to) return { error: "اكتب رقم جوال صحيح (مثل 0501234567 أو ‎+9665…)." };
-  const r = await testWhatsApp(to, await readSettings());
+  const st = await readSettings();
+  if (watiConfig(st)) {
+    const w = await testWati(st);
+    return w.ok ? { ok: true, message: `الاتصال بـ WATI ناجح. القوالب المعتمدة: ${w.templates.join("، ") || "ما فيه قوالب معتمدة بعد"}` } : { error: w.error };
+  }
+  const r = await testWhatsApp(to, st);
   return r.ok ? { ok: true, message: `تم الإرسال. تأكد أن رسالة "Hello World" وصلت على ${to}.` } : { error: r.error };
 }
