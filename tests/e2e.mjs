@@ -2987,6 +2987,7 @@ if (!ONLY || ONLY === "drivers") {
 
   await check("choosing the driver: filtered to the booking's car first, search by name, all cars on demand", async () => {
     const r = paidBooking();
+    sql(`update bookings set vehicle_id=coalesce(vehicle_id, (select min(id) from vehicles)) where ref='${r}'`);
     const vid = sql(`select vehicle_id from bookings where ref='${r}'`);
     sql(`insert into drivers (name, phone, plate_number, car_type, vehicle_id, status) values ('سائق بنفس السيارة', '+966550000777', 'م م م 7777', 'نفس السيارة', ${vid}, 'approved')`);
     try {
