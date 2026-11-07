@@ -794,3 +794,8 @@ main { view-transition-name: page; }
   .lc-beam, .lc-glow { animation: none; opacity: 1; }
   .login-sand { display: none; }
 }
+
+/* the ready-made home background: the light picture, or the night one in dark mode */
+.hero-preset-dark { display: none; }
+:root[data-theme="dark"] .hero-preset-light { display: none; }
+:root[data-theme="dark"] .hero-preset-dark { display: block; }

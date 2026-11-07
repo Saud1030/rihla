@@ -147,6 +147,7 @@ export async function removeHero(_prev: ActionState, formData: FormData): Promis
 
 const displaySchema = z.object({
   hero_bg_enabled: z.enum(["0", "1"]),
+  hero_bg_preset: z.enum(["saudi", "none"]),
   hero_bg_animate: z.enum(["0", "1"]),
   hero_bg_seconds: z.enum(["5", "7", "10", "15"]),
   banners_enabled: z.enum(["0", "1"]),
@@ -160,6 +161,7 @@ export async function saveHomeDisplay(_prev: ActionState, formData: FormData): P
   await requireSection("appearance");
   const parsed = displaySchema.safeParse({
     hero_bg_enabled: formData.get("hero_bg_enabled") === "on" ? "1" : "0",
+    hero_bg_preset: formData.get("hero_bg_preset") === "on" ? "saudi" : "none",
     banners_enabled: formData.get("banners_enabled") === "on" ? "1" : "0",
     hero_bg_animate: formData.get("hero_bg_animate") === "on" ? "1" : "0",
     hero_bg_seconds: formData.get("hero_bg_seconds") ?? "7",

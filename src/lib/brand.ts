@@ -80,9 +80,21 @@ export type HeroOverlay = "light" | "medium" | "strong";
 export const HERO_OVERLAYS: HeroOverlay[] = ["light", "medium", "strong"];
 
 /** The uploaded backgrounds, or null when there are none or they're switched off in the admin panel */
+/**
+ * The ready-made background (Saudi landmarks and the car, a light and a dark version): shown when no photo
+ * is uploaded, unless the admin turned it off (Admin -> Banners & background).
+ */
+export const getHeroPreset = cache(async () => {
+  const [st, images] = await Promise.all([getSettings(), heroImages()]);
+  if (st.hero_bg_enabled === "0" || st.hero_bg_preset === "none") return null;
+  // chosen in the panel: it wins over uploaded photos; not chosen yet: only when there are none
+  if (st.hero_bg_preset === "saudi" || !images.length) return "saudi" as const;
+  return null;
+});
+
 export const getHeroBackground = cache(async () => {
   const [st, images] = await Promise.all([getSettings(), heroImages()]);
-  if (!images.length || st.hero_bg_enabled === "0") return null;
+  if (!images.length || st.hero_bg_enabled === "0" || st.hero_bg_preset === "saudi") return null;
   const overlay: HeroOverlay = (HERO_OVERLAYS as string[]).includes(st.hero_bg_overlay) ? (st.hero_bg_overlay as HeroOverlay) : "medium";
   return {
     images,

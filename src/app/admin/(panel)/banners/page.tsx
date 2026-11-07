@@ -115,6 +115,19 @@ async function Banners({ searchParams }: { searchParams: Promise<Record<string, 
             </span>
           </label>
           <label className="flex items-start gap-3">
+            <input type="checkbox" name="hero_bg_preset" defaultChecked={st.hero_bg_preset === "saudi" || (st.hero_bg_preset !== "none" && !hero)} className="size-4 mt-1 accent-sign" />
+            <span>
+              <span className="block font-medium">الخلفية الجاهزة: معالم السعودية</span>
+              <span className="block text-sm text-muted">ساعة مكة والمسجد النبوي وبرج المملكة والفيصلية ونافورة جدة مع السيارة، بنسخة نهارية للوضع العادي وليلية للوضع الداكن. إذا اخترتها تظهر بدل الصور المرفوعة (الصور تبقى محفوظة).</span>
+              <span className="mt-2 flex gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/hero/saudi-light-1280.webp" alt="النسخة النهارية" className="w-40 rounded-md border border-line" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/hero/saudi-dark-1280.webp" alt="النسخة الليلية" className="w-40 rounded-md border border-line" />
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3">
             <input type="checkbox" name="hero_bg_animate" defaultChecked={st.hero_bg_animate !== "0"} className="size-4 mt-1 accent-sign" />
             <span>
               <span className="block font-medium">تحريك الخلفية تلقائيًا</span>

@@ -741,6 +741,10 @@ if (!ONLY || ONLY === "ux") {
     await dp.getByTestId("theme-toggle").first().click();
     eq(await dp.evaluate(() => document.documentElement.dataset.theme), "dark", "now dark");
     await dp.waitForTimeout(800); // the colours fade over
+    if (await dp.getByTestId("hero-preset").count()) {
+      assert(await dp.locator("img.hero-preset-dark").isVisible(), "the night picture in dark mode");
+      assert(!(await dp.locator("img.hero-preset-light").isVisible()), "not the day one");
+    }
     const bg = await dp.evaluate(() => getComputedStyle(document.body).backgroundColor);
     assert(/rgb\((\d+), (\d+), (\d+)\)/.exec(bg).slice(1).every((n) => Number(n) < 60), "dark page background: " + bg);
     await dp.goto(BASE + "/ar/fleet", { waitUntil: "networkidle" });
@@ -2655,11 +2659,17 @@ if (!ONLY || ONLY === "features") {
     await submit(a, "حفظ");
     await a.getByText("تم الحفظ. التغيير يظهر").waitFor();
   };
-  await check("hero background: none by default; fake files refused; an uploaded photo shows behind the top section only", async () => {
+  await check("hero background: the ready Saudi landmarks one by default (light, and night in dark mode); fake files refused; an uploaded photo replaces it", async () => {
     sql("delete from assets where key='hero'");
     await touchCache();
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
-    eq(await page.getByTestId("hero-bg").count(), 0, "no background yet");
+    eq(await page.getByTestId("hero-bg").count(), 0, "no uploaded background yet");
+    const preset = page.getByTestId("hero-preset");
+    eq(await preset.count(), 1, "the ready background");
+    assert(await preset.locator("img.hero-preset-light").isVisible(), "the day picture in light mode");
+    assert(!(await preset.locator("img.hero-preset-dark").isVisible()), "not the night one");
+    const img = await fetch(BASE + "/hero/saudi-dark-1280.webp");
+    eq(img.headers.get("content-type"), "image/webp", "served");
     await a.goto(`${BASE}/admin/banners`, { waitUntil: "networkidle" });
     await heroCard().locator('input[name="hero"]').setInputFiles({ name: "x.jpg", mimeType: "image/jpeg", buffer: Buffer.from("<html>nope</html>") });
     await submit(a, "رفع الخلفية");
@@ -2680,6 +2690,7 @@ if (!ONLY || ONLY === "features") {
     eq(r.headers.get("content-type"), "image/jpeg", "served");
     assert(r.headers.get("content-security-policy").includes("sandbox"), "sandboxed");
     eq(await page.locator("section").nth(1).getByTestId("hero-bg").count(), 0, "rest of the page unchanged");
+    eq(await page.getByTestId("hero-preset").count(), 0, "the uploaded photo replaces the ready one");
   });
   await check("hero background: hide and show again, then delete — from the admin panel", async () => {
     eq(await a.locator('input[name="hero_bg_overlay"]').count(), 0, "no veil options any more");
@@ -2699,6 +2710,15 @@ if (!ONLY || ONLY === "features") {
     await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
     eq(await page.getByTestId("hero-bg").count(), 0, "gone from the site");
     eq((await fetch(`${BASE}/api/brand/hero`)).status, 404, "image gone");
+    // the ready one is chosen with its own box, and wins over uploaded photos
+    await saveDisplay(() => a.check('input[name="hero_bg_preset"]'));
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("hero-preset").count(), 1, "the ready background");
+    await saveDisplay(() => a.uncheck('input[name="hero_bg_preset"]'));
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("hero-preset").count(), 0, "turned off");
+    sql("delete from settings where key='hero_bg_preset'");
+    await touchCache();
   });
   await check("hero background: preview before saving; up to five photos take turns with a moving animation; banners move by themselves", async () => {
     sql("delete from assets where key like 'hero%'");

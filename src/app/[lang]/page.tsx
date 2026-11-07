@@ -5,7 +5,7 @@ import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
 import { getHomeBanners, getSettings, getVehicles } from "@/lib/catalog";
 import { BannerSlider } from "@/components/site/banner-slider";
-import { getBrand, getHeroBackground } from "@/lib/brand";
+import { getBrand, getHeroBackground, getHeroPreset } from "@/lib/brand";
 import { TripSearch } from "@/components/site/trip-search";
 import { HeroSlides } from "@/components/site/hero-slides";
 import { formatNumber } from "@/lib/format";
@@ -215,7 +215,28 @@ async function HomeBanners({ lang, t }: { lang: Locale; t: Dictionary }) {
 /** The photo behind the top section; a light veil keeps the headline readable */
 async function HeroBackground() {
   const bg = await getHeroBackground();
-  if (!bg) return null;
+  if (!bg) {
+    // the ready-made one: Saudi landmarks at dusk (light) or at night (dark), following the site's theme
+    if (!(await getHeroPreset())) return null;
+    return (
+      <div className="absolute inset-0 -z-10 overflow-hidden" aria-hidden="true" data-testid="hero-preset">
+        {(["light", "dark"] as const).map((m) => (
+          // eslint-disable-next-line @next/next/no-img-element -- a fixed file of the site, two sizes
+          <img
+            key={m}
+            src={`/hero/saudi-${m}-1280.webp`}
+            srcSet={`/hero/saudi-${m}-1280.webp 1280w, /hero/saudi-${m}-2560.webp 2560w`}
+            sizes="100vw"
+            alt=""
+            fetchPriority="high"
+            className={`hero-preset-${m} absolute inset-0 size-full object-cover object-[72%_bottom]`}
+          />
+        ))}
+        {/* a soft glow of the page colour behind the headline, so it reads over the skyline */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_38%_32%_at_74%_52%,var(--color-paper)_0%,transparent_100%)] opacity-80" />
+      </div>
+    );
+  }
   // the photos exactly as uploaded: no veil, no zoom, full resolution and colours
   return (
     <div className="absolute inset-0 -z-10" aria-hidden="true" data-testid="hero-bg">
