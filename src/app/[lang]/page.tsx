@@ -24,7 +24,7 @@ export default async function HomePage() {
       <ScrollReveal />
       <section className="hero-enter relative isolate overflow-hidden bg-paper border-b border-line">
         <Suspense fallback={null}>
-          <HeroBackground />
+          <HeroBackground lang={lang} />
         </Suspense>
         {/* wide screens: the text on one side, the booking box as a tall panel on the left; phones: text, then the box */}
         <div
@@ -213,7 +213,7 @@ async function HomeBanners({ lang, t }: { lang: Locale; t: Dictionary }) {
 }
 
 /** The photo behind the top section; a light veil keeps the headline readable */
-async function HeroBackground() {
+async function HeroBackground({ lang }: { lang: Locale }) {
   const bg = await getHeroBackground();
   if (!bg) {
     // the ready-made one: Saudi landmarks at dusk (light) or at night (dark), following the site's theme
@@ -233,7 +233,9 @@ async function HeroBackground() {
           />
         ))}
         {/* a soft glow of the page colour behind the headline, so it reads over the skyline */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_38%_32%_at_74%_52%,var(--color-paper)_0%,transparent_100%)] opacity-80" />
+        <div
+          className={`absolute inset-0 opacity-80 ${lang === "ar" ? "bg-[radial-gradient(ellipse_38%_32%_at_74%_52%,var(--color-paper)_0%,transparent_100%)]" : "bg-[radial-gradient(ellipse_40%_36%_at_56%_52%,var(--color-paper)_0%,transparent_100%)]"}`}
+        />
       </div>
     );
   }

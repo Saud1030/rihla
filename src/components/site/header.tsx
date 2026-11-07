@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
 import type { Brand } from "@/lib/brand";
 import { LangSwitch } from "./lang-switch";
-import { GlassNav, type GlassLink } from "./glass-nav";
+import { GlassNav, ThemeButton, type GlassLink } from "./glass-nav";
 
 export function Logo({ lang, brand }: { lang: Locale; brand: Brand }) {
   return (
@@ -12,7 +12,7 @@ export function Logo({ lang, brand }: { lang: Locale; brand: Brand }) {
         // eslint-disable-next-line @next/next/no-img-element -- uploaded logo, any size/format incl. SVG
         <img src={brand.logoUrl} alt="" className="h-10 w-auto max-w-40 object-contain" />
       ) : (
-        <span aria-hidden="true" className="sign grid place-items-center h-10 px-3.5 font-display font-semibold text-[15px] leading-none">
+        <span aria-hidden="true" className="sign grid place-items-center h-9 sm:h-10 px-2.5 sm:px-3.5 font-display font-semibold text-[15px] leading-none">
           {brand.mark[lang]}
         </span>
       )}
@@ -32,29 +32,31 @@ export function SiteHeader({ lang, t, brand, packages = false }: { lang: Locale;
   const themeLabels = lang === "ar" ? { dark: "الوضع الداكن", light: "الوضع الفاتح" } : { dark: "Dark mode", light: "Light mode" };
   return (
     <header className="site-header sticky top-0 z-40 border-b border-line">
-      <div className="mx-auto max-w-6xl px-4 h-16 flex items-center gap-4">
+      <div className="mx-auto max-w-6xl px-3 sm:px-4 h-16 flex items-center gap-2 sm:gap-4">
         <Logo lang={lang} brand={brand} />
         {/* the glass pill menu: in the middle on wide screens, in its own row on phones */}
         <div className="hidden lg:flex flex-1 justify-center min-w-0">
-          <GlassNav links={links} themeLabels={themeLabels} />
+          <GlassNav links={links} />
         </div>
-        <div className="ms-auto lg:ms-0 flex items-center gap-2">
+        <div className="ms-auto lg:ms-0 flex items-center gap-1 sm:gap-2 min-w-0">
+          {/* dark / light mode, in both languages, on every screen size */}
+          <ThemeButton labels={themeLabels} />
           <Suspense fallback={<span className="px-3 py-2 text-[15px] text-muted">{t.nav.switchLang}</span>}>
-            <LangSwitch lang={lang} label={t.nav.switchLang} />
+            <LangSwitch lang={lang} label={t.nav.switchLang} short={lang === "ar" ? "EN" : "ع"} />
           </Suspense>
-          <Link href={`/${lang}#search`} className="btn btn-primary !min-h-10 !py-2 !px-3 sm:!px-5 text-[15px] rounded-full whitespace-nowrap">
+          <Link href={`/${lang}#search`} className="btn btn-primary !min-h-9 sm:!min-h-10 !py-1.5 sm:!py-2 !px-2.5 sm:!px-5 text-[14px] sm:text-[15px] rounded-full whitespace-nowrap">
             {t.nav.book}
           </Link>
           {/* right after "Book now", so customers see the packages straight away */}
           {packages && (
-            <Link href={`/${lang}/packages`} className="btn btn-amber !min-h-10 !py-2 !px-3 sm:!px-5 text-[15px] rounded-full whitespace-nowrap" data-testid="packages-link">
+            <Link href={`/${lang}/packages`} className="btn btn-amber !min-h-9 sm:!min-h-10 !py-1.5 sm:!py-2 !px-2.5 sm:!px-5 text-[14px] sm:text-[15px] rounded-full whitespace-nowrap" data-testid="packages-link">
               {t.packages.nav}
             </Link>
           )}
         </div>
       </div>
       <div className="lg:hidden px-3 pb-2.5">
-        <GlassNav links={links} themeLabels={themeLabels} />
+        <GlassNav links={links} />
       </div>
     </header>
   );

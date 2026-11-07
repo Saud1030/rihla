@@ -14,7 +14,7 @@ export type GlassLink = { href: string; label: string; icon: keyof typeof ICONS;
  * stretches on the way: its leading edge moves first, the trailing edge catches up with a small spring.
  * The moon / sun at the end switches dark and light mode.
  */
-export function GlassNav({ links, themeLabels }: { links: GlassLink[]; themeLabels: { dark: string; light: string } }) {
+export function GlassNav({ links }: { links: GlassLink[] }) {
   const pathname = usePathname() ?? "";
   const activeIdx = links.findIndex((l) => (l.exact ? pathname === l.href : pathname === l.href || pathname.startsWith(l.href + "/")));
   // the tapped item moves the bead at once, before the next page arrives
@@ -77,16 +77,14 @@ export function GlassNav({ links, themeLabels }: { links: GlassLink[]; themeLabe
               }}
               onClick={() => setPicked({ idx: i, from: pathname })}
               aria-current={i === activeIdx ? "page" : undefined}
-              className={`relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-[14px] font-medium transition-colors duration-300 ${on ? "text-[var(--bead-ink)]" : "text-muted hover:text-ink"}`}
+              className={`relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 xl:px-3.5 py-2 text-[14px] font-medium transition-colors duration-300 ${on ? "text-[var(--bead-ink)]" : "text-muted hover:text-ink"}`}
             >
-              <Icon className="size-4 shrink-0" aria-hidden strokeWidth={2} />
+              <Icon className="size-4 shrink-0 lg:max-xl:hidden" aria-hidden strokeWidth={2} />
               {l.label}
             </Link>
           );
         })}
       </nav>
-      <span className="mx-0.5 h-5 w-px bg-line shrink-0" aria-hidden />
-      <ThemeButton labels={themeLabels} />
     </div>
   );
 }
@@ -116,7 +114,7 @@ export function ThemeButton({ labels }: { labels: { dark: string; light: string 
         window.dispatchEvent(new Event("site-theme"));
         setTimeout(() => root.classList.remove("theme-switching"), 450);
       }}
-      className="relative z-10 grid size-9 shrink-0 place-items-center rounded-full text-muted hover:text-ink transition-colors"
+      className="glass-pill relative z-10 grid size-9 sm:size-10 shrink-0 place-items-center rounded-full text-muted hover:text-ink transition-colors"
       aria-label={dark ? labels.light : labels.dark}
       title={dark ? labels.light : labels.dark}
       data-testid="theme-toggle"
