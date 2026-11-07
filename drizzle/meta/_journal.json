@@ -211,6 +211,13 @@
       "when": 1793810110468,
       "tag": "0029_company_number",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794076779239,
+      "tag": "0030_banner_layout",
+      "breakpoints": true
     }
   ]
 }

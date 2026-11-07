@@ -5,6 +5,7 @@ import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
 import { getHomeBanners, getSettings, getVehicles } from "@/lib/catalog";
 import { BannerSlider } from "@/components/site/banner-slider";
+import { localLink } from "@/lib/ready-banners";
 import { getBrand, getHeroBackground, getHeroPreset } from "@/lib/brand";
 import { TripSearch } from "@/components/site/trip-search";
 import { HeroSlides } from "@/components/site/hero-slides";
@@ -204,8 +205,11 @@ async function HomeBanners({ lang, t }: { lang: Locale; t: Dictionary }) {
           src: `/api/banners/${b.id}?v=${b.updatedAt.getTime()}`,
           title: pick(b.titleAr, b.titleEn),
           text: pick(b.textAr, b.textEn),
-          link: b.link,
+          link: localLink(b.link, lang),
           external: /^https?:/.test(b.link),
+          side: b.layout === "side",
+          tone: b.tone === "light" ? "light" : "dark",
+          cta: pick(b.ctaAr, b.ctaEn),
         }))}
       />
     </div>

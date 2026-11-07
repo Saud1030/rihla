@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { READY_BANNERS } from "@/lib/ready-banners";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { invalidateCatalogCache } from "@/lib/catalog";
@@ -34,6 +37,10 @@ const schema = z.object({
   active: z.boolean(),
   startsOn: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
   endsOn: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
+  layout: z.enum(["photo", "side"]),
+  tone: z.enum(["dark", "light"]),
+  ctaAr: z.string().trim().max(40),
+  ctaEn: z.string().trim().max(40),
 });
 
 /** Add a banner (image required) or edit one (new image optional) */
@@ -49,6 +56,10 @@ export async function saveBanner(_prev: ActionState, formData: FormData): Promis
     active: formData.get("active") === "on",
     startsOn: formData.get("startsOn") ?? "",
     endsOn: formData.get("endsOn") ?? "",
+    layout: formData.get("layout") === "side" ? "side" : "photo",
+    tone: formData.get("tone") === "light" ? "light" : "dark",
+    ctaAr: formData.get("ctaAr") ?? "",
+    ctaEn: formData.get("ctaEn") ?? "",
   });
   if (!parsed.success) return { error: "تحقق من النصوص والتواريخ." };
   const d = parsed.data;
@@ -85,6 +96,26 @@ export async function saveBanner(_prev: ActionState, formData: FormData): Promis
   invalidateCatalogCache();
   revalidatePath("/admin/banners");
   return { ok: true, message: "تم حفظ البنر." };
+}
+
+/** The ready-made banners (artwork in public/banners/ready); one already in the list isn't added twice */
+export async function addReadyBanners(_prev: ActionState, _formData: FormData): Promise<ActionState> {
+  await requireSection("appearance");
+  const have = new Set((await db.select({ t: s.banners.titleAr }).from(s.banners)).map((r) => r.t));
+  const todo = READY_BANNERS.filter((b) => !have.has(b.titleAr));
+  if (!todo.length) return { ok: true, message: "البنرات الجاهزة موجودة في القائمة من قبل." };
+  const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${s.banners.sortOrder}), -1)` }).from(s.banners);
+  const dir = path.join(process.cwd(), "public", "banners", "ready");
+  const rows = await Promise.all(
+    todo.map(async (b, i) => {
+      const { key, ...texts } = b;
+      return { ...texts, layout: "side", mime: "image/webp", data: await readFile(path.join(dir, `${key}.webp`)), sortOrder: Number(max) + 1 + i, active: true };
+    }),
+  );
+  await db.insert(s.banners).values(rows);
+  invalidateCatalogCache();
+  revalidatePath("/admin/banners");
+  redirect(`/admin/banners?ready=${rows.length}`);
 }
 
 export async function deleteBanner(_prev: ActionState, formData: FormData): Promise<ActionState> {

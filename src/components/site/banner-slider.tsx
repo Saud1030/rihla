@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from "react";
 
-export type Slide = { id: number; src: string; title: string; text: string; link: string; external: boolean };
+export type Slide = {
+  id: number;
+  src: string;
+  title: string;
+  text: string;
+  link: string;
+  external: boolean;
+  /** artwork with an empty side: the words are written on it (mirrored for English) */
+  side?: boolean;
+  tone?: "dark" | "light";
+  cta?: string;
+};
 
 /**
  * Home banners: one at a time, moving on by themselves (slide or fade, every few seconds; set in
@@ -50,7 +61,9 @@ export function BannerSlider({
     >
       <div className="grid rounded-2xl overflow-hidden bg-stone border border-line">
         {slides.map((s, n) => {
-          const body = (
+          const body = s.side ? (
+            <SideBanner s={s} eager={n === 0} rtl={rtl} />
+          ) : (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element -- banners come from our own API route */}
               <img src={s.src} alt={s.title || ""} className="w-full h-auto block" loading={n === 0 ? "eager" : "lazy"} />
@@ -109,5 +122,42 @@ export function BannerSlider({
         </div>
       )}
     </section>
+  );
+}
+
+/** artwork drawn with its empty side on the right (Arabic): mirrored for English, so the words keep the empty side */
+function SideBanner({ s, eager, rtl }: { s: Slide; eager: boolean; rtl: boolean }) {
+  const light = s.tone === "light";
+  return (
+    <span className="relative block" data-testid="side-banner">
+      {/* eslint-disable-next-line @next/next/no-img-element -- banners come from our own API route */}
+      <img
+        src={s.src}
+        alt=""
+        loading={eager ? "eager" : "lazy"}
+        className={`block w-full h-72 sm:h-auto object-cover object-left ${rtl ? "" : "-scale-x-100"}`}
+      />
+      {/* on phones the words sit low, over a soft veil */}
+      <span
+        aria-hidden="true"
+        className={`absolute inset-0 sm:hidden bg-gradient-to-t ${light ? "from-[#fbf3e2] via-[#fbf3e2]/85" : "from-black/90 via-black/60"} to-transparent`}
+      />
+      <span className="absolute inset-0 flex items-end sm:items-center p-5 sm:p-0 sm:ps-[6%]">
+        <span className="block w-full sm:w-[44%] space-y-2 lg:space-y-3">
+          <span className={`block font-display font-bold leading-snug text-2xl md:text-3xl lg:text-[2.5rem] lg:leading-tight ${light ? "text-[#1c1917]" : "text-[#fbf6ea]"}`}>
+            {s.title}
+          </span>
+          {s.text && <span className={`block sm:max-md:hidden text-[15px] lg:text-lg leading-relaxed ${light ? "text-[#4a3f33]" : "text-[#d8cfbd]"}`}>{s.text}</span>}
+          {s.cta && (
+            <span
+              className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 lg:px-6 lg:py-3 mt-1 text-sm lg:text-base font-semibold ${light ? "bg-[#1c1917] text-[#fbf6ea]" : "bg-amber text-[#1c1917]"}`}
+            >
+              {s.cta}
+              <span aria-hidden="true">{rtl ? "←" : "→"}</span>
+            </span>
+          )}
+        </span>
+      </span>
+    </span>
   );
 }

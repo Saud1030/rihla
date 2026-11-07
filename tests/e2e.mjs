@@ -2839,6 +2839,29 @@ if (!ONLY || ONLY === "features") {
     sql("delete from banners");
     await touchCache();
   });
+  await check("ready banners: five added in one click (not twice); the words are written on the artwork in Arabic and English, links follow the language", async () => {
+    await a.goto(`${BASE}/admin/banners`, { waitUntil: "networkidle" });
+    await a.getByTestId("ready-banners").getByRole("button", { name: "أضف البنرات الجاهزة" }).click();
+    await a.waitForURL(/ready=5/, { waitUntil: "commit" });
+    eq(sql("select count(*) from banners where layout='side'"), "5", "five side banners");
+    await a.getByTestId("ready-banners").getByRole("button", { name: "أضف البنرات الجاهزة" }).click();
+    await a.getByText("موجودة في القائمة من قبل").waitFor();
+    eq(sql("select count(*) from banners"), "5", "not added twice");
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    const first = page.getByTestId("home-banners").getByTestId("side-banner").first();
+    const ar = await first.innerText();
+    assert(ar.includes("من المطار إلى الحرم") && ar.includes("احجز رحلتك"), "Arabic words: " + ar);
+    eq((await page.request.get(BASE + (await first.locator("img").getAttribute("src")))).status(), 200, "artwork served");
+    const links = await page.getByTestId("home-banners").locator("a").evaluateAll((as) => as.map((x) => x.getAttribute("href")));
+    assert(links.includes("/ar/packages") && links.includes("/ar/fleet"), "Arabic links: " + links);
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    const en = await page.getByTestId("home-banners").getByTestId("side-banner").first().innerText();
+    assert(en.includes("From the airport to the Haram") && en.includes("Book your ride"), "English words: " + en);
+    const enLinks = await page.getByTestId("home-banners").locator("a").evaluateAll((as) => as.map((x) => x.getAttribute("href")));
+    assert(enLinks.includes("/en/packages") && enLinks.includes("/en/drivers/join"), "English links: " + enLinks);
+    sql("delete from banners");
+    await touchCache();
+  });
   await check("background and display actions refuse requests without an admin session", async () => {
     const r = await fetch(`${BASE}/admin/banners`, { redirect: "manual" });
     assert([307, 308].includes(r.status), "login required");

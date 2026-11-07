@@ -540,6 +540,14 @@ export const banners = pgTable("banners", {
   textEn: text("text_en").notNull().default(""),
   /** where a tap goes: a page of this site ("/ar/routes") or a full https link; empty = not a link */
   link: text("link").notNull().default(""),
+  /** "photo": a picture, the title on a dark strip at the bottom; "side": artwork with an empty side where
+   *  the title, text and button are written by the site (mirrored for English so the text keeps the empty side) */
+  layout: text("layout").notNull().default("photo"),
+  /** "dark" artwork gets light text, "light" artwork dark text (side layout) */
+  tone: text("tone").notNull().default("dark"),
+  /** the button on a side banner (optional) */
+  ctaAr: text("cta_ar").notNull().default(""),
+  ctaEn: text("cta_en").notNull().default(""),
   mime: text("mime").notNull(),
   data: bytea("data").notNull(),
   active: boolean("active").notNull().default(true),

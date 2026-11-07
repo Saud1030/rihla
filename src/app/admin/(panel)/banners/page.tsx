@@ -4,7 +4,7 @@ import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { todayInRiyadh } from "@/lib/booking";
 import { formatDate } from "@/lib/format";
-import { deleteBanner, removeHero, saveBanner, saveHomeDisplay, toggleBanner, uploadHero } from "../../banner-actions";
+import { addReadyBanners, deleteBanner, removeHero, saveBanner, saveHomeDisplay, toggleBanner, uploadHero } from "../../banner-actions";
 import { getSettings } from "@/lib/catalog";
 import { getBrand, heroImages, HERO_SLOTS } from "@/lib/brand";
 import { getDictionary } from "@/i18n/dictionaries";
@@ -38,6 +38,10 @@ async function Banners({ searchParams }: { searchParams: Promise<Record<string, 
       textAr: s.banners.textAr,
       textEn: s.banners.textEn,
       link: s.banners.link,
+      layout: s.banners.layout,
+      tone: s.banners.tone,
+      ctaAr: s.banners.ctaAr,
+      ctaEn: s.banners.ctaEn,
       mime: s.banners.mime,
       active: s.banners.active,
       sortOrder: s.banners.sortOrder,
@@ -191,11 +195,27 @@ async function Banners({ searchParams }: { searchParams: Promise<Record<string, 
       <p className="text-muted max-w-[70ch]">
         تظهر البنرات تحت لوحة الحجز في الصفحة الرئيسية، وإذا كان هناك أكثر من بنر تتبدّل تلقائيًا. المقاس المقترح ١٦٠٠×٥٠٠ بكسل (PNG أو JPG أو WEBP، حتى ٢ ميجابايت).
       </p>
-      {(sp.added || sp.deleted) && (
+      {(sp.added || sp.deleted || sp.ready) && (
         <p role="status" className="rounded-lg bg-sign-soft border border-sign/20 px-4 py-3 text-sign">
-          {sp.added ? "تمت إضافة البنر، ويظهر في الصفحة الرئيسية." : "تم حذف البنر."}
+          {sp.ready ? "تمت إضافة البنرات الجاهزة، وتظهر الآن في الصفحة الرئيسية. تقدر تعدّل نصوصها أو تخفي أي واحد منها." : sp.added ? "تمت إضافة البنر، ويظهر في الصفحة الرئيسية." : "تم حذف البنر."}
         </p>
       )}
+      {/* ready-made banners: artwork with the words written on its empty side, Arabic and English */}
+      <Card className="p-6" data-testid="ready-banners">
+        <h2 className="font-semibold">بنرات جاهزة</h2>
+        <p className="text-sm text-muted mt-1 mb-4">
+          ٥ بنرات بتصميم الموقع: من المطار إلى الحرم، سيارة مع سائق بالساعة، باقات العمرة والزيارة، أسطول السيارات، وانضم كسائق. النص يُكتب فوق التصميم بالعربي أو الإنجليزي حسب لغة الزائر، ويبقى واضحًا على الجوال.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+          {["airport", "hourly", "packages", "fleet", "join"].map((k) => (
+            // eslint-disable-next-line @next/next/no-img-element -- static preview
+            <img key={k} src={`/banners/ready/${k}.webp`} alt="" className="w-full aspect-[16/5] object-cover rounded-md border border-line" />
+          ))}
+        </div>
+        <ActionForm action={addReadyBanners} submitLabel="أضف البنرات الجاهزة" pendingLabel="جارٍ الإضافة…" className="">
+          {null}
+        </ActionForm>
+      </Card>
       <Card className="p-6">
         <h2 className="font-semibold mb-4">إضافة بنر</h2>
         {/* remounts (empty) once the new banner is in the list */}
@@ -272,6 +292,24 @@ function BannerFields({ b }: { b?: Row }) {
         </Field>
         <Field label="نص قصير (إنجليزي، اختياري)">
           <input name="textEn" defaultValue={b?.textEn} maxLength={240} dir="ltr" className="field" />
+        </Field>
+        <Field label="شكل البنر" hint="«تصميم بجانب فاضي»: الموقع يكتب العنوان والنص والزر على الجانب الفاضي، ويقلب الصورة في الإنجليزي">
+          <select name="layout" defaultValue={b?.layout ?? "photo"} className="field">
+            <option value="photo">صورة، والعنوان في شريط أسفلها</option>
+            <option value="side">تصميم بجانب فاضي للنص</option>
+          </select>
+        </Field>
+        <Field label="لون التصميم (للنوع الثاني)" hint="يحدد لون النص فوقه">
+          <select name="tone" defaultValue={b?.tone ?? "dark"} className="field">
+            <option value="dark">داكن (نص فاتح)</option>
+            <option value="light">فاتح (نص داكن)</option>
+          </select>
+        </Field>
+        <Field label="نص الزر (عربي، اختياري)">
+          <input name="ctaAr" defaultValue={b?.ctaAr} maxLength={40} className="field" placeholder="احجز الآن" />
+        </Field>
+        <Field label="نص الزر (إنجليزي، اختياري)">
+          <input name="ctaEn" defaultValue={b?.ctaEn} maxLength={40} dir="ltr" className="field" placeholder="Book now" />
         </Field>
         <Field label="الرابط عند الضغط (اختياري)" hint="صفحة في موقعك مثل /ar/routes أو رابط يبدأ بـ https://" className="sm:col-span-2">
           <input name="link" defaultValue={b?.link} maxLength={300} dir="ltr" className="field text-start" placeholder="/ar/routes" />
