@@ -8,6 +8,9 @@ import { removeFont, removeLogo, saveAppearance, saveFooter, uploadFont, uploadL
 import { Field } from "@/components/admin/ui";
 import { ActionForm } from "@/components/admin/action-form";
 import { AppearanceForm } from "@/components/admin/appearance-form";
+import { FooterBuilder } from "@/components/admin/footer-builder";
+import { saveFooterBlocks } from "../../footer-actions";
+import { parseFooter } from "@/lib/footer";
 import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
 
 export const metadata: Metadata = { title: "المظهر" };
@@ -159,6 +162,15 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
             إظهار روابط الصفحات في التذييل (الرحلات، السيارات، حجزي، تواصل معنا، الشروط، انضم كسائق)
           </label>
         </ActionForm>
+      </Card>
+
+      {/* the full footer builder: columns, pictures, payment logos */}
+      <Card className="p-6" data-testid="footer-builder-card">
+        <h2 className="font-semibold mb-1">التذييل المخصص: أعمدة وصور وبوابات الدفع</h2>
+        <p className="text-sm text-muted mb-5">
+          رتّب أعمدة التذييل كما تريد: معلومات الشركة (العنوان الوطني، السجل التجاري، الرقم الضريبي بصورة الشهادة)، روابط، وسائل التواصل، فروعك حسب المدينة، شارات التراخيص والتوثيق، وشعارات طرق الدفع.
+        </p>
+        <FooterBuilder initial={parseFooter(st.footer_blocks, st)} action={saveFooterBlocks} />
       </Card>
     </div>
   );

@@ -41,6 +41,7 @@ import { assignDriver, completeTrip, setDriverFare } from "../../../driver-actio
 import { notHeld } from "@/lib/driver-hold";
 import { invoiceNo, receiptNo } from "@/lib/documents";
 import { NotificationList } from "@/components/admin/notification-list";
+import { DriverPicker } from "@/components/admin/driver-picker";
 import { DriverPhoto } from "@/components/admin/driver-photo";
 import { Stars } from "@/components/site/stars";
 import { whatsappConfigured } from "@/lib/notify";
@@ -99,7 +100,7 @@ async function Detail({
   // the e-invoicing platform's name: Wafeq or Alostaz
   const einvName = (settings.einv_provider ?? (b.einvoiceId && /^\d+$/.test(b.einvoiceId) ? "alostaz" : "wafeq")) === "alostaz" ? "الأستاذ" : "وافق";
   const einvTo = einvName === "الأستاذ" ? "للأستاذ" : "لوافق";
-  const [drivers, messages, [rating]] = await Promise.all([
+  const [drivers, messages, [rating], fleet] = await Promise.all([
     db
       .select({
         id: sc.drivers.id,
@@ -109,6 +110,7 @@ async function Detail({
         carType: sc.drivers.carType,
         carModel: sc.drivers.carModel,
         carColor: sc.drivers.carColor,
+        vehicleId: sc.drivers.vehicleId,
         // blocked or suspended drivers can't be chosen
         active: sql<boolean>`${sc.drivers.active} and ${sc.drivers.status} = 'approved' and ${notHeld}`,
         hasPhoto: sql<boolean>`${sc.drivers.photo} is not null`,
@@ -122,6 +124,7 @@ async function Detail({
       .where(eq(sc.notifications.bookingId, b.id))
       .orderBy(desc(sc.notifications.id)),
     db.select().from(sc.ratings).where(eq(sc.ratings.bookingId, b.id)).limit(1),
+    db.select({ id: sc.vehicles.id, name: sc.vehicles.nameAr }).from(sc.vehicles),
   ]);
   const driver = drivers.find((d) => d.id === b.driverId) ?? null;
   const canAssign = b.status === "paid" || b.status === "confirmed";
@@ -427,28 +430,16 @@ async function Detail({
                     pendingLabel="جارٍ الإرسال…"
                   >
                     <input type="hidden" name="bookingId" value={b.id} />
-                    <Field
-                      label={driver ? "سائق آخر" : "اختر السائق"}
-                      hint={`تصل للسائق بيانات العميل، وللعميل بيانات السائق على واتساب${whatsappConfigured(settings) ? " تلقائيًا" : ""}.`}
-                    >
-                      <select
-                        name="driverId"
-                        required
-                        defaultValue=""
-                        className="field"
-                      >
-                        <option value="" disabled>
-                          اختر
-                        </option>
-                        {drivers
-                          .filter((d) => d.active)
-                          .map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name} · {d.carType} · {d.plateNumber}
-                            </option>
-                          ))}
-                      </select>
-                    </Field>
+                    <div>
+                      <p className="text-sm font-medium mb-1">{driver ? "سائق آخر" : "اختر السائق"}</p>
+                      <DriverPicker
+                        drivers={drivers.filter((d) => d.active).map((d) => ({ id: d.id, name: d.name, phone: d.phone, plateNumber: d.plateNumber, carType: d.carType, carModel: d.carModel, vehicleId: d.vehicleId }))}
+                        vehicles={fleet}
+                        bookingVehicleId={b.vehicleId ?? null}
+                        bookingVehicleName={b.vehicleName}
+                      />
+                      <p className="text-xs text-muted mt-1">{`تصل للسائق بيانات العميل، وللعميل بيانات السائق على واتساب${whatsappConfigured(settings) ? " تلقائيًا" : ""}.`}</p>
+                    </div>
                     <Field label="أجرة السائق لهذه الرحلة (ر.س)" hint="اختياري. تظهر للسائق في صفحته وفي رسالة الرحلة">
                       <input name="fare" inputMode="decimal" defaultValue={b.driverFare != null ? b.driverFare / 100 : ""} dir="ltr" className="field text-start tabular" placeholder="150" />
                     </Field>

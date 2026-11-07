@@ -1568,6 +1568,68 @@ if (!ONLY || ONLY === "features") {
     assert(Math.abs(boxes[0].w - boxes[0].h) <= 2, "square: " + JSON.stringify(boxes[0]));
   });
 
+  await check("footer builder: columns with links, a badge with its picture, branches by city, payment logos, help strip that opens the chat — Arabic and English", async () => {
+    const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+    await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
+    const f = a.getByTestId("footer-builder");
+    await f.getByLabel(/استخدم التذييل المخصص/).check();
+    await f.getByRole("button", { name: "+ إضافة عمود" }).click();
+    const col = f.getByTestId("footer-column").last();
+    await col.locator("input").nth(0).fill("فروعنا");
+    await col.locator("input").nth(1).fill("Our branches");
+    const first = col.getByTestId("footer-item").first();
+    await first.getByLabel("نوع العنصر").selectOption("heading");
+    await first.locator("input").nth(0).fill("جدة");
+    await first.locator("input").nth(1).fill("Jeddah");
+    await col.getByRole("button", { name: "+ نقطة في قائمة" }).click();
+    const bullet = col.getByTestId("footer-item").nth(1);
+    await bullet.locator("input").nth(0).fill("حي الروضة");
+    await bullet.locator("input").nth(1).fill("Al Rawdah");
+    await col.getByRole("button", { name: "+ شارة بصورة" }).click();
+    const badge = col.getByTestId("footer-item").nth(2);
+    await badge.locator("input").nth(0).fill("منصة توثيق الأعمال");
+    await badge.locator("input").nth(1).fill("Business verification");
+    await badge.locator("input").nth(2).fill("0000123456");
+    await badge.locator("input").nth(3).fill("0000123456");
+    await badge.locator('input[type="file"]').setInputFiles({ name: "badge.png", mimeType: "image/png", buffer: PNG });
+    // a fake picture is refused
+    const pay = f.getByTestId("footer-pay-item").first();
+    await pay.locator('input[type="file"]').setInputFiles({ name: "x.png", mimeType: "image/png", buffer: Buffer.from("<script>alert(1)</script>") });
+    await f.getByRole("button", { name: "حفظ التذييل المخصص" }).click();
+    await f.getByText("ليس صورة PNG").waitFor();
+    await pay.locator('input[type="file"]').setInputFiles({ name: "mada.png", mimeType: "image/png", buffer: PNG });
+    await f.getByRole("button", { name: "حفظ التذييل المخصص" }).click();
+    await f.getByText("تم حفظ التذييل").waitFor();
+    eq(sql("select count(*) from assets where key like 'footer:%'"), "2", "two pictures stored");
+
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    const ft = page.getByTestId("custom-footer");
+    const text = await ft.innerText();
+    for (const w of ["فروعنا", "جدة", "حي الروضة", "منصة توثيق الأعمال", "0000123456", "روابط مفيدة", "Visa"]) assert(text.includes(w), `"${w}" in the footer: ${text}`);
+    const imgs = ft.locator('img[src^="/api/brand/footer/"]');
+    eq(await imgs.count(), 2, "badge picture and the mada logo");
+    eq((await page.request.get(BASE + (await imgs.first().getAttribute("src")))).status(), 200, "picture served");
+    // links to the site's pages carry the language
+    eq(await ft.getByRole("link", { name: "الشروط والأحكام" }).getAttribute("href"), "/ar/terms", "page link");
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    const en = await page.getByTestId("custom-footer").innerText();
+    assert(en.includes("Our branches") && en.includes("Jeddah") && en.includes("Al Rawdah") && en.includes("Business verification"), "English: " + en);
+    eq(await page.getByTestId("custom-footer").getByRole("link", { name: "Terms" }).getAttribute("href"), "/en/terms", "English page link");
+    // the help strip: opens the chat when it's on the page, otherwise goes to the contact page
+    await page.getByTestId("footer-help-button").click();
+    if (await page.evaluate(() => document.documentElement.dataset.chat === "1")) await page.locator("#chat-panel").waitFor();
+    else await page.waitForURL(/\/en\/contact/);
+
+    // back to the simple footer; removing the column drops its picture
+    await col.getByRole("button", { name: "حذف العمود" }).click();
+    await f.getByLabel(/استخدم التذييل المخصص/).uncheck();
+    await f.getByRole("button", { name: "حفظ التذييل المخصص" }).click();
+    for (let i = 0; i < 50 && sql("select count(*) from assets where key like 'footer:%'") !== "1"; i++) await a.waitForTimeout(100);
+    eq(sql("select count(*) from assets where key like 'footer:%'"), "1", "the removed badge's picture is deleted");
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("custom-footer").count(), 0, "simple footer again");
+  });
+
   await check("admin glass look: dark glass by default with charts on the home; the sun button switches to light (remembered); the menu shows icons, names on request", async () => {
     await a.goto(`${BASE}/admin`, { waitUntil: "networkidle" });
     await a.evaluate(() => { localStorage.removeItem("admin-theme"); localStorage.removeItem("admin-menu"); });
@@ -2921,6 +2983,29 @@ if (!ONLY || ONLY === "drivers") {
     await c.getByText("اكتب رقم واتساب صحيحًا").waitFor({ timeout: 8000 });
     eq(await c.locator('select[name="phoneCountry"]').inputValue(), "KW", "kept");
     sql(`delete from bookings where ref in ('${r1}','${r2}','${r3}')`);
+  });
+
+  await check("choosing the driver: filtered to the booking's car first, search by name, all cars on demand", async () => {
+    const r = paidBooking();
+    const vid = sql(`select vehicle_id from bookings where ref='${r}'`);
+    sql(`insert into drivers (name, phone, plate_number, car_type, vehicle_id, status) values ('سائق بنفس السيارة', '+966550000777', 'م م م 7777', 'نفس السيارة', ${vid}, 'approved')`);
+    try {
+      await a.goto(`${BASE}/admin/bookings/${r}`, { waitUntil: "networkidle" });
+      const card = a.getByTestId("driver-card");
+      const opts = () => card.locator('select[name="driverId"] option:not([value=""])').allTextContents();
+      eq(await card.getByTestId("driver-car-filter").inputValue(), vid, "the booking's car is picked");
+      let list = await opts();
+      assert(list.some((o) => o.includes("سائق بنفس السيارة")) && !list.some((o) => o.includes("فهد الحربي")), "only the same car: " + list);
+      await card.getByTestId("driver-car-filter").selectOption("all");
+      list = await opts();
+      assert(list.some((o) => o.includes("فهد الحربي")) && list[0].includes("سائق بنفس السيارة"), "all cars, same car first: " + list);
+      await card.getByTestId("driver-search").fill("فهد");
+      list = await opts();
+      eq(list.length, 1, "search by name");
+      assert(list[0].includes("فهد الحربي"), list[0]);
+    } finally {
+      sql(`delete from drivers where phone='+966550000777'; delete from bookings where ref='${r}'`);
+    }
   });
 
   await check("assign a driver: driver gets the customer's details, customer gets the driver's — both on WhatsApp automatically", async () => {

@@ -69,6 +69,16 @@ export function ChatWidget({ lang, config: C, labels: L }: { lang: "ar" | "en"; 
   useEffect(() => {
     openRef.current = open;
   }, [open]);
+  // other buttons on the page (the footer's help strip) open the chat with this event
+  useEffect(() => {
+    const show = () => setOpen(true);
+    document.documentElement.dataset.chat = "1";
+    window.addEventListener("rihla:open-chat", show);
+    return () => {
+      window.removeEventListener("rihla:open-chat", show);
+      delete document.documentElement.dataset.chat;
+    };
+  }, []);
 
   const merge = useCallback((incoming: Msg[], st: Status) => {
     if (st !== undefined) setStatus(st);
