@@ -6,6 +6,8 @@ import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries
 import { getHomeBanners, getSettings, getVehicles } from "@/lib/catalog";
 import { BannerSlider } from "@/components/site/banner-slider";
 import { localLink } from "@/lib/ready-banners";
+import { pickVideos, promoVideoVersions } from "@/lib/promo-video";
+import { PromoVideoPlayer } from "@/components/site/promo-video-player";
 import { getBrand, getHeroBackground, getHeroPreset } from "@/lib/brand";
 import { TripSearch } from "@/components/site/trip-search";
 import { HeroSlides } from "@/components/site/hero-slides";
@@ -50,9 +52,18 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Promo video (Admin -> Appearance), when it's switched on and placed right under the hero */}
+      <Suspense fallback={null}>
+        <PromoVideo lang={lang} place="top" />
+      </Suspense>
+
       {/* Banners added from the admin panel (nothing shows until there is one) */}
       <Suspense fallback={null}>
         <HomeBanners lang={lang} t={t} />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <PromoVideo lang={lang} place="after-banners" />
       </Suspense>
 
       {/* Fleet by group size */}
@@ -185,6 +196,22 @@ async function ContactBand({ t }: { t: Dictionary }) {
         )}
       </div>
     </div>
+  );
+}
+
+async function PromoVideo({ lang, place }: { lang: Locale; place: "top" | "after-banners" }) {
+  const [st, have] = await Promise.all([getSettings(), promoVideoVersions()]);
+  if (st.promo_video_on !== "1") return null;
+  if ((st.promo_video_place === "top" ? "top" : "after-banners") !== place) return null;
+  const { vertical, horizontal } = pickVideos(have, lang);
+  if (!vertical || !horizontal) return null;
+  const title = (lang === "ar" ? st.promo_video_title_ar || st.promo_video_title_en : st.promo_video_title_en || st.promo_video_title_ar)?.trim();
+  const controls = st.promo_video_sound === "1";
+  return (
+    <section className="mx-auto max-w-6xl px-4 pt-10" data-reveal data-testid="promo-video">
+      {title && <h2 className="text-2xl md:text-3xl font-semibold mb-5">{title}</h2>}
+      <PromoVideoPlayer vertical={vertical} horizontal={horizontal} controls={controls} label={title || (lang === "ar" ? "فيديو تعريفي" : "Promo video")} />
+    </section>
   );
 }
 

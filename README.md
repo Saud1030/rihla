@@ -287,7 +287,7 @@ docker compose exec app npm run db:seed
 ```nginx
 server {
   server_name example.com www.example.com;
-  client_max_body_size 8m;            # رفع الإيصالات والصور
+  client_max_body_size 50m;           # رفع الإيصالات والصور والفيديو الإعلاني
   location / {
     proxy_pass http://127.0.0.1:3000;
     proxy_set_header Host $host;

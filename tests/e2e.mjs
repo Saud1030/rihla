@@ -2843,6 +2843,65 @@ if (!ONLY || ONLY === "features") {
     sql("delete from banners");
     await touchCache();
   });
+  await check("promo video: uploaded per language and shape, shown or hidden from Appearance, phones get the vertical file, served in pieces, fakes refused", async () => {
+    const fx = new URL("./fixtures/", import.meta.url).pathname;
+    await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
+    const card = a.getByTestId("promo-video-card");
+    // a fake "video" is refused
+    await card.getByTestId("video-slot-ar-v").locator('input[type="file"]').setInputFiles({ name: "x.mp4", mimeType: "video/mp4", buffer: Buffer.from("<html>not a video</html>") });
+    await card.getByTestId("video-slot-ar-v").getByText("ليس فيديو").waitFor();
+    await card.getByTestId("video-slot-ar-v").locator('input[type="file"]').setInputFiles(fx + "tiny-v.mp4");
+    await card.getByTestId("video-slot-ar-v").getByText("تم رفع الفيديو").waitFor();
+    await card.getByTestId("video-slot-ar-h").locator('input[type="file"]').setInputFiles(fx + "tiny-h.mp4");
+    await card.getByTestId("video-slot-ar-h").getByText("تم رفع الفيديو").waitFor();
+    eq(sql("select count(*) from assets where key like 'video:%'"), "2", "two files stored");
+    // hidden until switched on
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("promo-video").count(), 0, "hidden while off");
+    await card.getByLabel("إظهار الفيديو في الصفحة الرئيسية").check();
+    await card.locator('input[name="titleAr"]').fill("شاهد كيف تحجز");
+    await card.getByRole("button", { name: "حفظ إعدادات الفيديو" }).click();
+    await card.getByText("الفيديو ظاهر").waitFor();
+    await touchCache();
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    try {
+      await phone.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+      const box = phone.getByTestId("promo-video");
+      await box.getByText("شاهد كيف تحجز").waitFor();
+      const src = await box.locator("video").evaluate((v) => new Promise((r) => (v.currentSrc ? r(v.currentSrc) : v.addEventListener("loadedmetadata", () => r(v.currentSrc), { once: true }))));
+      assert(String(src).includes("/api/brand/video/ar-v"), "phone gets the vertical file: " + src);
+      // English has no files of its own: it borrows the Arabic ones
+      await phone.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+      eq(await phone.getByTestId("promo-video").count(), 1, "English shows the Arabic files");
+    } finally {
+      await phone.close();
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    const wide = await page.getByTestId("promo-video").locator("video").evaluate((v) => new Promise((r) => (v.currentSrc ? r(v.currentSrc) : v.addEventListener("loadedmetadata", () => r(v.currentSrc), { once: true }))));
+    assert(String(wide).includes("/api/brand/video/ar-h"), "a computer gets the horizontal file: " + wide);
+    // served in pieces (needed by iPhone)
+    const part = await page.request.get(`${BASE}/api/brand/video/ar-v`, { headers: { Range: "bytes=0-9" } });
+    eq(part.status(), 206, "partial content");
+    eq((await part.body()).length, 10, "ten bytes");
+    // uploads need an admin session and the site's own origin
+    const anon = await page.request.post(`${BASE}/api/admin/promo-video?slot=ar-v`, { data: Buffer.from("x"), headers: { Origin: BASE } });
+    eq(anon.status(), 401, "no session");
+    const cross = await a.request.post(`${BASE}/api/admin/promo-video?slot=ar-v`, { data: Buffer.from("x"), headers: { Origin: "https://evil.example" } });
+    eq(cross.status(), 403, "other origin");
+    // hide again, and remove a file
+    await card.getByLabel("إظهار الفيديو في الصفحة الرئيسية").uncheck();
+    await card.getByRole("button", { name: "حفظ إعدادات الفيديو" }).click();
+    await card.getByText("الفيديو مخفي").waitFor();
+    await card.getByTestId("video-slot-ar-h").getByRole("button", { name: "حذف" }).click();
+    await card.getByTestId("video-slot-ar-h").getByText("تم حذف الفيديو").waitFor();
+    eq(sql("select count(*) from assets where key like 'video:%'"), "1", "one file left");
+    await touchCache();
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("promo-video").count(), 0, "hidden again");
+    sql("delete from assets where key like 'video:%'");
+  });
+
   await check("ready banners: five added in one click (not twice); the words are written on the artwork in Arabic and English, links follow the language", async () => {
     await a.goto(`${BASE}/admin/banners`, { waitUntil: "networkidle" });
     await a.getByTestId("ready-banners").getByRole("button", { name: "أضف البنرات الجاهزة" }).click();

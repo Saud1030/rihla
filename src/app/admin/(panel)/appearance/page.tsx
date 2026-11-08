@@ -11,6 +11,9 @@ import { AppearanceForm } from "@/components/admin/appearance-form";
 import { FooterBuilder } from "@/components/admin/footer-builder";
 import { saveFooterBlocks } from "../../footer-actions";
 import { parseFooter } from "@/lib/footer";
+import { savePromoVideo } from "../../promo-video-actions";
+import { PromoVideoSlots } from "@/components/admin/promo-video-slots";
+import { MAX_VIDEO_MB, promoVideoVersions, VIDEO_SLOTS, videoUrl } from "@/lib/promo-video";
 import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
 
 export const metadata: Metadata = { title: "المظهر" };
@@ -164,6 +167,41 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
         </ActionForm>
       </Card>
 
+      {/* the promo video on the home page */}
+      <Card className="p-6" data-testid="promo-video-card">
+        <h2 className="font-semibold mb-1">الفيديو الإعلاني في الصفحة الرئيسية</h2>
+        <p className="text-sm text-muted mb-5">
+          ارفع الفيديو الطولي (يظهر على الجوال) والعرضي (يظهر على الكمبيوتر) بالعربي والإنجليزي. يكفي ملف واحد: إذا نقص ملف يُستخدم الموجود. الحد {MAX_VIDEO_MB} ميجابايت لكل ملف، بصيغة MP4.
+        </p>
+        <ActionForm action={savePromoVideo} submitLabel="حفظ إعدادات الفيديو" pendingLabel="جارٍ الحفظ…" className="space-y-4 mb-6">
+          <label className="flex items-center gap-2 font-medium">
+            <input type="checkbox" name="on" defaultChecked={st.promo_video_on === "1"} className="size-4 accent-sign" />
+            إظهار الفيديو في الصفحة الرئيسية
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="عنوان فوق الفيديو (عربي، اختياري)">
+              <input name="titleAr" defaultValue={st.promo_video_title_ar} maxLength={120} className="field" placeholder="شاهد كيف تحجز في دقيقة" />
+            </Field>
+            <Field label="عنوان فوق الفيديو (إنجليزي، اختياري)">
+              <input name="titleEn" defaultValue={st.promo_video_title_en} maxLength={120} dir="ltr" className="field" placeholder="See how to book in a minute" />
+            </Field>
+            <Field label="مكانه في الصفحة">
+              <select name="place" defaultValue={st.promo_video_place === "top" ? "top" : "after-banners"} className="field">
+                <option value="top">تحت الواجهة مباشرة</option>
+                <option value="after-banners">بعد البنرات</option>
+              </select>
+            </Field>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="controls" defaultChecked={st.promo_video_sound === "1"} className="size-4 accent-sign" />
+            إظهار أزرار التشغيل والصوت (بدونها يشتغل الفيديو تلقائيًا بدون صوت ويتكرر)
+          </label>
+        </ActionForm>
+        <Suspense fallback={<Skeleton h="h-60" />}>
+          <PromoVideoUploads />
+        </Suspense>
+      </Card>
+
       {/* the full footer builder: columns, pictures, payment logos */}
       <Card className="p-6" data-testid="footer-builder-card">
         <h2 className="font-semibold mb-1">التذييل المخصص: أعمدة وصور وبوابات الدفع</h2>
@@ -174,4 +212,9 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
       </Card>
     </div>
   );
+}
+
+async function PromoVideoUploads() {
+  const have = await promoVideoVersions();
+  return <PromoVideoSlots maxMb={MAX_VIDEO_MB} slots={VIDEO_SLOTS.map((slot) => ({ slot, url: have[slot] ? videoUrl(slot, have[slot]!) : null }))} />;
 }
