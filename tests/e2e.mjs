@@ -2885,8 +2885,13 @@ if (!ONLY || ONLY === "features") {
     eq(part.status(), 206, "partial content");
     eq((await part.body()).length, 10, "ten bytes");
     // uploads need an admin session and the site's own origin
-    const anon = await page.request.post(`${BASE}/api/admin/promo-video?slot=ar-v`, { data: Buffer.from("x"), headers: { Origin: BASE } });
-    eq(anon.status(), 401, "no session");
+    const anonCtx = await browser.newContext();
+    try {
+      const anon = await anonCtx.request.post(`${BASE}/api/admin/promo-video?slot=ar-v`, { data: Buffer.from("x"), headers: { Origin: BASE } });
+      eq(anon.status(), 401, "no session");
+    } finally {
+      await anonCtx.close();
+    }
     const cross = await a.request.post(`${BASE}/api/admin/promo-video?slot=ar-v`, { data: Buffer.from("x"), headers: { Origin: "https://evil.example" } });
     eq(cross.status(), 403, "other origin");
     // hide again, and remove a file
