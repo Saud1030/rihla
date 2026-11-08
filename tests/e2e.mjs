@@ -2894,7 +2894,8 @@ if (!ONLY || ONLY === "features") {
     }
     const cross = await a.request.post(`${BASE}/api/admin/promo-video?slot=ar-v`, { data: Buffer.from("x"), headers: { Origin: "https://evil.example" } });
     eq(cross.status(), 403, "other origin");
-    // hide again, and remove a file
+    // hide again, and remove a file (touchCache left the admin tab on Settings)
+    await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
     await card.getByLabel("إظهار الفيديو في الصفحة الرئيسية").uncheck();
     await card.getByRole("button", { name: "حفظ إعدادات الفيديو" }).click();
     await card.getByText("الفيديو مخفي").waitFor();
