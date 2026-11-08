@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 
   let c = await current();
   if (!c) {
-    if (!allow(`chat-new:${ip}`, 15, 60 * 60_000)) return json({ error: "throttled" }, 429);
+    if (!allow(`chat-new:${ip}`, 60, 60 * 60_000)) return json({ error: "throttled" }, 429);
     const created = await createConversation(lang);
     c = created.conversation;
     (await cookies()).set(CHAT_COOKIE, created.token, {
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       maxAge: CHAT_COOKIE_MAX_AGE,
     });
   }
-  if (!allow(`chat-post:${c.id}`, 30, 5 * 60_000) || !allow(`chat-post-ip:${ip}`, 120, 10 * 60_000)) return json({ error: "throttled" }, 429);
+  if (!allow(`chat-post:${c.id}`, 30, 5 * 60_000) || !allow(`chat-post-ip:${ip}`, 300, 10 * 60_000)) return json({ error: "throttled" }, 429);
 
   const withStaff = c.status === "waiting" || c.status === "open";
   switch (body.type) {

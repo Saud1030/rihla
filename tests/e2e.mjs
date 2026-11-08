@@ -2508,8 +2508,12 @@ if (!ONLY || ONLY === "features") {
     await chat.getByText("أنا المساعد الآلي").waitFor();
     await chat.getByRole("button", { name: "ما سياسة الإلغاء والاسترداد؟" }).click();
     await chat.getByText("بـ٢٤ ساعة أو أكثر، و٥٠٪").waitFor(); // filled from the cancellation settings
+    // wait for each reply before the next question (the box ignores Enter while a message is on its way)
+    const bots = () => chp.evaluate(() => document.querySelectorAll('#chat-panel [data-from="bot"]').length);
+    const before = await bots();
     await ask("ابغى استرداد فلوسي لو الغيت");
-    await chp.waitForFunction(() => document.querySelectorAll('#chat-panel [data-from="bot"]').length >= 2);
+    await chp.waitForFunction((n) => document.querySelectorAll('#chat-panel [data-from="bot"]').length > n, before);
+    await chat.locator("textarea:not([disabled])").waitFor();
     await ask("كم سعر السياره للشخص الواحد");
     await chat.getByText("السعر للسيارة كاملة").waitFor();
     await ask("zzzz qqqq");
