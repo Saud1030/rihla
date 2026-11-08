@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { MAX_LEAD_HOURS, parseLeadHours } from "@/lib/lead-time";
 import { requireSection } from "@/lib/auth";
@@ -196,9 +197,9 @@ async function Content() {
           <h2 className="font-semibold mb-1">بوابات الدفع والفوترة الإلكترونية</h2>
           <p className="text-sm text-muted">
             تشغيل وإيقاف بوابة الدفع الإلكتروني ومنصة الفوترة، ومفاتيح كل وحدة، صارت في صفحة{" "}
-            <a href="/admin/integrations" className="text-sign underline">
+            <Link href="/admin/integrations" className="text-sign underline">
               بوابات الدفع والفوترة
-            </a>
+            </Link>
             .
           </p>
         </Card>

@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: rihla
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: rihla
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -26,9 +26,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DATABASE_URL: postgres://rihla:${POSTGRES_PASSWORD:-change-me}@db:5432/rihla
+      DATABASE_URL: postgres://rihla:${POSTGRES_PASSWORD}@db:5432/rihla
+    # only reachable from this server: Nginx/Caddy in front gives HTTPS and the visitor's real IP
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       db:
         condition: service_healthy

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
@@ -55,9 +56,9 @@ async function Content() {
             <li>الصق القيم تحت واحفظ، ثم «إرسال رسالة تجريبية» لجوالك.</li>
             <li>
               للعملاء اللي ما راسلوك قبل: اعتمد قوالب الرسائل في Meta واكتب أسماءها في{" "}
-              <a href="/admin/messages" className="text-sign underline">
+              <Link href="/admin/messages" className="text-sign underline">
                 رسائل واتساب والبريد
-              </a>
+              </Link>
               .
             </li>
           </ol>

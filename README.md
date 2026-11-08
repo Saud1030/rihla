@@ -254,6 +254,60 @@ docker compose exec app npm run db:seed
 
 ضع أمامه Nginx أو Caddy لشهادة HTTPS (الـ Webhook من ماي فاتورة يتطلب HTTPS).
 
+### الخيار ٣: بلو هوست (Bluehost)
+
+**الاستضافة المشتركة (Shared) ما تنفع**: الموقع سيرفر Node.js يشتغل طول الوقت، والاستضافة المشتركة مخصصة لمواقع PHP مثل ووردبريس. تحتاج **VPS** من بلو هوست (Self-Managed VPS) بنظام Ubuntu، و٢ جيجا رام على الأقل.
+
+١. **جهّز السيرفر** (بعد الدخول بـ SSH):
+
+```bash
+sudo apt update && sudo apt install -y docker.io docker-compose-v2 nginx certbot python3-certbot-nginx git
+git clone https://github.com/Saud1030/rihla.git && cd rihla
+cp .env.example .env && nano .env
+```
+
+٢. **في ملف `.env`** عبّئ على الأقل:
+   - `NEXT_PUBLIC_SITE_URL=https://دومينك`
+   - `AUTH_SECRET`: نص عشوائي طويل (`openssl rand -hex 32`)
+   - `POSTGRES_PASSWORD`: كلمة مرور قوية لقاعدة البيانات
+   - `ADMIN_EMAIL` و`ADMIN_PASSWORD` لحساب المدير الأول
+   - مفاتيح ماي فاتورة **الحقيقية** (`MYFATOORAH_API_BASE=https://api-sa.myfatoorah.com`)
+   - بيانات البريد SMTP إن أردت
+
+٣. **شغّل الموقع**:
+
+```bash
+docker compose up -d --build
+docker compose exec app npm run db:migrate
+docker compose exec app npm run db:seed
+```
+
+٤. **Nginx وشهادة HTTPS**: وجّه الدومين (سجل A) لعنوان الـ VPS، ثم أنشئ `/etc/nginx/sites-available/rihla`:
+
+```nginx
+server {
+  server_name example.com www.example.com;
+  client_max_body_size 8m;            # رفع الإيصالات والصور
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $remote_addr;   # عنوان الزائر الحقيقي (حماية تسجيل الدخول)
+  }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/rihla /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d example.com -d www.example.com
+```
+
+٥. **التحديث لاحقًا**: `git pull && docker compose up -d --build && docker compose exec app npm run db:migrate`
+
+٦. **النسخ الاحتياطي** لقاعدة البيانات (يوميًا عبر cron):
+`docker compose exec -T db pg_dump -U rihla rihla | gzip > backup-$(date +%F).sql.gz`
+
 ---
 
 ## هيكل المشروع

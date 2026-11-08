@@ -263,7 +263,7 @@ export async function testWati(st: Record<string, string>) {
   }
 }
 
-let transport: nodemailer.Transporter | null = null;
+let transport: ReturnType<typeof nodemailer.createTransport> | null = null;
 async function sendEmail(row: Notification) {
   try {
     transport ??=

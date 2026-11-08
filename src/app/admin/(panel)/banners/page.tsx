@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { asc, eq } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { todayInRiyadh } from "@/lib/booking";
