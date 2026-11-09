@@ -207,6 +207,8 @@ const GD_RESULTS: Record<string, [ok: boolean, text: string]> = {
   state: [false, "انتهت صلاحية محاولة الربط. اضغط «ربط حساب قوقل درايف» مرة ثانية."],
   failed: [false, "تعذّر الربط. تأكد من Client ID وClient Secret ومن «رابط الرجوع» في Google Cloud، ثم حاول مرة ثانية."],
   noapp: [false, "احفظ Client ID وClient Secret أولًا."],
+  disconnected: [true, "تم فصل قوقل درايف. الملفات اللي ارتفعت باقية في حسابك."],
+  forgot: [true, "تم حذف بيانات تطبيق قوقل."],
 };
 
 /** Google Drive: booking and revenue reports uploaded as Excel files, on a schedule or on demand */

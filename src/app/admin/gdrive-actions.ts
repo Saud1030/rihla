@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { getSettings, invalidateCatalogCache } from "@/lib/catalog";
@@ -56,12 +57,13 @@ export async function gdriveDisconnect(_prev: ActionState, _formData: FormData):
   await requireSection("settings");
   await disconnect();
   revalidatePath("/admin/integrations");
-  return { ok: true, message: "تم فصل قوقل درايف. الملفات اللي ارتفعت باقية في حسابك." };
+  // the button goes away with the connection, so the message is shown at the top of the section
+  redirect("/admin/integrations?gdrive=disconnected#gdrive");
 }
 
 export async function gdriveForgetApp(_prev: ActionState, _formData: FormData): Promise<ActionState> {
   await requireSection("settings");
   await disconnect();
   await put({ gd_client_id: "", gd_client_secret: "", gd_schedule: "off" });
-  return { ok: true, message: "تم حذف بيانات تطبيق قوقل." };
+  redirect("/admin/integrations?gdrive=forgot#gdrive");
 }
