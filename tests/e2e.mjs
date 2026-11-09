@@ -2843,6 +2843,63 @@ if (!ONLY || ONLY === "features") {
     sql("delete from banners");
     await touchCache();
   });
+  await check("Google Drive: app keys checked, connect through Google, report uploaded on demand and by the schedule, bad state refused, disconnect revokes", async () => {
+    const MOCK = "http://localhost:4010";
+    const box = () => a.getByTestId("gdrive-settings");
+    await a.goto(`${BASE}/admin/integrations`, { waitUntil: "networkidle" });
+    eq(await box().getByTestId("gdrive-redirect").innerText(), `${BASE}/api/admin/gdrive/callback`, "redirect address to copy");
+    await box().locator('input[name="clientId"]').fill("not-a-client-id");
+    await box().locator('input[name="clientSecret"]').fill("test-secret");
+    await box().getByRole("button", { name: "حفظ", exact: true }).click();
+    await box().getByText("apps.googleusercontent.com").first().waitFor();
+    await box().locator('input[name="clientId"]').fill("123-abc.apps.googleusercontent.com");
+    await box().locator('input[name="clientSecret"]').fill("test-secret");
+    await box().getByRole("button", { name: "حفظ", exact: true }).click();
+    await box().getByText("اضغط «ربط حساب قوقل درايف»").waitFor();
+    await a.reload({ waitUntil: "networkidle" });
+    // through "Google" and back
+    await box().getByTestId("gdrive-connect").click();
+    await a.waitForURL(/gdrive=connected/);
+    await box().getByText("تم ربط قوقل درايف").waitFor();
+    await box().getByText("owner@example.com").waitFor();
+    const g1 = await (await fetch(`${MOCK}/__gdrive`)).json();
+    eq(g1.folders.length, 1, "reports folder made");
+    assert(g1.folders[0].name.includes("تقارير"), g1.folders[0].name);
+    // a callback that didn't start here is refused
+    await a.goto(`${BASE}/api/admin/gdrive/callback?code=x&state=forged`);
+    await a.waitForURL(/gdrive=state/);
+    // upload now
+    await a.goto(`${BASE}/admin/integrations`, { waitUntil: "networkidle" });
+    await box().locator('input[name="from"]').fill("2020-01-01");
+    await box().locator('input[name="to"]').fill(inDaysUTC(30));
+    await box().getByRole("button", { name: "ارفع التقرير الآن" }).click();
+    await box().getByText("إلى قوقل درايف").waitFor({ timeout: 30000 });
+    let g = await (await fetch(`${MOCK}/__gdrive`)).json();
+    eq(g.files.length, 1, "one file uploaded");
+    assert(g.files[0].xlsx && g.files[0].parents[0] === "fld1" && g.files[0].name.endsWith(".xlsx"), JSON.stringify(g.files[0]));
+    // the schedule: daily, uploaded by the background job once (after 6 am Riyadh)
+    await box().locator('select[name="schedule"]').selectOption("daily");
+    await box().getByRole("button", { name: "حفظ الموعد" }).click();
+    await box().getByText("يرتفع تلقائيًا").waitFor();
+    const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", hour: "2-digit", hour12: false }).format(new Date()));
+    await touchCache();
+    for (let i = 0; i < 2; i++) eq((await a.request.post(`${BASE}/api/admin/sweep`, { headers: { Origin: BASE } })).status(), 200, "sweep");
+    g = await (await fetch(`${MOCK}/__gdrive`)).json();
+    if (hour >= 6) {
+      eq(g.files.length, 2, "the scheduled report, once");
+      assert(/^تقرير \d{4}-\d{2}-\d{2}\.xlsx$/.test(g.files[1].name), g.files[1].name);
+    }
+    // disconnect: the token is revoked at Google
+    await a.goto(`${BASE}/admin/integrations`, { waitUntil: "networkidle" });
+    await box().getByRole("button", { name: "فصل قوقل درايف" }).click();
+    await box().getByText("تم فصل قوقل درايف").waitFor();
+    g = await (await fetch(`${MOCK}/__gdrive`)).json();
+    eq(g.revoked.length, 1, "token revoked");
+    eq(sql("select coalesce((select value from settings where key='gd_refresh_token'),'')"), "", "token forgotten");
+    sql("delete from settings where key like 'gd_%'");
+    await touchCache();
+  });
+
   await check("promo video: uploaded per language and shape, shown or hidden from Appearance, phones get the vertical file, served in pieces, fakes refused", async () => {
     const fx = new URL("./fixtures/", import.meta.url).pathname;
     await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });

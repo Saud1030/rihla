@@ -1,3 +1,4 @@
+import { gdriveDue } from "./gdrive";
 import "server-only";
 import { afterTripPayments } from "./packages";
 import { and, eq, sql } from "drizzle-orm";
@@ -33,6 +34,8 @@ export async function sweep() {
     }
   }
   await retryDue();
+  // the scheduled Google Drive report (its own errors are kept for the admin page)
+  await gdriveDue().catch(() => {});
 }
 
 /**

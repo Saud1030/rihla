@@ -8,22 +8,29 @@ import { watiConfig, whatsappConfigured } from "@/lib/notify";
 import { saveEinvoiceSettings, testEinvoice } from "../../actions";
 import { chooseGateway, saveIntegrationKeys, sendWhatsAppTest } from "../../integration-actions";
 import { ActionForm } from "@/components/admin/action-form";
+import { CopyText } from "@/components/admin/copy-text";
+import { gdriveApp, gdriveConnected, redirectUri, SCHEDULES } from "@/lib/gdrive";
+import { gdriveDisconnect, gdriveForgetApp, gdriveUploadNow, saveGdriveApp, saveGdriveSchedule } from "../../gdrive-actions";
+import { publicBaseUrl } from "@/lib/public-url";
+import { todayInRiyadh } from "@/lib/booking";
+import { formatDateTime } from "@/lib/format";
 import { Card, Field, PageHeader, Skeleton } from "@/components/admin/ui";
 
-export default function IntegrationsPage() {
+export default function IntegrationsPage({ searchParams }: PageProps<"/admin/integrations">) {
   return (
     <>
       <PageHeader title="بوابات الدفع والفوترة والواتساب" />
       <Suspense fallback={<Skeleton h="h-[600px]" />}>
-        <Content />
+        <Content searchParams={searchParams} />
       </Suspense>
     </>
   );
 }
 
-async function Content() {
+async function Content({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireSection("settings");
   const values = await getSettings();
+  const sp = await searchParams;
   const active = GATEWAYS.find((g) => g.id === values.pay_gateway) ?? null;
   const hasKeys = (g: Integration) =>
     g.fields.some((f) => (values[f.key] ?? "").trim()) || (g.id === "myfatoorah" && !!process.env.MYFATOORAH_API_KEY) || (g.id === "whatsapp" && !!process.env.WHATSAPP_TOKEN);
@@ -32,6 +39,8 @@ async function Content() {
 
   return (
     <div className="space-y-8 max-w-5xl">
+      <GoogleDrive values={values} result={typeof sp.gdrive === "string" ? sp.gdrive : undefined} />
+
       {/* the company's WhatsApp number, through Meta's Cloud API */}
       <section className="space-y-4" aria-labelledby="wa-title" data-testid="whatsapp-settings">
         <h2 id="wa-title" className="text-xl font-semibold">
@@ -189,6 +198,162 @@ async function Content() {
         </div>
       </section>
     </div>
+  );
+}
+
+const GD_RESULTS: Record<string, [ok: boolean, text: string]> = {
+  connected: [true, "تم ربط قوقل درايف. أنشأنا مجلد التقارير في حسابك."],
+  denied: [false, "ما تم الربط: رفضت السماح في صفحة قوقل."],
+  state: [false, "انتهت صلاحية محاولة الربط. اضغط «ربط حساب قوقل درايف» مرة ثانية."],
+  failed: [false, "تعذّر الربط. تأكد من Client ID وClient Secret ومن «رابط الرجوع» في Google Cloud، ثم حاول مرة ثانية."],
+  noapp: [false, "احفظ Client ID وClient Secret أولًا."],
+};
+
+/** Google Drive: booking and revenue reports uploaded as Excel files, on a schedule or on demand */
+async function GoogleDrive({ values, result }: { values: Record<string, string>; result?: string }) {
+  const base = await publicBaseUrl();
+  const app = gdriveApp(values);
+  const connected = gdriveConnected(values);
+  const today = todayInRiyadh();
+  const monthStart = `${today.slice(0, 8)}01`;
+  const notice = result ? GD_RESULTS[result] : undefined;
+  return (
+    <section id="gdrive" className="space-y-4 scroll-mt-24" aria-labelledby="gd-title" data-testid="gdrive-settings">
+      <h2 id="gd-title" className="text-xl font-semibold">
+        قوقل درايف: تقارير الحجوزات والإيرادات
+      </h2>
+      {notice && (
+        <p role="status" className={`rounded-lg px-4 py-3 border ${notice[0] ? "bg-sign-soft border-sign/20 text-sign" : "bg-danger/5 border-danger/30 text-danger"}`}>
+          {notice[1]}
+        </p>
+      )}
+      <Card className={`p-5 space-y-4 ${connected ? "" : "border-amber/50"}`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${connected ? "bg-sign-soft text-sign" : "bg-stone text-muted"}`}>{connected ? "مربوط" : "غير مربوط"}</span>
+          {connected && values.gd_email && (
+            <span className="text-sm" dir="ltr">
+              {values.gd_email}
+            </span>
+          )}
+          {connected && values.gd_folder_id && (
+            <a href={`https://drive.google.com/drive/folders/${encodeURIComponent(values.gd_folder_id)}`} target="_blank" rel="noopener noreferrer" className="ms-auto text-sm text-sign hover:underline">
+              فتح مجلد التقارير
+            </a>
+          )}
+        </div>
+        <p className="text-sm text-muted">
+          يرتفع ملف Excel فيه ورقة «الحجوزات» بكل التفاصيل وورقة «الإيرادات» (قبل وبعد الضريبة، أجور السائقين، الصافي، ويوم بيوم). الموقع يشوف فقط الملفات اللي ينشئها هو، ولا يقدر يقرأ باقي ملفاتك.
+        </p>
+
+        {!connected && (
+          <details className="rounded-lg border border-line p-4" open={!app}>
+            <summary className="cursor-pointer font-medium">الخطوة ١: تطبيق قوقل (مرة وحدة، ١٠ دقائق)</summary>
+            <ol className="list-decimal ps-5 mt-3 space-y-1.5 text-sm">
+              <li>
+                افتح{" "}
+                <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener noreferrer" className="text-sign underline">
+                  Google Cloud Console
+                </a>{" "}
+                بنفس حساب قوقل، وأنشئ مشروعًا جديدًا (أي اسم).
+              </li>
+              <li>
+                فعّل{" "}
+                <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener noreferrer" className="text-sign underline">
+                  Google Drive API
+                </a>{" "}
+                (زر Enable).
+              </li>
+              <li>
+                من <b>Google Auth Platform</b> ← <b>Branding</b> اكتب اسم التطبيق وإيميلك، وفي <b>Audience</b> اختر <b>External</b> ثم اضغط <b>Publish app</b> (بدونها ينفصل الربط بعد ٧ أيام).
+              </li>
+              <li>
+                من <b>Clients</b> ← <b>Create client</b> ← نوع <b>Web application</b>، وفي <b>Authorized redirect URIs</b> الصق هذا الرابط بالضبط:
+                <span className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <code className="rounded bg-stone px-2 py-1 text-xs break-all" dir="ltr" data-testid="gdrive-redirect">
+                    {redirectUri(base)}
+                  </code>
+                  <CopyText text={redirectUri(base)} label="نسخ" className="btn btn-ghost border border-line !min-h-8 !py-0.5 text-xs" />
+                </span>
+              </li>
+              <li>انسخ Client ID وClient Secret والصقهم هنا:</li>
+            </ol>
+            <ActionForm action={saveGdriveApp} submitLabel="حفظ" submitClassName="btn btn-primary !min-h-9 !py-1 text-sm" className="space-y-3 mt-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Client ID">
+                  <input name="clientId" defaultValue={values.gd_client_id ?? ""} autoComplete="off" dir="ltr" maxLength={200} className="field text-start" placeholder="1234-abc.apps.googleusercontent.com" />
+                </Field>
+                <Field label="Client Secret" hint={values.gd_client_secret ? `المحفوظ: ${maskKey(values.gd_client_secret)} (اتركه فاضي لإبقائه)` : undefined}>
+                  <input name="clientSecret" type="password" autoComplete="off" dir="ltr" maxLength={200} className="field text-start" />
+                </Field>
+              </div>
+            </ActionForm>
+          </details>
+        )}
+
+        {app && !connected && (
+          <div className="space-y-2">
+            <p className="font-medium">الخطوة ٢: اربط حسابك</p>
+            {/* a plain GET form (not a prefetched link): it leaves the site for Google's page */}
+            <form action="/api/admin/gdrive/connect" method="get">
+              <button className="btn btn-primary" data-testid="gdrive-connect">
+                ربط حساب قوقل درايف
+              </button>
+            </form>
+            <p className="text-xs text-muted">تفتح لك صفحة قوقل: اختر حسابك واضغط «Continue» أو «السماح». إذا طلعت «Google hasn&apos;t verified this app» اضغط Advanced ثم Go to.</p>
+          </div>
+        )}
+
+        {connected && (
+          <div className="grid gap-4 md:grid-cols-2">
+            <ActionForm action={saveGdriveSchedule} submitLabel="حفظ الموعد" submitClassName="btn btn-primary !min-h-9 !py-1 text-sm" className="space-y-3 rounded-lg border border-line p-4">
+              <Field label="الرفع التلقائي">
+                <select name="schedule" defaultValue={values.gd_schedule ?? "off"} className="field">
+                  {SCHEDULES.map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </ActionForm>
+            <ActionForm action={gdriveUploadNow} submitLabel="ارفع التقرير الآن" pendingLabel="جارٍ الرفع…" submitClassName="btn btn-primary !min-h-9 !py-1 text-sm" className="space-y-3 rounded-lg border border-line p-4">
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="من تاريخ">
+                  <input type="date" name="from" defaultValue={monthStart} className="field" />
+                </Field>
+                <Field label="إلى تاريخ">
+                  <input type="date" name="to" defaultValue={today} className="field" />
+                </Field>
+              </div>
+            </ActionForm>
+          </div>
+        )}
+
+        {(values.gd_last_run || values.gd_last_error) && connected && (
+          <div className="text-sm space-y-1" data-testid="gdrive-status">
+            {values.gd_last_run && (
+              <p>
+                آخر رفع: {formatDateTime(new Date(values.gd_last_run), "ar")} · {values.gd_last_link ? <a href={values.gd_last_link} target="_blank" rel="noopener noreferrer" className="text-sign underline">{values.gd_last_file}</a> : values.gd_last_file}
+              </p>
+            )}
+            {values.gd_last_error && <p className="text-danger">آخر خطأ: {values.gd_last_error}</p>}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-3">
+          {connected && (
+            <ActionForm action={gdriveDisconnect} submitLabel="فصل قوقل درايف" submitClassName="btn btn-ghost !min-h-8 !py-0.5 text-xs !text-danger" className="">
+              <span />
+            </ActionForm>
+          )}
+          {app && (
+            <ActionForm action={gdriveForgetApp} submitLabel="حذف بيانات تطبيق قوقل" submitClassName="btn btn-ghost !min-h-8 !py-0.5 text-xs text-muted" className="">
+              <span />
+            </ActionForm>
+          )}
+        </div>
+      </Card>
+    </section>
   );
 }
 

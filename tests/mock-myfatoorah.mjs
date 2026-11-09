@@ -27,6 +27,8 @@ let nextRefund = 900;
 const waMessages = [];
 const wafeqInvoices = [];
 const alostaz = { partners: [], invoices: [], products: [{ id: 7, name: "منتج قديم" }], submitted: [] };
+// Google (OAuth + Drive) stand-in: /google/auth, /google/token, /google/revoke, /google/api/... ; GET /__gdrive
+const gdrive = { refresh: new Set(), revoked: [], folders: [], files: [] };
 const WA_TOKEN = process.env.WA_TOKEN ?? fs.readFileSync(".env", "utf8").match(/^WHATSAPP_TOKEN=(.*)$/m)?.[1]?.trim();
 
 const json = (res, code, body) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(body)); };
@@ -132,6 +134,54 @@ http
         return json(res, 200, { result: true });
       }
       return json(res, 404, { message: "Not found" });
+    }
+    if (url.pathname === "/__gdrive") return json(res, 200, { ...gdrive, refresh: [...gdrive.refresh] });
+    if (url.pathname === "/google/auth") {
+      // the consent page: the test passes ?deny=1 to the site's connect link... here we simply approve
+      const back = new URL(url.searchParams.get("redirect_uri"));
+      back.searchParams.set("code", "code-" + Date.now());
+      back.searchParams.set("state", url.searchParams.get("state") ?? "");
+      res.writeHead(302, { Location: back.toString() });
+      return res.end();
+    }
+    if (url.pathname === "/google/token" && req.method === "POST") {
+      const b = new URLSearchParams(await readBody(req));
+      if (!b.get("client_id")?.endsWith(".apps.googleusercontent.com") || b.get("client_secret") !== "test-secret") return json(res, 401, { error: "invalid_client", error_description: "The OAuth client was not found." });
+      if (b.get("grant_type") === "authorization_code") {
+        const rt = "rt-" + Date.now();
+        gdrive.refresh.add(rt);
+        const idt = ["e30", Buffer.from(JSON.stringify({ email: "owner@example.com" })).toString("base64url"), "sig"].join(".");
+        return json(res, 200, { access_token: "at-1", refresh_token: rt, id_token: idt, expires_in: 3599 });
+      }
+      if (b.get("grant_type") === "refresh_token") {
+        if (!gdrive.refresh.has(b.get("refresh_token"))) return json(res, 400, { error: "invalid_grant", error_description: "Token has been expired or revoked." });
+        return json(res, 200, { access_token: "at-2", expires_in: 3599 });
+      }
+      return json(res, 400, { error: "unsupported_grant_type" });
+    }
+    if (url.pathname === "/google/revoke") { const t = url.searchParams.get("token"); gdrive.refresh.delete(t); gdrive.revoked.push(t); return json(res, 200, {}); }
+    if (url.pathname.startsWith("/google/api/")) {
+      if (!/^Bearer at-/.test(req.headers.authorization ?? "")) return json(res, 401, { error: { message: "Invalid Credentials" } });
+      const p = url.pathname.slice("/google/api".length);
+      if (p === "/drive/v3/files" && req.method === "POST") {
+        const b = JSON.parse(await readBody(req));
+        const id = "fld" + (gdrive.folders.length + 1);
+        gdrive.folders.push({ id, ...b });
+        return json(res, 200, { id });
+      }
+      const one = p.match(/^\/drive\/v3\/files\/([^/]+)$/);
+      if (one && req.method === "GET") return gdrive.folders.some((f) => f.id === one[1]) ? json(res, 200, { id: one[1], trashed: false }) : json(res, 404, { error: { message: "File not found" } });
+      if (p === "/upload/drive/v3/files" && req.method === "POST") {
+        const chunks = []; for await (const c of req) chunks.push(c);
+        const raw = Buffer.concat(chunks);
+        const text = raw.toString("latin1");
+        const meta = JSON.parse(Buffer.from(text.match(/\r\n\r\n(\{.*?\})\r\n--/s)[1], "latin1").toString("utf8"));
+        const zip = raw.indexOf(Buffer.from("PK\x03\x04", "latin1"));
+        const id = "file" + (gdrive.files.length + 1);
+        gdrive.files.push({ id, name: meta.name, parents: meta.parents, mimeType: meta.mimeType, xlsx: zip > 0, bytes: raw.length });
+        return json(res, 200, { id, name: meta.name, webViewLink: `https://drive.google.com/file/d/${id}/view` });
+      }
+      return json(res, 404, { error: { message: "not found" } });
     }
     if (url.pathname === "/__wa") return json(res, 200, waMessages);
     if (url.pathname === "/__wa_reset") { waMessages.length = 0; return json(res, 200, { ok: true }); }

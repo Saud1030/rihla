@@ -16,6 +16,8 @@ npm run db:migrate && SEED_CATALOG=full npm run db:seed   # the tests use every 
 #    MYFATOORAH_WEBHOOK_SECRET=test-mf-webhook-secret
 #    NEXT_PUBLIC_SITE_URL=http://localhost:3001
 #    ADMIN_EMAIL=admin@example.com  ADMIN_PASSWORD=Admin12345
+#    GDRIVE_AUTH_URL=http://localhost:4010/google/auth   GDRIVE_TOKEN_URL=http://localhost:4010/google/token
+#    GDRIVE_REVOKE_URL=http://localhost:4010/google/revoke   GDRIVE_API=http://localhost:4010/google/api
 
 # 3) ثلاث نوافذ:
 npm run test:mock                         # محاكاة ماي فاتورة على المنفذ 4010

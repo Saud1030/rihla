@@ -37,7 +37,8 @@ const COLUMNS: { head: string; width: number; value: (b: Row) => string | number
   { head: "الحالة", width: 14, value: (b) => t.booking.status[b.status] },
 ];
 
-export async function bookingsXlsx(rows: Row[], title: string, h: ExportHead): Promise<Buffer> {
+/** `extra` adds more sheets (the Drive reports add a revenue summary) */
+export async function bookingsXlsx(rows: Row[], title: string, h: ExportHead, extra?: (wb: ExcelJS.Workbook) => void): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = h.company;
   wb.created = h.at;
@@ -82,6 +83,7 @@ export async function bookingsXlsx(rows: Row[], title: string, h: ExportHead): P
     total.font = { bold: true };
   }
   ws.autoFilter = { from: { row: HEAD, column: 1 }, to: { row: HEAD, column: COLUMNS.length } };
+  extra?.(wb);
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
