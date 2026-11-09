@@ -246,7 +246,7 @@ async function GoogleDrive({ values, result }: { values: Record<string, string>;
         </p>
 
         {!connected && (
-          <details className="rounded-lg border border-line p-4" open={!app}>
+          <details className="rounded-lg border border-line p-4" open>
             <summary className="cursor-pointer font-medium">الخطوة ١: تطبيق قوقل (مرة وحدة، ١٠ دقائق)</summary>
             <ol className="list-decimal ps-5 mt-3 space-y-1.5 text-sm">
               <li>
