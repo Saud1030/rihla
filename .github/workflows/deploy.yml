@@ -1,0 +1,54 @@
+# Deploys the site to your server (Bluehost VPS) every time main is updated.
+# Needs these repository secrets (Settings -> Secrets and variables -> Actions):
+#   DEPLOY_HOST     the server's IP address
+#   DEPLOY_USER     the SSH user (usually root)
+#   DEPLOY_SSH_KEY  the private key whose public half is in the server's ~/.ssh/authorized_keys
+# Optional: DEPLOY_PORT (default 22), DEPLOY_PATH (default ~/rihla)
+# Until the secrets are added the job is skipped, so nothing fails.
+name: Deploy to server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HOST: ${{ secrets.DEPLOY_HOST }}
+      USER_NAME: ${{ secrets.DEPLOY_USER }}
+      KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      PORT: ${{ secrets.DEPLOY_PORT }}
+      APP_PATH: ${{ secrets.DEPLOY_PATH }}
+    steps:
+      - name: Check that the server details are set
+        id: ready
+        run: |
+          if [ -n "$HOST" ] && [ -n "$USER_NAME" ] && [ -n "$KEY" ]; then echo "ok=1" >> "$GITHUB_OUTPUT"; else echo "Server secrets are not set yet: nothing deployed."; fi
+
+      - name: Update the site on the server
+        if: steps.ready.outputs.ok == '1'
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -p "${PORT:-22}" -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 "$USER_NAME@$HOST" \
+            "APP_PATH='${APP_PATH:-rihla}' bash -se" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH"
+          git pull --ff-only
+          docker compose up -d --build
+          docker compose exec -T app npm run db:migrate
+          docker image prune -f >/dev/null
+          echo "Deployed: $(git log --oneline -1)"
+          REMOTE
+          rm -f ~/.ssh/deploy_key

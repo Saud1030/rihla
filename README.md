@@ -305,6 +305,16 @@ sudo certbot --nginx -d example.com -d www.example.com
 
 ٥. **التحديث لاحقًا**: `git pull && docker compose up -d --build && docker compose exec app npm run db:migrate`
 
+**التحديث التلقائي من GitHub** (بدل الخطوة ٥ يدويًا): ملف `.github/workflows/deploy.yml` يحدّث السيرفر مع كل تعديل على `main`. يحتاج مرة وحدة:
+
+```bash
+# على السيرفر: مفتاح خاص بالنشر
+ssh-keygen -t ed25519 -f ~/.ssh/github_deploy -N "" && cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys
+cat ~/.ssh/github_deploy      # انسخ الناتج كامل
+```
+
+ثم في GitHub: المستودع ← Settings ← Secrets and variables ← Actions ← New repository secret، وأضف `DEPLOY_HOST` (عنوان IP)، `DEPLOY_USER` (غالبًا root)، `DEPLOY_SSH_KEY` (المفتاح اللي نسخته).
+
 ٦. **النسخ الاحتياطي** لقاعدة البيانات (يوميًا عبر cron):
 `docker compose exec -T db pg_dump -U rihla rihla | gzip > backup-$(date +%F).sql.gz`
 
