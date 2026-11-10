@@ -2008,7 +2008,7 @@ if (!ONLY || ONLY === "features") {
     assert((await mf("/__wa")).some((m) => m.to === "966556660022" && (m.text?.body ?? "").includes("/ar/pay/")), "on WhatsApp");
     sql(`delete from bookings where ref='${ref}'; delete from drivers where id=${did}; delete from packages`);
   });
-  await check("payment voucher on WhatsApp as soon as it's paid (not an invoice); the tax invoice comes with the rating when the trip ends", async () => {
+  await check("payment voucher on WhatsApp as soon as it's paid (not an invoice); the proforma invoice comes with the rating when the trip ends", async () => {
     const setSetting = (k, v) => sql(`insert into settings(key,value) values('${k}','${v}') on conflict (key) do update set value=excluded.value`);
     setSetting("rating_enabled", "1");
     await a.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
@@ -2056,9 +2056,9 @@ if (!ONLY || ONLY === "features") {
     assert(body.includes(`/booking/${ref}/invoice`) && /\/ar\/rate\/[a-f0-9]{48}/.test(body) && body.includes(`INV-${String(ino).padStart(4, "0")}`), "invoice and rating together: " + body);
     await cp.goto(`${BASE}/ar/booking/${ref}/invoice`, { waitUntil: "networkidle" });
     const inv = cp.getByTestId("invoice");
-    await inv.getByRole("heading", { name: "فاتورة ضريبية مبسطة" }).waitFor();
+    await inv.getByRole("heading", { name: "فاتورة مبدئية" }).waitFor();
     await inv.getByText("310123456700003").waitFor();
-    eq(await inv.getByTestId("zatca-qr").locator("svg").count(), 1, "ZATCA QR");
+    eq(await inv.getByTestId("zatca-qr").count(), 0, "a proforma carries no ZATCA QR");
     const [sub, vat, amt] = sql(`select subtotal, vat_amount, amount from bookings where ref='${ref}'`).split("|").map(Number);
     eq(sub + vat, amt, "totals add up");
     await inv.getByText(`REC-${String(rno).padStart(4, "0")}`, { exact: false }).waitFor();

@@ -29,7 +29,7 @@ const T = {
     methods: { myfatoorah: "دفع إلكتروني - ماي فاتورة", bank_transfer: "تحويل بنكي", cash: "نقدًا (كاش)" },
     vat: "الرقم الضريبي",
     cr: "السجل التجاري",
-    note: "هذا السند يثبت استلام المبلغ وليس فاتورة ضريبية. تصلك الفاتورة الضريبية بعد انتهاء الرحلة.",
+    note: "هذا السند يثبت استلام المبلغ وليس فاتورة ضريبية. تصلك الفاتورة بعد انتهاء الرحلة.",
   },
   en: {
     title: "Payment voucher",
@@ -45,7 +45,7 @@ const T = {
     methods: { myfatoorah: "Online payment - MyFatoorah", bank_transfer: "Bank transfer", cash: "Cash" },
     vat: "VAT number",
     cr: "CR number",
-    note: "This voucher confirms the payment and is not a tax invoice. Your tax invoice is sent when the trip ends.",
+    note: "This voucher confirms the payment and is not a tax invoice. Your invoice is sent when the trip ends.",
   },
 };
 

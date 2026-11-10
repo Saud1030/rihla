@@ -1,9 +1,8 @@
-import QRCode from "qrcode";
 import type { Booking } from "@/db/schema";
 import type { Locale } from "@/i18n/dictionaries";
 import { formatDate, formatDateTime, formatSAR, formatTime } from "@/lib/format";
 import { maskPhone } from "@/lib/booking";
-import { invoiceNo, receiptNo, zatcaQr } from "@/lib/documents";
+import { invoiceNo, receiptNo } from "@/lib/documents";
 import { PrintButton } from "./print-button";
 
 type Company = { name: string; logoUrl: string | null; vatNumber: string; crNumber: string; address: string; phone: string; email: string };
@@ -11,9 +10,8 @@ type Company = { name: string; logoUrl: string | null; vatNumber: string; crNumb
 const T = {
   ar: {
     receipt: "سند صرف",
-    receiptNote: "هذا السند يثبت استلام المبلغ وليس فاتورة ضريبية. تصلك الفاتورة الضريبية بعد انتهاء الرحلة.",
-    taxInvoice: "فاتورة ضريبية مبسطة",
-    invoice: "فاتورة",
+    receiptNote: "هذا السند يثبت استلام المبلغ وليس فاتورة ضريبية. تصلك الفاتورة بعد انتهاء الرحلة.",
+    invoice: "فاتورة مبدئية",
     no: "الرقم",
     date: "تاريخ الإصدار",
     booking: "رقم الحجز",
@@ -44,9 +42,8 @@ const T = {
   },
   en: {
     receipt: "Payment voucher",
-    receiptNote: "This voucher confirms the payment and is not a tax invoice. Your tax invoice is sent when the trip ends.",
-    taxInvoice: "Simplified tax invoice",
-    invoice: "Invoice",
+    receiptNote: "This voucher confirms the payment and is not a tax invoice. Your invoice is sent when the trip ends.",
+    invoice: "Proforma invoice",
     no: "No.",
     date: "Issued",
     booking: "Booking",
@@ -167,12 +164,10 @@ export function ReceiptSheet({ b, c, lang }: { b: Booking; c: Company; lang: Loc
   );
 }
 
-/** فاتورة ضريبية مبسطة (B2C) with the ZATCA QR code when the company has a VAT number */
+/** فاتورة مبدئية (proforma): the trip's amounts with VAT; the tax invoice itself comes from the e-invoicing platform */
 export async function InvoiceSheet({ b, c, lang }: { b: Booking; c: Company; lang: Locale }) {
   const t = T[lang];
-  const taxed = !!c.vatNumber;
   const issued = b.invoiceAt ?? new Date();
-  const qr = taxed ? await QRCode.toString(zatcaQr({ seller: c.name, vatNumber: c.vatNumber, time: issued, total: b.amount, vat: b.vatAmount }), { type: "svg", margin: 0, errorCorrectionLevel: "M" }) : null;
   const pct = (b.vatRate / 10000).toLocaleString(lang === "ar" ? "ar-SA" : "en-US", { style: "percent", maximumFractionDigits: 2 });
   const rows: [string, React.ReactNode][] = [
     [t.no, invoiceNo(b.invoiceNo)],
@@ -181,7 +176,7 @@ export async function InvoiceSheet({ b, c, lang }: { b: Booking; c: Company; lan
   ];
   return (
     <article className={sheet} data-testid="invoice">
-      <Head c={c} title={taxed ? t.taxInvoice : t.invoice} rows={rows} lang={lang} />
+      <Head c={c} title={t.invoice} rows={rows} lang={lang} />
       <p className="text-[15px]">
         <span className="text-muted">{t.customer}: </span>
         {b.customerName} · <bdo dir="ltr">{maskPhone(b.customerPhone)}</bdo>
@@ -214,8 +209,7 @@ export async function InvoiceSheet({ b, c, lang }: { b: Booking; c: Company; lan
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap items-end justify-between gap-6">
-        {qr ? <div className="size-36 shrink-0 [&_svg]:w-full [&_svg]:h-full" data-testid="zatca-qr" aria-label="ZATCA QR" dangerouslySetInnerHTML={{ __html: qr }} /> : <span />}
+      <div className="flex flex-wrap items-end justify-end gap-6">
         <dl className="text-sm grid grid-cols-[auto_auto] gap-x-6 gap-y-1 min-w-64">
           <dt className="text-muted">{t.subtotal}</dt>
           <dd className="tabular text-end">{formatSAR(b.subtotal, lang)}</dd>

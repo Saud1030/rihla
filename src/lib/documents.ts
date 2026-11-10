@@ -10,7 +10,7 @@ import { afterPaid } from "./promo";
 /**
  * The customer's two documents:
  *  - payment voucher (سند صرف): proof the money arrived, sent on WhatsApp as soon as the booking is paid
- *  - tax invoice (فاتورة ضريبية مبسطة): issued when the trip ends, sent together with the rating request
+ *  - proforma invoice (فاتورة مبدئية): issued when the trip ends, sent together with the rating request
  * Both are pages behind the booking's secret ref, numbered in order (REC-0001, INV-0001).
  */
 
@@ -47,7 +47,7 @@ export async function issueReceipt(bookingId: string) {
           `رقم الحجز: ${b.ref}`,
           `المبلغ: ${amount}`,
           `مرفق سند الصرف رقم ${receiptNo(b.receiptNo)}، ورابطه: ${link}`,
-          "تصلك الفاتورة الضريبية بعد انتهاء الرحلة.",
+          "تصلك الفاتورة بعد انتهاء الرحلة.",
           "",
           THANKS.ar,
         ].join("\n")
@@ -56,7 +56,7 @@ export async function issueReceipt(bookingId: string) {
           `Booking: ${b.ref}`,
           `Amount: ${amount}`,
           `Your payment voucher ${receiptNo(b.receiptNo)} is attached. Link: ${link}`,
-          "Your tax invoice will follow when the trip ends.",
+          "Your invoice will follow when the trip ends.",
           "",
           THANKS.en,
         ].join("\n");
