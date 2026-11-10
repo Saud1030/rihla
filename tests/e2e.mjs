@@ -1891,7 +1891,7 @@ if (!ONLY || ONLY === "features") {
     sql(`delete from settings where key='cash_enabled'; delete from bookings where ref='${r2}'`);
   });
 
-  await check("packages: added in the panel with a price and 3 payments; a button after 'Book now'; booked and the 1st paid online, the 2nd by the link the admin sends, the 3rd marked by hand; then the voucher", async () => {
+  await check("packages: added in the panel with a price and 3 payments; a button after 'Book now'; booked and the 1st paid online, the 2nd by the link the admin sends, the 3rd marked by hand; then the proforma invoice", async () => {
     sql("delete from packages");
     await a.goto(`${BASE}/admin/packages`, { waitUntil: "networkidle" });
     assert(await a.locator(".admin-nav a[href='/admin/packages']").count(), "in the menu");
@@ -1950,12 +1950,12 @@ if (!ONLY || ONLY === "features") {
     await cp.click("#pay");
     await cp.waitForURL(new RegExp(`/ar/booking/${ref}`), { waitUntil: "commit" });
     eq(sql(`select count(*) from installments i join bookings b on b.id=i.booking_id where b.ref='${ref}' and i.paid_at is not null`), "2", "two paid");
-    eq(sql(`select receipt_no is null from bookings where ref='${ref}'`), "t", "no voucher before the last payment");
-    // the third paid by transfer, marked by the admin: all paid -> voucher
+    eq(sql(`select receipt_no is null and invoice_no is null from bookings where ref='${ref}'`), "t", "no document before the last payment");
+    // the third paid by transfer, marked by the admin: all paid -> the proforma invoice (the package was paid online first)
     await a.reload({ waitUntil: "networkidle" });
     await a.getByTestId("admin-installments").locator('li[data-seq="3"]').getByRole("button", { name: "استلمتها كاش/تحويل" }).click();
     await a.getByText("تم تسجيل الدفعة كمدفوعة.").waitFor();
-    eq(sql(`select receipt_no is not null, payment_id from bookings where ref='${ref}'`), `t|PKG-${ref}`, "voucher once all are paid");
+    eq(sql(`select invoice_no is not null, payment_id from bookings where ref='${ref}'`), `t|PKG-${ref}`, "proforma invoice once all are paid");
     // hidden: gone from the site and the top bar
     await a.goto(`${BASE}/admin/packages`, { waitUntil: "networkidle" });
     await a.getByTestId("package-admin-list").locator(`[data-package="${pid}"]`).getByRole("button", { name: "إخفاء" }).click();
