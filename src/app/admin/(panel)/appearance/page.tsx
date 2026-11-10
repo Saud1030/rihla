@@ -12,6 +12,8 @@ import { FooterBuilder } from "@/components/admin/footer-builder";
 import { saveFooterBlocks } from "../../footer-actions";
 import { parseFooter } from "@/lib/footer";
 import { savePromoVideo } from "../../promo-video-actions";
+import { saveHomeStats } from "../../home-stats-actions";
+import { parseStats, STAT_SLOTS } from "@/lib/home-stats";
 import { PromoVideoSlots } from "@/components/admin/promo-video-slots";
 import { MAX_VIDEO_MB, promoVideoVersions, VIDEO_SLOTS, videoUrl } from "@/lib/promo-video";
 import { Card, PageHeader, Skeleton } from "@/components/admin/ui";
@@ -164,6 +166,33 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
             <input type="checkbox" name="footer_links" defaultChecked={st.footer_links !== "0"} className="size-4 accent-sign" />
             إظهار روابط الصفحات في التذييل (الرحلات، السيارات، حجزي، تواصل معنا، الشروط، انضم كسائق)
           </label>
+        </ActionForm>
+      </Card>
+
+      {/* the numbers strip on the home page */}
+      <Card className="p-6" data-testid="home-stats-card">
+        <h2 className="font-semibold mb-1">شريط الأرقام في الصفحة الرئيسية</h2>
+        <p className="text-sm text-muted mb-5">أربعة أرقام تظهر تحت الواجهة وتعدّ تصاعديًا عند ظهورها. اكتب أرقامك الحقيقية، واترك الوصف فاضيًا لإخفاء أي رقم.</p>
+        <ActionForm action={saveHomeStats} submitLabel="حفظ الأرقام" pendingLabel="جارٍ الحفظ…" className="space-y-4">
+          <label className="flex items-center gap-2 font-medium">
+            <input type="checkbox" name="on" defaultChecked={st.home_stats_on === "1"} className="size-4 accent-sign" />
+            إظهار شريط الأرقام في الصفحة الرئيسية
+          </label>
+          <div className="grid gap-3">
+            {parseStats(st.home_stats).concat(Array.from({ length: STAT_SLOTS }, () => ({ value: 0, ar: "", en: "" }))).slice(0, STAT_SLOTS).map((x, i) => (
+              <div key={i} className="grid gap-2 sm:grid-cols-[8rem_1fr_1fr] items-end">
+                <Field label={`الرقم ${i + 1}`}>
+                  <input name={`value${i}`} defaultValue={x.value || ""} inputMode="numeric" maxLength={9} dir="ltr" className="field text-start" />
+                </Field>
+                <Field label="الوصف (عربي)">
+                  <input name={`ar${i}`} defaultValue={x.ar} maxLength={40} className="field" />
+                </Field>
+                <Field label="الوصف (إنجليزي)">
+                  <input name={`en${i}`} defaultValue={x.en} maxLength={40} dir="ltr" className="field text-start" />
+                </Field>
+              </div>
+            ))}
+          </div>
         </ActionForm>
       </Card>
 

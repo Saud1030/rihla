@@ -2892,6 +2892,32 @@ if (!ONLY || ONLY === "features") {
     await touchCache();
   });
 
+  await check("numbers strip: hidden until switched on in Appearance; numbers and labels edited there, Arabic and English", async () => {
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    eq(await page.getByTestId("home-stats").count(), 0, "hidden by default");
+    await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });
+    const card = a.getByTestId("home-stats-card");
+    await card.getByLabel("إظهار شريط الأرقام في الصفحة الرئيسية").check();
+    await card.locator('input[name="value0"]').fill("315");
+    await card.locator('input[name="ar0"]').fill("سيارة جاهزة");
+    await card.locator('input[name="en0"]').fill("Cars ready now");
+    await card.locator('input[name="ar3"]').fill("");
+    await card.locator('input[name="en3"]').fill("");
+    await card.getByRole("button", { name: "حفظ الأرقام" }).click();
+    await card.getByText("الأرقام ظاهرة").waitFor();
+    await touchCache();
+    await page.goto(`${BASE}/ar`, { waitUntil: "networkidle" });
+    const strip = page.getByTestId("home-stats");
+    await strip.scrollIntoViewIfNeeded();
+    await strip.getByText("سيارة جاهزة").waitFor();
+    await strip.getByText("315", { exact: true }).waitFor();
+    eq(await strip.locator("p[aria-label]").count(), 3, "the one without a label is left out");
+    await page.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+    await page.getByTestId("home-stats").getByText("Cars ready now").waitFor();
+    sql("delete from settings where key in ('home_stats','home_stats_on')");
+    await touchCache();
+  });
+
   await check("promo video: uploaded per language and shape, shown or hidden from Appearance, phones get the vertical file, served in pieces, fakes refused", async () => {
     const fx = new URL("./fixtures/", import.meta.url).pathname;
     await a.goto(`${BASE}/admin/appearance`, { waitUntil: "networkidle" });

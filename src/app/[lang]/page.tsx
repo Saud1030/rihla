@@ -7,6 +7,8 @@ import { getHomeBanners, getSettings, getVehicles } from "@/lib/catalog";
 import { BannerSlider } from "@/components/site/banner-slider";
 import { localLink } from "@/lib/ready-banners";
 import { pickVideos, promoVideoVersions } from "@/lib/promo-video";
+import { parseStats } from "@/lib/home-stats";
+import { HomeStats } from "@/components/site/home-stats";
 import { PromoVideoPlayer } from "@/components/site/promo-video-player";
 import { getBrand, getHeroBackground, getHeroPreset } from "@/lib/brand";
 import { TripSearch } from "@/components/site/trip-search";
@@ -51,6 +53,11 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* The numbers strip (Admin -> Appearance) */}
+      <Suspense fallback={null}>
+        <Stats lang={lang} />
+      </Suspense>
 
       {/* Promo video (Admin -> Appearance), when it's switched on and placed right under the hero */}
       <Suspense fallback={null}>
@@ -197,6 +204,16 @@ async function ContactBand({ t }: { t: Dictionary }) {
       </div>
     </div>
   );
+}
+
+async function Stats({ lang }: { lang: Locale }) {
+  const st = await getSettings();
+  if (st.home_stats_on !== "1") return null;
+  const stats = parseStats(st.home_stats)
+    .map((x) => ({ value: x.value, label: lang === "ar" ? x.ar || x.en : x.en || x.ar }))
+    .filter((x) => x.label);
+  if (!stats.length) return null;
+  return <HomeStats stats={stats} lang={lang} />;
 }
 
 async function PromoVideo({ lang, place }: { lang: Locale; place: "top" | "after-banners" }) {
