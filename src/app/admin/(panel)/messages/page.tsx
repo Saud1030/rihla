@@ -27,7 +27,7 @@ const TYPES = [
   ["rating", "التقييم"],
 ] as const;
 type TypeKey = Exclude<(typeof TYPES)[number][0], "">;
-const CUSTOMER_KINDS = ["customer_driver", "rating_request", "payment_receipt", "trip_invoice", "promo_code"];
+const CUSTOMER_KINDS = ["customer_driver", "rating_request", "payment_receipt", "payment_invoice", "trip_invoice", "promo_code"];
 const DRIVER_KINDS = ["driver_trip", "driver_approved", "driver_rejected", "driver_suspended", "driver_blocked"];
 const typeWhere = (t: TypeKey) =>
   t === "customer"
@@ -152,7 +152,7 @@ async function Messages({ searchParams }: { searchParams: Promise<Record<string,
                 const t = TEMPLATES[k];
                 return (
                   <div key={k} className="space-y-2">
-                    <Field label={{ driver_trip: "قالب رسالة السائق", customer_driver: "قالب رسالة العميل ببيانات السائق", rating_request: "قالب الفاتورة وطلب التقييم بعد الرحلة", payment_receipt: "قالب سند الصرف", trip_invoice: "قالب الفاتورة (إذا كان التقييم مقفلًا)", promo_code: "قالب الرمز الترويجي" }[k]}>
+                    <Field label={{ driver_trip: "قالب رسالة السائق", customer_driver: "قالب رسالة العميل ببيانات السائق", rating_request: "قالب الفاتورة وطلب التقييم بعد الرحلة", payment_receipt: "قالب سند الصرف (تحويل بنكي وكاش)", payment_invoice: "قالب الفاتورة المبدئية (الدفع الإلكتروني)", trip_invoice: "قالب الفاتورة (إذا كان التقييم مقفلًا)", promo_code: "قالب الرمز الترويجي" }[k]}>
                       <input name={t.setting} defaultValue={st[t.setting] ?? ""} placeholder={k} dir="ltr" className="field text-start" />
                     </Field>
                     <p className="text-xs text-muted">نص مقترح للقالب:</p>

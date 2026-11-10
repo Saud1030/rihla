@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { invalidateCatalogCache } from "@/lib/catalog";
 import { isSlot, MAX_VIDEO_MB, sniffVideo } from "@/lib/promo-video";
+import { extraAllowedHosts, hostAllowed } from "@/lib/http";
 
 /**
  * Upload (POST) or remove (DELETE) one promo video file. A route of its own because videos are
@@ -14,9 +15,13 @@ import { isSlot, MAX_VIDEO_MB, sniffVideo } from "@/lib/promo-video";
 async function guard(req: Request) {
   const origin = req.headers.get("origin");
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  // same rule as the site's forms: this host, or one listed in SERVER_ACTIONS_ALLOWED_ORIGINS
+  // (npm run local and shared links send Origin: localhost:3000 while the host differs)
   let fromHere = false;
   try {
-    fromHere = !!origin && !!host && new URL(origin).host === host;
+    const o = new URL(origin ?? "");
+    const extra = extraAllowedHosts();
+    fromHere = o.host === host || hostAllowed(o.host, extra) || hostAllowed(o.hostname, extra);
   } catch {}
   if (!fromHere) return Response.json({ error: "طلب من مصدر غير معروف." }, { status: 403 });
   const session = await getSession();

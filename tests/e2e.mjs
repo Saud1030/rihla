@@ -1781,10 +1781,10 @@ if (!ONLY || ONLY === "features") {
     const r1 = await makeBooking(cp, use("0556667788"));
     eq(sql(`select promo_code, discount from bookings where ref='${r1}'`), `MHT2026|${Math.round(price * 0.15)}`, "15% off");
     await payInBrowser(cp, r1, "pay");
-    // paid: the voucher downloads as a PDF from the booking page
-    const href = await cp.getByTestId("voucher-pdf").getAttribute("href");
+    // paid online: the proforma invoice downloads as a PDF from the booking page
+    const href = await cp.getByTestId("invoice-pdf").getAttribute("href");
     const pdf = await cp.request.get(BASE + href);
-    eq(pdf.headers()["content-type"], "application/pdf", "voucher PDF");
+    eq(pdf.headers()["content-type"], "application/pdf", "invoice PDF");
     // the same number again: refused; another number: fine
     await fillBooking(cp, use("0556667788"));
     await cp.getByText("الرمز الترويجي غير صحيح أو مستخدم من قبل.").waitFor();
@@ -2008,7 +2008,7 @@ if (!ONLY || ONLY === "features") {
     assert((await mf("/__wa")).some((m) => m.to === "966556660022" && (m.text?.body ?? "").includes("/ar/pay/")), "on WhatsApp");
     sql(`delete from bookings where ref='${ref}'; delete from drivers where id=${did}; delete from packages`);
   });
-  await check("payment voucher on WhatsApp as soon as it's paid (not an invoice); the proforma invoice comes with the rating when the trip ends", async () => {
+  await check("paid online: the proforma invoice (not a voucher) on WhatsApp right away as a PDF; the same invoice comes again with the rating when the trip ends", async () => {
     const setSetting = (k, v) => sql(`insert into settings(key,value) values('${k}','${v}') on conflict (key) do update set value=excluded.value`);
     setSetting("rating_enabled", "1");
     await a.goto(`${BASE}/admin/settings`, { waitUntil: "networkidle" });
@@ -2016,59 +2016,51 @@ if (!ONLY || ONLY === "features") {
     await saveTax();
     await mf("/__wa_reset");
     const ref = await paidBooking();
-    const rno = Number(sql(`select receipt_no from bookings where ref='${ref}'`));
-    assert(rno > 0, "voucher numbered");
-    eq(sql(`select coalesce(invoice_no::text,'') from bookings where ref='${ref}'`), "", "no invoice yet");
-    // the voucher itself goes to the customer on WhatsApp, as a PDF document with the message as its caption
-    const voucherMsg = (await mf("/__wa")).find((m) => m.type === "document" && m.document?.caption?.includes(`/booking/${ref}/receipt`));
-    assert(voucherMsg, "voucher sent on WhatsApp as a document");
-    eq(voucherMsg.to, "966501234567", "to the customer");
-    eq(voucherMsg.document.filename, `REC-${String(rno).padStart(4, "0")}.pdf`, "file name");
-    assert(voucherMsg.document.caption.includes("تصلك الفاتورة بعد انتهاء الرحلة"), "caption: " + voucherMsg.document.caption);
-    assert(voucherMsg.document.caption.trim().endsWith("شكرًا لكم لاختياركم Mighty Hands Trans، سوف نتواصل معكم في أقرب وقت ممكن."), "thanks at the end: " + voucherMsg.document.caption);
+    eq(sql(`select payment_method, coalesce(receipt_no::text,'') from bookings where ref='${ref}'`), "myfatoorah|", "paid online, no voucher");
+    const ino = Number(sql(`select invoice_no from bookings where ref='${ref}'`));
+    assert(ino > 0, "proforma invoice numbered at payment");
+    const tag = `INV-${String(ino).padStart(4, "0")}`;
+    // sent to the customer on WhatsApp, as a PDF document with the message as its caption
+    const invMsg = (await mf("/__wa")).find((m) => m.type === "document" && m.document?.caption?.includes(`/booking/${ref}/invoice`));
+    assert(invMsg, "proforma invoice sent on WhatsApp as a document");
+    eq(invMsg.to, "966501234567", "to the customer");
+    eq(invMsg.document.filename, `${tag}.pdf`, "file name");
+    assert(invMsg.document.caption.includes("مرفق الفاتورة المبدئية") && !invMsg.document.caption.includes("سند الصرف"), "caption: " + invMsg.document.caption);
+    assert(invMsg.document.caption.trim().endsWith("شكرًا لكم لاختياركم Mighty Hands Trans، سوف نتواصل معكم في أقرب وقت ممكن."), "thanks at the end: " + invMsg.document.caption);
+    eq(sql(`select count(*) from notifications n join bookings b on b.id=n.booking_id where b.ref='${ref}' and n.kind='payment_receipt'`), "0", "no voucher message");
     await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
     assert((await cp.getByTestId("paid-thanks").innerText()).includes("Mighty Hands Trans"), "thanks on the booking page");
-    const pdf = await fetch(new URL(new URL(voucherMsg.document.link).pathname, BASE));
+    const pdf = await fetch(new URL(new URL(invMsg.document.link).pathname, BASE));
     eq(pdf.status, 200, "PDF reachable");
     eq(pdf.headers.get("content-type"), "application/pdf", "PDF type");
     eq(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString(), "%PDF-", "a real PDF");
-    eq((await fetch(`${BASE}/api/booking/ZZZZZZZZ/receipt`)).status, 404, "unknown booking: no file");
-    // the voucher page
-    await cp.goto(`${BASE}/ar/booking/${ref}/receipt`, { waitUntil: "networkidle" });
-    const r = cp.getByTestId("receipt");
-    await r.getByRole("heading", { name: "سند صرف" }).waitFor();
-    await r.getByText("ليس فاتورة ضريبية", { exact: false }).waitFor();
-    await r.getByText("دفع إلكتروني (ماي فاتورة)").waitFor();
-    await cp.goto(`${BASE}/ar/booking/${ref}/invoice`, { waitUntil: "networkidle" });
-    eq(await cp.getByTestId("invoice").count(), 0, "no invoice before the trip ends");
-    await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
-    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "تحميل سند الصرف (PDF)|سند الصرف", "only the voucher (PDF and page), no invoice yet");
-    // trip ends -> invoice + rating in one message
-    await mf("/__wa_reset");
-    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
-    await a.locator('select[name="status"]').selectOption("completed");
-    await submit(a, "حفظ");
-    const ino = Number(sql(`select invoice_no from bookings where ref='${ref}'`));
-    assert(ino > 0, "invoice numbered");
-    const msgs = await mf("/__wa");
-    eq(msgs.length, 1, "one message");
-    const body = msgs[0].text.body;
-    assert(body.includes(`/booking/${ref}/invoice`) && /\/ar\/rate\/[a-f0-9]{48}/.test(body) && body.includes(`INV-${String(ino).padStart(4, "0")}`), "invoice and rating together: " + body);
+    eq((await fetch(`${BASE}/api/booking/ZZZZZZZZ/invoice`)).status, 404, "unknown booking: no file");
+    eq((await fetch(`${BASE}/api/booking/${ref}/receipt`)).status, 404, "no voucher file");
+    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "تحميل الفاتورة المبدئية (PDF)|الفاتورة المبدئية", "the proforma invoice (PDF and page), no voucher");
+    // the proforma invoice page
     await cp.goto(`${BASE}/ar/booking/${ref}/invoice`, { waitUntil: "networkidle" });
     const inv = cp.getByTestId("invoice");
     await inv.getByRole("heading", { name: "فاتورة مبدئية" }).waitFor();
     await inv.getByText("310123456700003").waitFor();
+    await inv.getByText(tag).first().waitFor();
     eq(await inv.getByTestId("zatca-qr").count(), 0, "a proforma carries no ZATCA QR");
     const [sub, vat, amt] = sql(`select subtotal, vat_amount, amount from bookings where ref='${ref}'`).split("|").map(Number);
     eq(sub + vat, amt, "totals add up");
-    await inv.getByText(`REC-${String(rno).padStart(4, "0")}`, { exact: false }).waitFor();
-    await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
-    eq(await cp.getByTestId("customer-documents").getByRole("link").allInnerTexts().then((x) => x.join("|")), "تحميل سند الصرف (PDF)|سند الصرف|الفاتورة", "both links");
+    // trip ends -> the same invoice + rating in one message
+    await mf("/__wa_reset");
+    await a.goto(`${BASE}/admin/bookings/${ref}`, { waitUntil: "networkidle" });
+    await a.locator('select[name="status"]').selectOption("completed");
+    await submit(a, "حفظ");
+    eq(Number(sql(`select invoice_no from bookings where ref='${ref}'`)), ino, "same invoice number");
+    const msgs = await mf("/__wa");
+    eq(msgs.length, 1, "one message");
+    const body = msgs[0].text.body;
+    assert(body.includes(`/booking/${ref}/invoice`) && /\/ar\/rate\/[a-f0-9]{48}/.test(body) && body.includes(tag), "invoice and rating together: " + body);
     await a.reload({ waitUntil: "networkidle" });
-    assert((await a.getByTestId("booking-documents").innerText()).includes(`INV-${String(ino).padStart(4, "0")}`), "admin sees both");
-    // the next paid booking gets the next voucher number
+    assert((await a.getByTestId("booking-documents").innerText()).includes(tag), "admin sees the invoice");
+    // the next paid booking gets the next number
     const ref2 = await paidBooking();
-    eq(Number(sql(`select receipt_no from bookings where ref='${ref2}'`)), rno + 1, "numbers in order");
+    assert(Number(sql(`select invoice_no from bookings where ref='${ref2}'`)) > ino, "numbers in order");
   });
 
   let fullRef;
@@ -3695,7 +3687,7 @@ if (!ONLY || ONLY === "drivers") {
     const d = await kinds("driver");
     assert(d.length > 0 && d.every((k) => k.startsWith("driver_")), "driver only: " + d.join(","));
     const c = await kinds("customer");
-    assert(c.length > 0 && c.every((k) => ["customer_driver", "rating_request", "payment_receipt", "trip_invoice", "promo_code"].includes(k)), "customer only: " + c.join(","));
+    assert(c.length > 0 && c.every((k) => ["customer_driver", "rating_request", "payment_receipt", "payment_invoice", "trip_invoice", "promo_code"].includes(k)), "customer only: " + c.join(","));
     const r = await kinds("rating");
     assert(r.length > 0 && r.every((k) => k.startsWith("rating_")), "rating only: " + r.join(","));
     const e = await kinds("email");

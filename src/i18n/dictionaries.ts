@@ -372,7 +372,8 @@ const ar = {
     receiptLink: "سند الصرف",
     receiptPdf: "تحميل سند الصرف (PDF)",
     transferSlip: "تحميل إشعار التحويل",
-    invoiceLink: "الفاتورة",
+    invoiceLink: "الفاتورة المبدئية",
+    invoicePdf: "تحميل الفاتورة المبدئية (PDF)",
   },
   hourly: {
     title: "سيارة مع سائق بالساعة",
@@ -894,7 +895,8 @@ const en: Dictionary = {
     receiptLink: "Payment voucher",
     receiptPdf: "Download voucher (PDF)",
     transferSlip: "Download transfer notice",
-    invoiceLink: "Invoice",
+    invoiceLink: "Proforma invoice",
+    invoicePdf: "Download proforma invoice (PDF)",
   },
   hourly: {
     title: "Car with driver by the hour",

@@ -18,7 +18,7 @@ import { waNumber } from "./phone";
  * (or the mail app) ready to send by hand. Nothing here ever throws into the booking flow.
  */
 
-export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked" | "payment_receipt" | "trip_invoice" | "promo_code" | "installment_link" | "installment_paid";
+export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked" | "payment_receipt" | "payment_invoice" | "trip_invoice" | "promo_code" | "installment_link" | "installment_paid";
 
 export const KIND_LABELS: Record<NotifyKind, string> = {
   driver_trip: "بيانات العميل للسائق",
@@ -30,6 +30,7 @@ export const KIND_LABELS: Record<NotifyKind, string> = {
   driver_suspended: "إيقاف سائق مؤقتًا",
   driver_blocked: "حظر سائق",
   payment_receipt: "سند الصرف للعميل",
+  payment_invoice: "الفاتورة المبدئية عند الدفع الإلكتروني",
   trip_invoice: "الفاتورة للعميل",
   promo_code: "رمز ترويجي للعميل",
   installment_link: "رابط دفعة باقة",
@@ -59,6 +60,11 @@ export const TEMPLATES: Record<Exclude<NotifyKind, "rating_received" | "driver_a
     setting: "wa_tpl_payment_receipt",
     params: ["اسم العميل", "رقم الحجز", "المبلغ", "رابط سند الصرف"],
     suggested: "(رأس القالب: Document — يُرفق ملف سند الصرف PDF)\nمرحبًا {{1}}، استلمنا دفعتك لحجز رقم {{2}} بمبلغ {{3}}. مرفق سند الصرف، ورابطه: {{4}}\nتصلك الفاتورة الضريبية بعد انتهاء الرحلة.\nشكرًا لكم لاختياركم Mighty Hands Trans، سوف نتواصل معكم في أقرب وقت ممكن.",
+  },
+  payment_invoice: {
+    setting: "wa_tpl_payment_invoice",
+    params: ["اسم العميل", "رقم الحجز", "المبلغ", "رابط الفاتورة المبدئية"],
+    suggested: "(رأس القالب: Document — يُرفق ملف الفاتورة المبدئية PDF)\nمرحبًا {{1}}، استلمنا دفعتك لحجز رقم {{2}} بمبلغ {{3}}. مرفق الفاتورة المبدئية، ورابطها: {{4}}\nشكرًا لكم لاختياركم Mighty Hands Trans، سوف نتواصل معكم في أقرب وقت ممكن.",
   },
   promo_code: {
     setting: "wa_tpl_promo_code",

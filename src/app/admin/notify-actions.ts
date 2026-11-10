@@ -49,7 +49,9 @@ const settingsSchema = z.object({
   wa_tpl_customer_driver: z.string().trim().regex(/^[a-z0-9_]{0,512}$/),
   wa_tpl_rating_request: z.string().trim().regex(/^[a-z0-9_]{0,512}$/),
   wa_tpl_payment_receipt: z.string().trim().regex(/^[a-z0-9_]{0,512}$/),
+  wa_tpl_payment_invoice: z.string().trim().regex(/^[a-z0-9_]{0,512}$/),
   wa_tpl_trip_invoice: z.string().trim().regex(/^[a-z0-9_]{0,512}$/),
+  wa_tpl_promo_code: z.string().trim().regex(/^[a-z0-9_]{0,512}$/),
   notify_email: z.union([z.literal(""), z.email().max(200)]),
 });
 
@@ -61,7 +63,9 @@ export async function saveNotifySettings(_prev: ActionState, formData: FormData)
     wa_tpl_customer_driver: formData.get("wa_tpl_customer_driver") ?? "",
     wa_tpl_rating_request: formData.get("wa_tpl_rating_request") ?? "",
     wa_tpl_payment_receipt: formData.get("wa_tpl_payment_receipt") ?? "",
+    wa_tpl_payment_invoice: formData.get("wa_tpl_payment_invoice") ?? "",
     wa_tpl_trip_invoice: formData.get("wa_tpl_trip_invoice") ?? "",
+    wa_tpl_promo_code: formData.get("wa_tpl_promo_code") ?? "",
     notify_email: String(formData.get("notify_email") ?? "").trim(),
   });
   if (!parsed.success) {

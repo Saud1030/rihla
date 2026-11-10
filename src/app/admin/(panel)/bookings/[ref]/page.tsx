@@ -310,10 +310,10 @@ async function Detail({
                 )}
                 {b.invoiceNo ? (
                   <a href={`/${b.locale === "en" ? "en" : "ar"}/booking/${b.ref}/invoice`} target="_blank" rel="noopener noreferrer" className="text-sign hover:underline">
-                    الفاتورة <span dir="ltr">{invoiceNo(b.invoiceNo)}</span>
+                    الفاتورة المبدئية <span dir="ltr">{invoiceNo(b.invoiceNo)}</span>
                   </a>
                 ) : (
-                  <span className="text-muted">الفاتورة تصدر عند انتهاء الرحلة</span>
+                  <span className="text-muted">الفاتورة المبدئية تصدر عند انتهاء الرحلة</span>
                 )}
               </p>
             )}

@@ -73,7 +73,8 @@ export function pdfWriter(doc: PDFKit.PDFDocument, rtl: boolean, ink = "#1b2420"
       const parts = t.split(SIGN);
       const out: { t: string; f: string }[] = [];
       parts.forEach((p, i) => {
-        if (i > 0) out.push({ t: SIGN, f: `sar-${font}` });
+        // the regular sign font has no glyph at U+20C1; the bold one does, at every size
+        if (i > 0) out.push({ t: SIGN, f: "sar-b" });
         if (p) out.push({ t: p, f: font });
       });
       // the shaper draws an Arabic-script piece back to front; split up, the pieces must go back to front too
@@ -85,7 +86,7 @@ export function pdfWriter(doc: PDFKit.PDFDocument, rtl: boolean, ink = "#1b2420"
     const widths = pieces.map((p) => doc.font(p.f).widthOfString(p.t) + (p.t === SIGN ? pad * 2 : 0));
     // pdfkit places text by its top; line the sign up on the same baseline as the words
     const ascent = (f: string) => ((doc.font(f) as unknown as { _font: { ascender: number } })._font.ascender / 1000) * o.size;
-    const signDrop = pieces.some((p) => p.t === SIGN) ? ascent(font) - ascent(`sar-${font}`) : 0;
+    const signDrop = pieces.some((p) => p.t === SIGN) ? ascent(font) - ascent("sar-b") : 0;
     doc.font(font);
     const total = widths.reduce((a, b) => a + b, 0);
     const toRight = (o.align ?? "start") === "start" ? rtl : o.align === "end" ? !rtl : null;

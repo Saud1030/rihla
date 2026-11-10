@@ -192,9 +192,14 @@ async function BookingView({
             </Link>
           )}
           {b.invoiceNo && (
-            <Link href={`/${lang}/booking/${b.ref}/invoice`} className="btn btn-ghost border border-line">
-              {t.booking.invoiceLink}
-            </Link>
+            <>
+              <a href={`/api/booking/${b.ref}/invoice`} className={`btn ${b.receiptNo ? "btn-ghost border border-line" : "btn-primary"}`} data-testid="invoice-pdf" download>
+                {t.booking.invoicePdf}
+              </a>
+              <Link href={`/${lang}/booking/${b.ref}/invoice`} className="btn btn-ghost border border-line">
+                {t.booking.invoiceLink}
+              </Link>
+            </>
           )}
         </div>
       )}
