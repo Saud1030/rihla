@@ -2024,7 +2024,7 @@ if (!ONLY || ONLY === "features") {
     assert(voucherMsg, "voucher sent on WhatsApp as a document");
     eq(voucherMsg.to, "966501234567", "to the customer");
     eq(voucherMsg.document.filename, `REC-${String(rno).padStart(4, "0")}.pdf`, "file name");
-    assert(voucherMsg.document.caption.includes("تصلك الفاتورة الضريبية بعد انتهاء الرحلة"), "caption: " + voucherMsg.document.caption);
+    assert(voucherMsg.document.caption.includes("تصلك الفاتورة بعد انتهاء الرحلة"), "caption: " + voucherMsg.document.caption);
     assert(voucherMsg.document.caption.trim().endsWith("شكرًا لكم لاختياركم Mighty Hands Trans، سوف نتواصل معكم في أقرب وقت ممكن."), "thanks at the end: " + voucherMsg.document.caption);
     await cp.goto(`${BASE}/ar/booking/${ref}`, { waitUntil: "networkidle" });
     assert((await cp.getByTestId("paid-thanks").innerText()).includes("Mighty Hands Trans"), "thanks on the booking page");
