@@ -1,0 +1,187 @@
+time: 2026-11-12T19:34:09+00:00
+commit: a07d82c
+user: node  node: v22.16.0  codespace: weary-spooky-goblin-r7j755xw9rph54gj
+----- .env (secrets hidden)
+DATABASE_URL=postgres://postgres:postgres@db:5432/rihla
+NEXT_PUBLIC_SITE_URL=https://weary-spooky-goblin-r7j755xw9rph54gj-3000.app.github.dev
+AUTH_SECRET=(hidden)
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=(hidden)
+# mock MyFatoorah (tests/mock-myfatoorah.mjs): no real money, Pay / Decline buttons
+MYFATOORAH_API_KEY=(hidden)
+MYFATOORAH_API_BASE=http://localhost:4010
+MYFATOORAH_WEBHOOK_SECRET=(hidden)
+MOCK_PUBLIC_URL=https://weary-spooky-goblin-r7j755xw9rph54gj-4010.app.github.dev
+# the public Codespaces domain in front of the app
+SERVER_ACTIONS_ALLOWED_ORIGINS=localhost:3000,127.0.0.1:3000,*.app.github.dev,*.githubpreview.dev
+----- setup state
+-rw-rw-rw- 1 node node      0 Nov 12 19:33 .devcontainer/.setup-done
+-rw-rw-rw- 1 node node     21 Nov 12 14:05 .next/BUILD_ID
+-rw-rw-rw- 1 node node 288108 Nov 12 19:34 node_modules/.package-lock.json
+----- processes
+   1324 node           01:07 node tests/mock-myfatoorah.mjs
+   1325 node           01:07 npm exec next start -p 3000
+   1349 node           01:07 sh -c next start -p 3000
+   1350 node           01:07 next-server (v16.4.3)
+----- database
+tables: admin_users, assets, banners, bookings, chat_conversations, chat_faqs, chat_messages, cities, city_hourly_prices, driver_documents, driver_payouts, drivers, installments, locations, notifications, offers, packages, payments, promo_codes, ratings, receipts, routes, seasons, settings, trips, vehicles
+settings 73
+locations 27
+vehicles 10
+routes 48
+trips 479
+bookings 43
+chat_faqs 7
+admin_users 4
+----- http (inside the codespace)
+307 plain /
+307 forwarded /
+200 plain /ar
+200 forwarded /ar
+200 plain /en
+200 forwarded /en
+200 plain /ar/routes
+200 forwarded /ar/routes
+200 plain /admin/login
+200 forwarded /admin/login
+200 mock
+----- /tmp/site.log
+▲ Next.js 16.4.3
+- Local:         http://localhost:3000
+- Network:       http://172.18.0.3:3000
+✓ Ready in 192ms
+✓ Running next.config.ts took 263ms
+⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+----- /tmp/migrate.log
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/workspaces/rihla/drizzle.config.ts'
+Using 'postgres' driver for database querying
+[⣷] applying migrations...{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '132',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '207',
+  routine: 'transformCreateStmt'
+}
+[2K[1G[✓] migrations applied successfully!----- /tmp/seed.log
+Seed done: 7 cities, 27 destinations, 10 vehicles, 48 routes, 479 trips
+----- /tmp/build.log
+tail: cannot open '/tmp/build.log' for reading: No such file or directory
+----- /tmp/mock.log
+mock myfatoorah on 4010
+----- codespace creation log
+2026-11-12 19:31:26.708Z: Host information
+2026-11-12 19:31:26.745Z: ----------------
+2026-11-12 19:31:26.746Z: OS: Ubuntu 22.04.5 LTS (stable release)
+2026-11-12 19:31:26.746Z: Image details: https://github.com/github/codespaces-host-images/blob/main/README.md
+2026-11-12 19:31:26.746Z: ----------------
+
+=================================================================================
+2026-11-12 19:31:26.751Z: Configuration starting...
+2026-11-12 19:31:26.755Z: Cloning...
+
+=================================================================================
+2026-11-12 19:31:26.891Z: Creating container...
+2026-11-12 19:31:27.010Z: $ devcontainer up --id-label Type=codespaces --workspace-folder /var/lib/docker/codespacemount/workspace/rihla --mount type=bind,source=/.codespaces/agent/mount/cache,target=/vscode --user-data-folder /var/lib/docker/codespacemount/.persistedshare --container-data-folder .vscode-remote/data/Machine --container-system-data-folder /var/vscode-remote --log-level trace --log-format json --update-remote-user-uid-default never --mount-workspace-git-root false --omit-config-remote-env-from-metadata --skip-non-blocking-commands --skip-post-create --expect-existing-container --config "/var/lib/docker/codespacemount/workspace/rihla/.devcontainer/devcontainer.json" --override-config /root/.codespaces/shared/merged_devcontainer.json --default-user-env-probe loginInteractiveShell --container-session-data-folder /workspaces/.codespaces/.persistedshare/devcontainers-cli/cache --secrets-file /root/.codespaces/shared/user-secrets-envs.json
+2026-11-12 19:31:27.319Z: @devcontainers/cli 0.83.3. Node.js v18.20.8. linux 6.8.0-1070-azure x64.
+2026-11-12 19:31:29.765Z: $ docker compose -f /var/lib/docker/codespacemount/workspace/rihla/.devcontainer/docker-compose.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose.codespaces.yml --profile * config
+2026-11-12 19:31:29.937Z: Stop: Run: docker compose -f /var/lib/docker/codespacemount/workspace/rihla/.devcontainer/docker-compose.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose.codespaces.yml --profile * config
+2026-11-12 19:31:29.995Z: $ docker compose --project-name rihla_devcontainer -f /var/lib/docker/codespacemount/workspace/rihla/.devcontainer/docker-compose.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose.codespaces.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose/docker-compose.devcontainer.containerFeatures-1793455064708-7b5c8bab-aca0-478a-a3f3-7a805b3a3297.yml up -d --no-recreate
+2026-11-12 19:31:30.325Z: [?25l[0G[2K[+] up 0/12026-11-12 19:31:30.329Z: 
+[2K ⠋ Container rihla_devcontainer-db-1 Starting                               0.1s
+[?25h2026-11-12 19:31:30.421Z: [?25l[2A[0G
+[2K ⠙ Container rihla_devcontainer-db-1 Starting                               0.2s
+[?25h2026-11-12 19:31:30.522Z: [?25l[2A[0G
+[2K ⠹ Container rihla_devcontainer-db-1 Starting                               0.3s
+[?25h2026-11-12 19:31:30.622Z: [?25l[2A[0G2026-11-12 19:31:30.623Z: 
+[2K ⠸ Container rihla_devcontainer-db-1 Starting                               0.4s
+[?25h2026-11-12 19:31:30.722Z: [?25l[2A[0G[2K[+] up 1/2
+[2K ✔ Container rihla_devcontainer-db-1  Started                               0.4s
+[2K ⠋ Container rihla_devcontainer-app-1 Starting                              0.0s
+[?25h2026-11-12 19:31:30.823Z: [?25l[3A[0G
+
+[2K ⠙ Container rihla_devcontainer-app-1 Starting                              0.1s
+[?25h2026-11-12 19:31:30.923Z: [?25l[3A[0G
+
+[2K ⠹ Container rihla_devcontainer-app-1 Starting                              0.2s
+[?25h2026-11-12 19:31:31.022Z: [?25l[3A[0G
+
+[2K ⠸ Container rihla_devcontainer-app-1 Starting                              0.3s
+[?25h2026-11-12 19:31:31.122Z: [?25l[3A[0G
+
+[2K ⠼ Container rihla_devcontainer-app-1 Starting                              0.4s
+[?25h2026-11-12 19:31:31.128Z: [?25l[3A[0G[2K[+] up 2/2
+
+[2K ✔ Container rihla_devcontainer-app-1 Started                               0.4s
+[?25h2026-11-12 19:31:31.138Z: Stop: Run: docker compose --project-name rihla_devcontainer -f /var/lib/docker/codespacemount/workspace/rihla/.devcontainer/docker-compose.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose.codespaces.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose/docker-compose.devcontainer.containerFeatures-1793455064708-7b5c8bab-aca0-478a-a3f3-7a805b3a3297.yml up -d --no-recreate
+2026-11-12 19:31:31.349Z: Outcome: success User: node WorkspaceFolder: /workspaces/rihla
+2026-11-12 19:31:31.357Z: devcontainer process exited with exit code 0
+
+=================================================================================
+2026-11-12 19:31:31.719Z: Running blocking commands...
+2026-11-12 19:31:31.751Z: $ devcontainer up --id-label Type=codespaces --workspace-folder /var/lib/docker/codespacemount/workspace/rihla --mount type=bind,source=/.codespaces/agent/mount/cache,target=/vscode --user-data-folder /var/lib/docker/codespacemount/.persistedshare --container-data-folder .vscode-remote/data/Machine --container-system-data-folder /var/vscode-remote --log-level trace --log-format json --update-remote-user-uid-default never --mount-workspace-git-root false --omit-config-remote-env-from-metadata --skip-non-blocking-commands --expect-existing-container --config "/var/lib/docker/codespacemount/workspace/rihla/.devcontainer/devcontainer.json" --override-config /root/.codespaces/shared/merged_devcontainer.json --default-user-env-probe loginInteractiveShell --container-session-data-folder /workspaces/.codespaces/.persistedshare/devcontainers-cli/cache --secrets-file /root/.codespaces/shared/user-secrets-envs.json
+2026-11-12 19:31:31.914Z: @devcontainers/cli 0.83.3. Node.js v18.20.8. linux 6.8.0-1070-azure x64.
+2026-11-12 19:31:32.134Z: $ docker compose -f /var/lib/docker/codespacemount/workspace/rihla/.devcontainer/docker-compose.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose.codespaces.yml --profile * config
+2026-11-12 19:31:32.219Z: Stop: Run: docker compose -f /var/lib/docker/codespacemount/workspace/rihla/.devcontainer/docker-compose.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose.codespaces.yml --profile * config
+2026-11-12 19:31:32.388Z: Outcome: success User: node WorkspaceFolder: /workspaces/rihla
+2026-11-12 19:31:32.398Z: devcontainer process exited with exit code 0
+
+=================================================================================
+2026-11-12 19:31:32.424Z: Configuring codespace...
+
+=================================================================================
+2026-11-12 19:31:32.996Z: Running commands...
+2026-11-12 19:31:32.996Z: $ devcontainer up --id-label Type=codespaces --workspace-folder /var/lib/docker/codespacemount/workspace/rihla --expect-existing-container --skip-post-attach --mount type=bind,source=/.codespaces/agent/mount/cache,target=/vscode --container-data-folder .vscode-remote/data/Machine --container-system-data-folder /var/vscode-remote --log-level trace --log-format json --update-remote-user-uid-default never --mount-workspace-git-root false --config "/var/lib/docker/codespacemount/workspace/rihla/.devcontainer/devcontainer.json" --override-config /root/.codespaces/shared/merged_devcontainer.json --default-user-env-probe loginInteractiveShell --container-session-data-folder /workspaces/.codespaces/.persistedshare/devcontainers-cli/cache --secrets-file /root/.codespaces/shared/user-secrets-envs.json
+2026-11-12 19:31:33.232Z: @devcontainers/cli 0.83.3. Node.js v18.20.8. linux 6.8.0-1070-azure x64.
+2026-11-12 19:31:33.794Z: $ docker compose -f /var/lib/docker/codespacemount/workspace/rihla/.devcontainer/docker-compose.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose.codespaces.yml --profile * config
+2026-11-12 19:31:33.902Z: Stop: Run: docker compose -f /var/lib/docker/codespacemount/workspace/rihla/.devcontainer/docker-compose.yml -f /var/lib/docker/codespacemount/.persistedshare/docker-compose.codespaces.yml --profile * config
+2026-11-12 19:31:34.077Z: Running the postStartCommand from devcontainer.json...
+
+2026-11-12 19:31:34.077Z: bash .devcontainer/start.sh
+2026-11-12 19:31:34.157Z: ==> تحديث الحزم
+2026-11-12 19:31:35.079Z: [1G[0K\2026-11-12 19:31:35.237Z: [1G[0K|2026-11-12 19:31:35.377Z: [1G[0K/2026-11-12 19:31:35.531Z: [1G2026-11-12 19:31:35.534Z: [0K2026-11-12 19:31:35.534Z: -2026-11-12 19:31:35.671Z: [1G[0K\2026-11-12 19:31:35.922Z: [1G2026-11-12 19:31:35.922Z: [0K|2026-11-12 19:31:35.935Z: [1G[0K/2026-11-12 19:31:36.064Z: [1G[0K-2026-11-12 19:31:36.200Z: [1G2026-11-12 19:31:36.212Z: [0K\2026-11-12 19:31:36.355Z: [1G[0K|2026-11-12 19:31:36.485Z: [1G2026-11-12 19:31:36.487Z: [0K/2026-11-12 19:31:36.613Z: [1G[0K-2026-11-12 19:31:36.748Z: [1G[0K\2026-11-12 19:31:36.875Z: [1G[0K|2026-11-12 19:31:37.022Z: [1G[0K/2026-11-12 19:31:37.278Z: [1G2026-11-12 19:31:37.289Z: [0K-2026-11-12 19:31:37.473Z: [1G[0K\2026-11-12 19:31:37.608Z: [1G2026-11-12 19:31:37.609Z: [0K|2026-11-12 19:31:37.731Z: [1G[0K/2026-11-12 19:31:37.863Z: [1G[0K2026-11-12 19:31:37.869Z: -2026-11-12 19:31:38.006Z: [1G[0K\2026-11-12 19:31:38.137Z: [1G[0K|2026-11-12 19:31:38.304Z: [1G[0K/2026-11-12 19:31:38.426Z: [1G2026-11-12 19:31:38.426Z: [0K2026-11-12 19:31:38.429Z: -2026-11-12 19:31:38.556Z: [1G[0K2026-11-12 19:31:38.556Z: \2026-11-12 19:31:38.694Z: [1G[0K2026-11-12 19:31:38.699Z: |2026-11-12 19:31:39.106Z: [1G[0K/2026-11-12 19:31:39.222Z: [1G[0K-2026-11-12 19:31:39.454Z: [1G[0K\2026-11-12 19:31:39.585Z: [1G[0K|2026-11-12 19:31:39.865Z: [1G[0K/2026-11-12 19:31:39.871Z: [1G[0K-2026-11-12 19:31:39.979Z: [1G[0K\2026-11-12 19:31:40.105Z: [1G[0K|2026-11-12 19:31:40.236Z: [1G[0K/2026-11-12 19:31:40.365Z: [1G[0K-2026-11-12 19:31:40.495Z: [1G[0K\2026-11-12 19:31:40.625Z: [1G[0K|2026-11-12 19:31:40.755Z: [1G[0K/2026-11-12 19:31:40.889Z: [1G2026-11-12 19:31:40.891Z: [0K-2026-11-12 19:31:41.042Z: [1G[0K\2026-11-12 19:31:41.186Z: [1G[0K|2026-11-12 19:31:41.407Z: [1G[0K/2026-11-12 19:31:41.443Z: [1G[0K-2026-11-12 19:31:41.590Z: [1G[0K\2026-11-12 19:31:41.721Z: [1G[0K|2026-11-12 19:31:41.850Z: [1G[0K/2026-11-12 19:31:41.981Z: [1G[0K-2026-11-12 19:31:42.112Z: [1G[0K\2026-11-12 19:31:42.242Z: [1G2026-11-12 19:31:42.244Z: [0K|2026-11-12 19:31:42.376Z: [1G[0K/2026-11-12 19:31:42.506Z: [1G[0K-2026-11-12 19:31:42.776Z: [1G[0K\2026-11-12 19:31:42.907Z: [1G[0K|2026-11-12 19:31:43.036Z: [1G2026-11-12 19:31:43.039Z: [0K/2026-11-12 19:31:43.167Z: [1G2026-11-12 19:31:43.167Z: [0K-2026-11-12 19:31:43.297Z: [1G[0K\2026-11-12 19:31:43.439Z: [1G[0K|2026-11-12 19:31:43.689Z: [1G[0K/2026-11-12 19:31:43.755Z: [1G[0K-2026-11-12 19:31:43.843Z: [1G[0K\2026-11-12 19:31:43.949Z: [1G[0K|2026-11-12 19:31:44.079Z: [1G[0K/2026-11-12 19:31:44.223Z: [1G[0K-2026-11-12 19:31:44.341Z: [1G[0K\2026-11-12 19:31:44.471Z: [1G[0K|2026-11-12 19:31:44.601Z: [1G[0K/2026-11-12 19:31:44.745Z: [1G[0K-2026-11-12 19:31:44.873Z: [1G[0K\2026-11-12 19:31:45.004Z: [1G[0K|2026-11-12 19:31:45.134Z: [1G[0K/2026-11-12 19:31:45.264Z: [1G[0K-2026-11-12 19:31:45.394Z: [1G[0K\2026-11-12 19:31:45.528Z: [1G[0K|2026-11-12 19:31:45.663Z: [1G[0K/2026-11-12 19:31:45.791Z: [1G[0K-2026-11-12 19:31:45.925Z: [1G[0K\2026-11-12 19:31:46.058Z: [1G[0K|2026-11-12 19:31:46.190Z: [1G[0K/2026-11-12 19:31:46.318Z: [1G[0K-2026-11-12 19:31:46.448Z: [1G[0K\2026-11-12 19:31:46.577Z: [1G[0K|2026-11-12 19:31:46.707Z: [1G[0K/2026-11-12 19:31:46.837Z: [1G[0K-2026-11-12 19:31:46.968Z: [1G[0K\2026-11-12 19:31:47.365Z: [1G[0K|2026-11-12 19:31:47.495Z: [1G[0K/2026-11-12 19:31:47.631Z: [1G[0K-2026-11-12 19:31:47.760Z: [1G[0K\2026-11-12 19:31:47.892Z: [1G[0K|2026-11-12 19:31:48.021Z: [1G[0K/2026-11-12 19:31:48.152Z: [1G[0K-2026-11-12 19:31:48.282Z: [1G[0K\2026-11-12 19:31:48.415Z: [1G[0K|2026-11-12 19:31:48.543Z: [1G[0K/2026-11-12 19:31:48.672Z: [1G[0K-2026-11-12 19:31:48.803Z: [1G[0K\2026-11-12 19:31:48.933Z: [1G[0K|2026-11-12 19:31:49.063Z: [1G[0K/2026-11-12 19:31:49.192Z: [1G[0K-2026-11-12 19:31:49.323Z: [1G[0K\2026-11-12 19:31:49.453Z: [1G[0K|2026-11-12 19:31:49.583Z: [1G[0K/2026-11-12 19:31:49.717Z: [1G[0K-2026-11-12 19:31:49.845Z: [1G[0K\2026-11-12 19:31:49.975Z: [1G[0K|2026-11-12 19:31:50.105Z: [1G[0K/2026-11-12 19:31:50.235Z: [1G[0K-2026-11-12 19:31:50.366Z: [1G[0K\2026-11-12 19:31:50.496Z: [1G[0K|2026-11-12 19:31:50.626Z: [1G[0K/2026-11-12 19:31:50.756Z: [1G[0K-2026-11-12 19:31:50.886Z: [1G[0K\2026-11-12 19:31:51.016Z: [1G[0K|2026-11-12 19:31:51.146Z: [1G[0K/2026-11-12 19:31:51.276Z: [1G2026-11-12 19:31:51.277Z: [0K-2026-11-12 19:31:52.604Z: [1G[0K\2026-11-12 19:31:53.062Z: [1G[0K|2026-11-12 19:31:53.190Z: [1G[0K/2026-11-12 19:31:53.320Z: [1G[0K-2026-11-12 19:31:53.450Z: [1G[0K\2026-11-12 19:31:53.580Z: [1G[0K|2026-11-12 19:31:53.792Z: [1G[0K/2026-11-12 19:31:53.924Z: [1G[0K-2026-11-12 19:31:54.197Z: [1G[0K\2026-11-12 19:31:54.327Z: [1G2026-11-12 19:31:54.328Z: [0K2026-11-12 19:31:54.329Z: |2026-11-12 19:31:54.457Z: [1G[0K/2026-11-12 19:31:54.587Z: [1G[0K-2026-11-12 19:31:54.717Z: [1G[0K\2026-11-12 19:31:54.860Z: [1G[0K|2026-11-12 19:31:54.990Z: [1G[0K/2026-11-12 19:31:55.128Z: [1G[0K-2026-11-12 19:31:55.257Z: [1G[0K\2026-11-12 19:31:55.387Z: [1G[0K|2026-11-12 19:31:55.519Z: [1G2026-11-12 19:31:55.519Z: [0K/2026-11-12 19:31:55.649Z: [1G[0K-2026-11-12 19:31:55.785Z: [1G[0K\2026-11-12 19:31:55.961Z: [1G2026-11-12 19:31:55.961Z: [0K|2026-11-12 19:31:56.092Z: [1G[0K/2026-11-12 19:31:56.221Z: [1G[0K-2026-11-12 19:31:56.353Z: [1G[0K\2026-11-12 19:31:56.484Z: [1G[0K|2026-11-12 19:31:56.615Z: [1G[0K/2026-11-12 19:31:56.747Z: [1G[0K-2026-11-12 19:31:57.121Z: [1G[0K\2026-11-12 19:31:57.248Z: [1G[0K|2026-11-12 19:31:57.431Z: [1G[0K/2026-11-12 19:31:59.573Z: [1G[0K-2026-11-12 19:32:01.419Z: [1G[0K\2026-11-12 19:32:01.824Z: [1G[0K|2026-11-12 19:32:02.231Z: [1G[0K/2026-11-12 19:32:02.914Z: [1G[0K-2026-11-12 19:32:03.612Z: [1G[0K\2026-11-12 19:32:04.287Z: [1G2026-11-12 19:32:04.288Z: [0K|2026-11-12 19:32:04.766Z: [1G[0K/2026-11-12 19:32:05.038Z: [1G[0Knpm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+2026-11-12 19:32:05.041Z: [1G[0K-2026-11-12 19:32:05.474Z: [1G2026-11-12 19:32:05.479Z: [0K2026-11-12 19:32:05.486Z: \2026-11-12 19:32:05.514Z: [1G[0Knpm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.hirok.io
+[1G[0K\2026-11-12 19:32:05.574Z: [1G[0Knpm warn deprecated rimraf@2.7.1: Rimraf versions prior to v4 are no longer supported
+[1G[0K\2026-11-12 19:32:05.768Z: [1G[0K|2026-11-12 19:32:05.830Z: [1G2026-11-12 19:32:05.830Z: [0Knpm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.2026-11-12 19:32:05.832Z: 
+[1G[0K|2026-11-12 19:32:06.104Z: [1G[0K/2026-11-12 19:32:06.267Z: [1G[0Knpm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.hirok.io
+[1G[0K-2026-11-12 19:32:06.323Z: [1G[0Knpm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+[1G[0K-2026-11-12 19:32:06.573Z: [1G[0K\2026-11-12 19:32:06.736Z: [1G2026-11-12 19:32:06.740Z: [0K2026-11-12 19:32:06.741Z: |2026-11-12 19:32:06.924Z: [1G2026-11-12 19:32:06.926Z: [0K/2026-11-12 19:32:07.163Z: [1G[0K-2026-11-12 19:32:07.343Z: [1G[0K\2026-11-12 19:32:07.505Z: [1G2026-11-12 19:32:07.505Z: [0K2026-11-12 19:32:07.508Z: |2026-11-12 19:32:07.638Z: [1G[0K/2026-11-12 19:32:07.723Z: [1G[0Knpm warn deprecated fstream@1.0.12: This package is no longer supported.
+[1G[0K/2026-11-12 19:32:07.875Z: [1G[0K-2026-11-12 19:32:08.007Z: [1G2026-11-12 19:32:08.009Z: [0K\2026-11-12 19:32:08.194Z: [1G[0K|2026-11-12 19:32:08.329Z: [1G[0K/2026-11-12 19:32:08.464Z: [1G[0K-2026-11-12 19:32:08.622Z: [1G[0K\2026-11-12 19:32:08.774Z: [1G[0K|2026-11-12 19:32:08.908Z: [1G[0K/2026-11-12 19:32:09.050Z: [1G[0K-2026-11-12 19:32:09.133Z: [1G[0Knpm warn deprecated jpeg-exif@1.1.4: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+[1G[0K-2026-11-12 19:32:09.289Z: [1G[0K\2026-11-12 19:32:10.121Z: [1G[0K|2026-11-12 19:32:10.281Z: [1G2026-11-12 19:32:10.293Z: [0K/2026-11-12 19:32:10.423Z: [1G[0K-2026-11-12 19:32:10.588Z: [1G2026-11-12 19:32:10.593Z: [0K2026-11-12 19:32:10.597Z: \2026-11-12 19:32:10.738Z: [1G[0K|2026-11-12 19:32:10.749Z: [1G[0Knpm warn deprecated crypto-js@4.2.0: Active development of CryptoJS has been discontinued. This library is no longer maintained.
+[1G[0K|2026-11-12 19:32:10.876Z: [1G[0K/2026-11-12 19:32:11.040Z: [1G2026-11-12 19:32:11.040Z: [0K-2026-11-12 19:32:11.181Z: [1G[0K\2026-11-12 19:32:11.307Z: [1G2026-11-12 19:32:11.308Z: [0K2026-11-12 19:32:11.309Z: |2026-11-12 19:32:11.446Z: [1G2026-11-12 19:32:11.446Z: [0K/2026-11-12 19:32:11.578Z: [1G[0K-2026-11-12 19:32:11.720Z: [1G[0K\2026-11-12 19:32:11.878Z: [1G[0K|2026-11-12 19:32:12.014Z: [1G[0K/2026-11-12 19:32:12.147Z: [1G[0K-2026-11-12 19:32:12.403Z: [1G[0K\2026-11-12 19:32:12.543Z: [1G[0K|2026-11-12 19:32:12.883Z: [1G[0K/2026-11-12 19:32:13.463Z: [1G[0K2026-11-12 19:32:13.464Z: -2026-11-12 19:32:13.854Z: [1G[0K\2026-11-12 19:32:14.001Z: [1G2026-11-12 19:32:14.003Z: [0K|2026-11-12 19:32:14.137Z: [1G2026-11-12 19:32:14.156Z: [0K2026-11-12 19:32:14.158Z: /2026-11-12 19:32:14.271Z: [1G2026-11-12 19:32:14.271Z: [0K-2026-11-12 19:32:14.402Z: [1G[0K2026-11-12 19:32:14.403Z: \2026-11-12 19:32:14.541Z: [1G[0K|2026-11-12 19:32:14.678Z: [1G[0K/2026-11-12 19:32:15.306Z: [1G[0K-2026-11-12 19:32:15.442Z: [1G2026-11-12 19:32:15.443Z: [0K\2026-11-12 19:32:15.748Z: [1G[0K2026-11-12 19:32:15.749Z: |2026-11-12 19:32:15.904Z: [1G[0K2026-11-12 19:32:15.910Z: /2026-11-12 19:32:16.060Z: [1G[0K-2026-11-12 19:32:16.197Z: [1G2026-11-12 19:32:16.200Z: [0K\2026-11-12 19:32:16.338Z: [1G2026-11-12 19:32:16.339Z: [0K|2026-11-12 19:32:16.468Z: [1G[0K/2026-11-12 19:32:16.612Z: [1G[0K-2026-11-12 19:32:17.338Z: [1G2026-11-12 19:32:17.340Z: [0K\2026-11-12 19:32:17.479Z: [1G2026-11-12 19:32:17.481Z: [0K2026-11-12 19:32:17.482Z: |2026-11-12 19:32:17.891Z: [1G[0K/2026-11-12 19:32:18.053Z: [1G[0K2026-11-12 19:32:18.055Z: -2026-11-12 19:32:18.196Z: [1G[0K\2026-11-12 19:32:18.691Z: [1G[0K|2026-11-12 19:32:18.854Z: [1G[0K/2026-11-12 19:32:19.008Z: [1G2026-11-12 19:32:19.011Z: [0K2026-11-12 19:32:19.011Z: -2026-11-12 19:32:19.141Z: [1G2026-11-12 19:32:19.142Z: [0K2026-11-12 19:32:19.146Z: \2026-11-12 19:32:19.271Z: [1G[0K|2026-11-12 19:32:19.456Z: [1G2026-11-12 19:32:19.458Z: [0K/2026-11-12 19:32:19.588Z: [1G2026-11-12 19:32:19.591Z: [0K2026-11-12 19:32:19.591Z: -2026-11-12 19:32:19.730Z: [1G[0K\2026-11-12 19:32:19.878Z: [1G[0K|2026-11-12 19:32:20.007Z: [1G[0K/2026-11-12 19:32:20.140Z: [1G[0K-2026-11-12 19:32:20.266Z: [1G[0K\2026-11-12 19:32:20.405Z: [1G2026-11-12 19:32:20.407Z: [0K|2026-11-12 19:32:20.534Z: [1G[0K/2026-11-12 19:32:20.667Z: [1G2026-11-12 19:32:20.668Z: [0K-2026-11-12 19:32:20.798Z: [1G[0K\2026-11-12 19:32:20.934Z: [1G[0K|2026-11-12 19:32:21.062Z: [1G[0K/2026-11-12 19:32:21.195Z: [1G[0K-2026-11-12 19:32:21.326Z: [1G2026-11-12 19:32:21.329Z: [0K\2026-11-12 19:32:21.458Z: [1G[0K|2026-11-12 19:32:21.593Z: [1G[0K/2026-11-12 19:32:21.718Z: [1G[0Knpm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.2026-11-12 19:32:21.718Z: 
+[1G[0K/2026-11-12 19:32:21.869Z: [1G[0K-2026-11-12 19:32:22.008Z: [1G[0K\2026-11-12 19:32:22.129Z: [1G[0K|2026-11-12 19:32:22.281Z: [1G[0K/2026-11-12 19:32:22.405Z: [1G[0K-2026-11-12 19:32:22.538Z: [1G[0K\2026-11-12 19:32:22.681Z: [1G2026-11-12 19:32:22.681Z: [0K|2026-11-12 19:32:22.815Z: [1G[0K/2026-11-12 19:32:22.948Z: [1G[0K-2026-11-12 19:32:23.080Z: [1G[0K\2026-11-12 19:32:23.209Z: [1G2026-11-12 19:32:23.211Z: [0K2026-11-12 19:32:23.213Z: |2026-11-12 19:32:23.357Z: [1G[0K/2026-11-12 19:32:23.478Z: [1G[0K-2026-11-12 19:32:23.606Z: [1G[0K\2026-11-12 19:32:23.736Z: [1G[0K|2026-11-12 19:32:23.867Z: [1G2026-11-12 19:32:23.868Z: [0K2026-11-12 19:32:23.868Z: /2026-11-12 19:32:24.002Z: [1G2026-11-12 19:32:24.002Z: [0K-2026-11-12 19:32:24.133Z: [1G[0K\2026-11-12 19:32:24.262Z: [1G[0K|2026-11-12 19:32:24.409Z: [1G[0K2026-11-12 19:32:24.409Z: /2026-11-12 19:32:24.525Z: [1G[0K-2026-11-12 19:32:24.660Z: [1G[0K\2026-11-12 19:32:24.787Z: [1G[0K|2026-11-12 19:32:24.921Z: [1G[0K/2026-11-12 19:32:25.053Z: [1G2026-11-12 19:32:25.057Z: [0K-2026-11-12 19:32:25.184Z: [1G[0K\2026-11-12 19:32:25.314Z: [1G[0K|2026-11-12 19:32:25.446Z: [1G[0K/2026-11-12 19:32:25.575Z: [1G2026-11-12 19:32:25.577Z: [0K-2026-11-12 19:32:25.706Z: [1G[0K\2026-11-12 19:32:25.839Z: [1G[0K|2026-11-12 19:32:25.969Z: [1G[0K/2026-11-12 19:32:26.102Z: [1G[0K-2026-11-12 19:32:26.234Z: [1G[0K\2026-11-12 19:32:26.367Z: [1G[0K|2026-11-12 19:32:26.503Z: [1G[0K/2026-11-12 19:32:26.637Z: [1G[0K-2026-11-12 19:32:26.768Z: [1G[0K\2026-11-12 19:32:26.898Z: [1G[0K|2026-11-12 19:32:27.188Z: [1G[0K/2026-11-12 19:32:27.243Z: [1G[0K-2026-11-12 19:32:27.344Z: [1G[0K\2026-11-12 19:32:27.459Z: [1G[0K|2026-11-12 19:32:27.587Z: [1G[0K/2026-11-12 19:32:27.715Z: [1G[0K-2026-11-12 19:32:27.844Z: [1G[0K\2026-11-12 19:32:27.975Z: [1G[0K|2026-11-12 19:32:28.106Z: [1G[0K/2026-11-12 19:32:28.233Z: [1G[0K-2026-11-12 19:32:28.368Z: [1G[0K\2026-11-12 19:32:28.503Z: [1G2026-11-12 19:32:28.504Z: [0K|2026-11-12 19:32:28.646Z: [1G[0K/2026-11-12 19:32:28.777Z: [1G[0K-2026-11-12 19:32:28.906Z: [1G[0K\2026-11-12 19:32:29.038Z: [1G[0K|2026-11-12 19:32:29.168Z: [1G[0K/2026-11-12 19:32:29.299Z: [1G[0K-2026-11-12 19:32:29.426Z: [1G[0K\2026-11-12 19:32:29.583Z: [1G[0K2026-11-12 19:32:29.583Z: |2026-11-12 19:32:29.692Z: [1G[0K/2026-11-12 19:32:29.821Z: [1G[0K-2026-11-12 19:32:29.958Z: [1G[0K\2026-11-12 19:32:30.089Z: [1G[0K2026-11-12 19:32:30.089Z: |2026-11-12 19:32:30.217Z: [1G2026-11-12 19:32:30.217Z: [0K/2026-11-12 19:32:30.345Z: [1G[0K2026-11-12 19:32:30.345Z: -2026-11-12 19:32:30.476Z: [1G[0K\2026-11-12 19:32:30.610Z: [1G[0K|2026-11-12 19:32:30.737Z: [1G[0K/2026-11-12 19:32:30.868Z: [1G[0K-2026-11-12 19:32:30.999Z: [1G[0K\2026-11-12 19:32:31.128Z: [1G[0K|2026-11-12 19:32:31.265Z: [1G2026-11-12 19:32:31.266Z: [0K/2026-11-12 19:32:31.391Z: [1G2026-11-12 19:32:31.393Z: [0K-2026-11-12 19:32:31.549Z: [1G[0K\2026-11-12 19:32:31.679Z: [1G[0K|2026-11-12 19:32:31.812Z: [1G2026-11-12 19:32:31.816Z: [0K2026-11-12 19:32:31.816Z: /2026-11-12 19:32:31.944Z: [1G[0K-2026-11-12 19:32:32.071Z: [1G[0K\2026-11-12 19:32:32.203Z: [1G2026-11-12 19:32:32.207Z: [0K|2026-11-12 19:32:32.337Z: [1G2026-11-12 19:32:32.338Z: [0K/2026-11-12 19:32:32.470Z: [1G2026-11-12 19:32:32.471Z: [0K-2026-11-12 19:32:32.596Z: [1G[0K\2026-11-12 19:32:32.739Z: [1G[0K|2026-11-12 19:32:32.873Z: [1G[0K/2026-11-12 19:32:32.992Z: [1G[0K-2026-11-12 19:32:33.126Z: [1G[0K\2026-11-12 19:32:33.259Z: [1G[0K|2026-11-12 19:32:33.389Z: [1G[0K/2026-11-12 19:32:33.517Z: [1G[0K-2026-11-12 19:32:33.652Z: [1G[0K\2026-11-12 19:32:33.780Z: [1G[0K|2026-11-12 19:32:33.922Z: [1G[0K/2026-11-12 19:32:34.054Z: [1G[0K-2026-11-12 19:32:34.179Z: [1G[0K\2026-11-12 19:32:34.314Z: [1G[0K|2026-11-12 19:32:34.443Z: [1G[0K/2026-11-12 19:32:34.571Z: [1G[0K-2026-11-12 19:32:34.782Z: [1G[0K\2026-11-12 19:32:34.835Z: [1G[0K|2026-11-12 19:32:34.962Z: [1G[0K/2026-11-12 19:32:35.094Z: [1G2026-11-12 19:32:35.094Z: [0K-2026-11-12 19:32:35.227Z: [1G[0K\2026-11-12 19:32:35.359Z: [1G[0K|2026-11-12 19:32:35.484Z: [1G2026-11-12 19:32:35.486Z: [0K/2026-11-12 19:32:35.614Z: [1G2026-11-12 19:32:35.616Z: [0K-2026-11-12 19:32:35.743Z: [1G2026-11-12 19:32:35.746Z: [0K\2026-11-12 19:32:35.881Z: [1G[0K|2026-11-12 19:32:36.005Z: [1G[0K/2026-11-12 19:32:36.134Z: [1G2026-11-12 19:32:36.135Z: [0K-2026-11-12 19:32:36.265Z: [1G2026-11-12 19:32:36.266Z: [0K\2026-11-12 19:32:36.394Z: [1G[0K|2026-11-12 19:32:36.528Z: [1G[0K/2026-11-12 19:32:36.658Z: [1G[0K-2026-11-12 19:32:36.788Z: [1G[0K\2026-11-12 19:32:36.921Z: [1G[0K|2026-11-12 19:32:37.050Z: [1G[0K/2026-11-12 19:32:37.177Z: [1G2026-11-12 19:32:37.180Z: [0K-2026-11-12 19:32:37.310Z: [1G[0K\2026-11-12 19:32:37.441Z: [1G[0K|2026-11-12 19:32:37.572Z: [1G2026-11-12 19:32:37.572Z: [0K/2026-11-12 19:32:37.699Z: [1G[0K2026-11-12 19:32:37.702Z: -2026-11-12 19:32:37.830Z: [1G[0K\2026-11-12 19:32:37.962Z: [1G2026-11-12 19:32:37.962Z: [0K|2026-11-12 19:32:38.104Z: [1G[0K/2026-11-12 19:32:38.227Z: [1G[0K-2026-11-12 19:32:38.362Z: [1G[0K\2026-11-12 19:32:38.489Z: [1G[0K|2026-11-12 19:32:38.620Z: [1G[0K/2026-11-12 19:32:38.751Z: [1G2026-11-12 19:32:38.754Z: [0K-2026-11-12 19:32:38.880Z: [1G[0K\2026-11-12 19:32:39.011Z: [1G[0K|2026-11-12 19:32:39.142Z: [1G2026-11-12 19:32:39.143Z: [0K/2026-11-12 19:32:39.272Z: [1G2026-11-12 19:32:39.275Z: [0K-2026-11-12 19:32:39.408Z: [1G[0K\2026-11-12 19:32:39.533Z: [1G[0K|2026-11-12 19:32:39.674Z: [1G[0K/2026-11-12 19:32:39.798Z: [1G[0K-2026-11-12 19:32:39.927Z: [1G[0K\2026-11-12 19:32:40.055Z: [1G2026-11-12 19:32:40.056Z: [0K|2026-11-12 19:32:40.185Z: [1G[0K/2026-11-12 19:32:40.315Z: [1G[0K-2026-11-12 19:32:40.453Z: [1G[0K\2026-11-12 19:32:40.578Z: [1G[0K|2026-11-12 19:32:40.705Z: [1G[0K2026-11-12 19:32:40.707Z: /2026-11-12 19:32:40.837Z: [1G2026-11-12 19:32:40.838Z: [0K-2026-11-12 19:32:40.977Z: [1G[0K\2026-11-12 19:32:41.102Z: [1G[0K|2026-11-12 19:32:41.232Z: [1G[0K/2026-11-12 19:32:41.360Z: [1G[0K-2026-11-12 19:32:41.503Z: [1G[0K\2026-11-12 19:32:41.624Z: [1G[0K|2026-11-12 19:32:41.754Z: [1G2026-11-12 19:32:41.754Z: [0K/2026-11-12 19:32:41.885Z: [1G[0K-2026-11-12 19:32:42.015Z: [1G[0K\2026-11-12 19:32:42.146Z: [1G[0K2026-11-12 19:32:42.146Z: |2026-11-12 19:32:42.275Z: [1G[0K/2026-11-12 19:32:42.406Z: [1G[0K-2026-11-12 19:32:42.546Z: [1G[0K\2026-11-12 19:32:42.671Z: [1G[0K|2026-11-12 19:32:42.799Z: [1G[0K/2026-11-12 19:32:42.934Z: [1G[0K-2026-11-12 19:32:43.060Z: [1G[0K\2026-11-12 19:32:43.191Z: [1G[0K|2026-11-12 19:32:43.322Z: [1G[0K/2026-11-12 19:32:43.452Z: [1G[0K-2026-11-12 19:32:43.582Z: [1G[0K\2026-11-12 19:32:43.712Z: [1G[0K|2026-11-12 19:32:43.844Z: [1G[0K/2026-11-12 19:32:43.979Z: [1G[0K-2026-11-12 19:32:44.106Z: [1G[0K\2026-11-12 19:32:44.241Z: [1G[0K|2026-11-12 19:32:44.371Z: [1G[0K/2026-11-12 19:32:44.498Z: [1G[0K-2026-11-12 19:32:44.635Z: [1G[0K\2026-11-12 19:32:44.758Z: [1G[0K|2026-11-12 19:32:44.890Z: [1G2026-11-12 19:32:44.890Z: [0K/2026-11-12 19:32:45.018Z: [1G[0K-2026-11-12 19:32:45.151Z: [1G[0K\2026-11-12 19:32:45.278Z: [1G2026-11-12 19:32:45.279Z: [0K|2026-11-12 19:32:45.417Z: [1G[0K/2026-11-12 19:32:45.548Z: [1G[0K-2026-11-12 19:32:45.685Z: [1G[0K\2026-11-12 19:32:45.814Z: [1G[0K|2026-11-12 19:32:45.946Z: [1G[0K/2026-11-12 19:32:46.075Z: [1G[0K-2026-11-12 19:32:46.205Z: [1G[0K\2026-11-12 19:32:46.335Z: [1G[0K|2026-11-12 19:32:46.466Z: [1G[0K/2026-11-12 19:32:46.596Z: [1G2026-11-12 19:32:46.597Z: [0K-2026-11-12 19:32:46.725Z: [1G[0K\2026-11-12 19:32:46.861Z: [1G[0K|2026-11-12 19:32:46.984Z: [1G[0K/2026-11-12 19:32:47.114Z: [1G[0K-2026-11-12 19:32:47.247Z: [1G[0K\2026-11-12 19:32:47.375Z: [1G[0K|2026-11-12 19:32:47.506Z: [1G[0K/2026-11-12 19:32:47.637Z: [1G[0K-2026-11-12 19:32:47.768Z: [1G[0K\2026-11-12 19:32:47.896Z: [1G[0K|2026-11-12 19:32:48.026Z: [1G[0K/2026-11-12 19:32:48.158Z: [1G[0K-2026-11-12 19:32:48.285Z: [1G[0K\2026-11-12 19:32:48.417Z: [1G[0K|2026-11-12 19:32:48.547Z: [1G[0K/2026-11-12 19:32:48.677Z: [1G[0K-2026-11-12 19:32:48.807Z: [1G[0K\2026-11-12 19:32:48.938Z: [1G[0K|2026-11-12 19:32:49.068Z: [1G[0K/2026-11-12 19:32:49.199Z: [1G[0K-2026-11-12 19:32:49.328Z: [1G[0K\2026-11-12 19:32:49.459Z: [1G[0K|2026-11-12 19:32:49.588Z: [1G[0K/2026-11-12 19:32:49.720Z: [1G[0K-2026-11-12 19:32:49.848Z: [1G[0K\2026-11-12 19:32:49.979Z: [1G[0K|2026-11-12 19:32:50.109Z: [1G[0K/2026-11-12 19:32:50.238Z: [1G[0K-2026-11-12 19:32:50.369Z: [1G[0K\2026-11-12 19:32:50.501Z: [1G2026-11-12 19:32:50.503Z: [0K|2026-11-12 19:32:50.636Z: [1G2026-11-12 19:32:50.638Z: [0K/2026-11-12 19:32:50.797Z: [1G[0K-2026-11-12 19:32:50.929Z: [1G[0K\2026-11-12 19:32:51.062Z: [1G[0K2026-11-12 19:32:51.064Z: |2026-11-12 19:32:51.191Z: [1G[0K/2026-11-12 19:32:51.320Z: [1G2026-11-12 19:32:51.322Z: [0K-2026-11-12 19:32:51.451Z: [1G[0K\2026-11-12 19:32:51.581Z: [1G[0K|2026-11-12 19:32:51.712Z: [1G[0K/2026-11-12 19:32:52.256Z: [1G[0K-2026-11-12 19:32:52.355Z: [1G2026-11-12 19:32:52.360Z: [0K2026-11-12 19:32:52.360Z: 
+added 585 packages, and audited 586 packages in 1m
+[1G[0K-2026-11-12 19:32:52.360Z: [1G[0K
+[1G[0K-[1G[0K179 packages are looking for funding
+[1G2026-11-12 19:32:52.360Z: [0K-[1G[0K  run `npm fund` for details
+[1G[0K-2026-11-12 19:32:52.922Z: [1G2026-11-12 19:32:52.922Z: [0K
+12 moderate severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+[1G[0K\2026-11-12 19:32:52.927Z: [1G[0K2026-11-12 19:32:53.552Z: ==> فحص قاعدة البيانات
+2026-11-12 19:33:09.732Z: 
+✅ الموقع يعمل: https://********-3000.********
+   لوحة التحكم: https://********-3000.********/admin   (admin@example.com / Rihla-Test-2026)
+   أو افتح تبويب PORTS واضغط رابط المنفذ 3000
+2026-11-12 19:33:09.740Z: Outcome: success User: node WorkspaceFolder: /workspaces/rihla
+2026-11-12 19:33:09.748Z: devcontainer process exited with exit code 0
+
+=================================================================================
+2026-11-12 19:33:09.831Z: Finished configuring codespace.
