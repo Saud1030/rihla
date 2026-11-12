@@ -53,7 +53,7 @@ export const WHATSAPP: Integration = {
   fields: [
     { key: "wa_phone_id", label: "Phone Number ID", hint: "من Meta: تطبيقك ← WhatsApp ← API Setup (رقم طويل، مو رقم الجوال)" },
     { key: "wa_token", label: "Access Token (دائم)", secret: true, hint: "من Business Settings ← System users ← Generate token (صلاحية whatsapp_business_messaging)" },
-    { key: "wa_waba_id", label: "WhatsApp Business Account ID (اختياري)", hint: "للرجوع له فقط" },
+    { key: "wa_waba_id", label: "WhatsApp Business Account ID", hint: "من Meta: WhatsApp ← API Setup. يحدد لـ Meta أي حساب تنرسل منه الرسائل" },
   ],
 };
 

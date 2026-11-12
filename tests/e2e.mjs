@@ -3789,6 +3789,7 @@ if (!ONLY || ONLY === "drivers") {
     await a.reload({ waitUntil: "networkidle" });
     assert((await a.locator('[data-integration="whatsapp"]').innerText()).includes("المحفوظ: wron…-123"), "token shown masked");
     await a.locator('[data-integration="whatsapp"]').locator('input[name="wa_token"]').fill("test-wa-token");
+    await a.locator('[data-integration="whatsapp"]').locator('input[name="wa_waba_id"]').fill("112233445566");
     await a.locator('[data-integration="whatsapp"]').getByRole("button", { name: "حفظ المفاتيح" }).click();
     await a.getByText("تم حفظ مفاتيح واتساب للأعمال").waitFor();
     await mf("/__wa_reset");
@@ -3796,7 +3797,7 @@ if (!ONLY || ONLY === "drivers") {
     await a.getByTestId("whatsapp-test").getByRole("button", { name: "إرسال رسالة تجريبية" }).click();
     await a.getByText("تم الإرسال").waitFor();
     const sent = (await mf("/__wa")).find((m) => m.to === "966501112299");
-    assert(sent && sent.phoneNumberId === "998877665544" && sent.template?.name === "hello_world", "sent from the panel's number: " + JSON.stringify(sent));
+    assert(sent && sent.phoneNumberId === "998877665544" && sent.template?.name === "hello_world" && sent.messaging_account_id === "112233445566", "sent from the panel's number, naming its messaging account: " + JSON.stringify(sent));
     sql("delete from settings where key in ('wa_phone_id','wa_token','wa_waba_id')"); // back to the .env number
   });
 

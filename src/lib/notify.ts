@@ -94,7 +94,9 @@ const WA_BASE = () => (process.env.WHATSAPP_API_BASE || "https://graph.facebook.
 export function waConfig(st: Record<string, string> = {}) {
   const token = (st.wa_token || process.env.WHATSAPP_TOKEN || "").trim();
   const phoneId = (st.wa_phone_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "").trim();
-  return token && phoneId ? { token, phoneId } : null;
+  // a number can sit under more than one messaging account; naming ours stops Meta picking one the token can't use
+  const wabaId = (st.wa_waba_id || "").trim();
+  return token && phoneId ? { token, phoneId, account: wabaId ? { messaging_account_id: wabaId } : {} } : null;
 }
 export const whatsappConfigured = (st: Record<string, string> = {}) => !!waConfig(st);
 export const emailConfigured = () => process.env.EMAIL_TRANSPORT === "log" || !!(process.env.SMTP_HOST && process.env.SMTP_FROM);
@@ -193,7 +195,7 @@ async function sendWhatsApp(row: Notification, st: Record<string, string>) {
     const res = await fetch(`${WA_BASE()}/${wa.phoneId}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${wa.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, ...wa.account }),
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });
@@ -259,12 +261,20 @@ export async function testWhatsApp(to: string, st: Record<string, string>) {
     const res = await fetch(`${WA_BASE()}/${wa.phoneId}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${wa.token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", to: waNumber(to), type: "template", template: { name: "hello_world", language: { code: "en_US" } } }),
+      body: JSON.stringify({ messaging_product: "whatsapp", to: waNumber(to), type: "template", template: { name: "hello_world", language: { code: "en_US" } }, ...wa.account }),
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });
     const json = (await res.json().catch(() => null)) as { messages?: { id: string }[]; error?: { message?: string; code?: number } } | null;
     if (res.ok && json?.messages?.[0]?.id) return { ok: true as const };
+    // Meta picked a messaging account this token can't use: the admin names his own
+    if (/Paid Message Account/i.test(json?.error?.message ?? ""))
+      return {
+        ok: false as const,
+        error: wa.account.messaging_account_id
+          ? "Meta رفضت حساب الرسائل: تأكد إن رقم WhatsApp Business Account ID المحفوظ هو نفس المكتوب في Meta ← WhatsApp ← API Setup، وإن مستخدم النظام (System user) له صلاحية كاملة على هذا الحساب وعليه وسيلة دفع. (10)"
+          : "Meta اختارت حساب رسائل ما يقدر التوكن يستخدمه. اكتب رقم «WhatsApp Business Account ID» من Meta ← WhatsApp ← API Setup في خانته واحفظ، ثم جرّب مرة ثانية. (10)",
+      };
     // 190: the token itself is wrong (not a Meta token, cut while copying, or expired)
     if (json?.error?.code === 190)
       return { ok: false as const, error: "الـ Access Token المحفوظ مو توكن Meta صحيح، أو انتهت صلاحيته. توكن Meta يبدأ بـ EAA وتاخذه من Meta Business Settings ← System users ← Generate token. الصقه في خانة Access Token واحفظ، ثم جرّب مرة ثانية. (190)" };
