@@ -3,8 +3,8 @@ import { Suspense } from "react";
 import { requireSection } from "@/lib/auth";
 import { getSettings } from "@/lib/catalog";
 import { maskKey } from "@/lib/einvoice";
-import { EINVOICE_PLATFORMS, GATEWAYS, WATI, WHATSAPP, type Integration } from "@/lib/integrations";
-import { watiConfig, whatsappConfigured } from "@/lib/notify";
+import { EINVOICE_PLATFORMS, GATEWAYS, WHATSAPP, type Integration } from "@/lib/integrations";
+import { whatsappConfigured } from "@/lib/notify";
 import { saveEinvoiceSettings, testEinvoice } from "../../actions";
 import { chooseGateway, saveIntegrationKeys, sendWhatsAppTest } from "../../integration-actions";
 import { ActionForm } from "@/components/admin/action-form";
@@ -35,7 +35,6 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
   const hasKeys = (g: Integration) =>
     g.fields.some((f) => (values[f.key] ?? "").trim()) || (g.id === "myfatoorah" && !!process.env.MYFATOORAH_API_KEY) || (g.id === "whatsapp" && !!process.env.WHATSAPP_TOKEN);
   const waOn = whatsappConfigured(values);
-  const viaWati = !!watiConfig(values);
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -49,7 +48,7 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
         <Card className={`p-5 space-y-2 ${waOn ? "" : "border-amber/50"}`}>
           <p className="font-medium" data-testid="whatsapp-state">
             {waOn
-              ? `الواتساب مربوط${viaWati ? " عن طريق WATI" : " عن طريق Meta"}: رسائل الحجز والسندات تنرسل تلقائيًا من رقمك.`
+              ? "الواتساب مربوط مباشرة مع Meta: رسائل الحجز والفواتير تنرسل تلقائيًا من رقمك."
               : "الواتساب غير مربوط: الرسائل تُحفظ في «رسائل واتساب والبريد» وترسلها بنفسك."}
           </p>
           <ol className="text-sm text-muted list-decimal ps-5 space-y-1">
@@ -72,18 +71,13 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
             </li>
           </ol>
           <p className="text-xs text-muted">ملاحظة: الرقم اللي تربطه بالـAPI ما يشتغل بعدها في تطبيق واتساب العادي على الجوال.</p>
-          <p className="text-sm">
-            <strong>أسهل:</strong> عن طريق <strong>WATI</strong> (يسجّل رقمك عند Meta بدالك): الصق «API Endpoint» و«API Token» من WATI في بطاقته تحت. إذا انحفظت مفاتيح WATI يُستخدم بدل Meta.
-            القوالب تعتمدها من WATI بنفس الأسماء وترتيب {"{{1}} {{2}}"} المكتوب في «رسائل واتساب والبريد».
-          </p>
         </Card>
         <div className="grid gap-4 md:grid-cols-2">
-          <IntegrationCard g={WATI} values={values} on={viaWati} saved={hasKeys(WATI)} />
-          <IntegrationCard g={WHATSAPP} values={values} on={waOn && !viaWati} saved={hasKeys(WHATSAPP)} />
+          <IntegrationCard g={WHATSAPP} values={values} on={waOn} saved={hasKeys(WHATSAPP)} />
           <Card className="p-5 space-y-3" data-testid="whatsapp-test">
             <h3 className="font-semibold">إرسال رسالة تجريبية</h3>
-            <p className="text-sm text-muted">{viaWati ? "مع WATI: نتأكد من التوكن ونعرض لك أسماء قوالبك المعتمدة (ما تنرسل رسالة)." : "تنرسل رسالة Meta الجاهزة «Hello World» للرقم، وتتأكد إن الربط شغّال."}</p>
-            <ActionForm action={sendWhatsAppTest} submitLabel={viaWati ? "اختبار الاتصال" : "إرسال رسالة تجريبية"} pendingLabel="جارٍ الإرسال…" className="space-y-3">
+            <p className="text-sm text-muted">تنرسل رسالة Meta الجاهزة «Hello World» للرقم، وتتأكد إن الربط شغّال.</p>
+            <ActionForm action={sendWhatsAppTest} submitLabel="إرسال رسالة تجريبية" pendingLabel="جارٍ الإرسال…" className="space-y-3">
               <Field label="رقم جوالك">
                 <input name="to" required inputMode="tel" dir="ltr" placeholder="0501234567" className="field text-start" />
               </Field>

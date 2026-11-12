@@ -57,19 +57,7 @@ export const WHATSAPP: Integration = {
   ],
 };
 
-/** WATI (wati.io): a WhatsApp provider that registers the number with Meta for you; when its keys are saved it is used instead of Meta's API */
-export const WATI: Integration = {
-  id: "wati",
-  name: "واتي WATI",
-  site: "https://app.wati.io",
-  ready: true,
-  fields: [
-    { key: "wati_endpoint", label: "API Endpoint", hint: "من WATI: API ← API Endpoint، مثل https://live-mt-server.wati.io/123456", max: 300 },
-    { key: "wati_token", label: "API Token", secret: true, hint: "من WATI: API Tokens ← توكن بصلاحيات messagetemplate:read و messagetemplate:write و conversations:write", max: 4000 },
-  ],
-};
-
-export const allIntegrationKeys = () => [...GATEWAYS, ...EINVOICE_PLATFORMS, WHATSAPP, WATI].flatMap((g) => g.fields);
+export const allIntegrationKeys = () => [...GATEWAYS, ...EINVOICE_PLATFORMS, WHATSAPP].flatMap((g) => g.fields);
 
 /** Online payment is offered only when a connected gateway is chosen in the panel and has its key */
 export async function onlinePaymentOn() {

@@ -218,6 +218,13 @@
       "when": 1794076779239,
       "tag": "0030_banner_layout",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794486265846,
+      "tag": "0031_drop_wati_keys",
+      "breakpoints": true
     }
   ]
 }

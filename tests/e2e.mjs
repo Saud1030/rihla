@@ -3289,41 +3289,6 @@ if (!ONLY || ONLY === "drivers") {
     await a.getByText("تم الحفظ.").waitFor();
   });
 
-  await check("WhatsApp through WATI: endpoint and token saved in the panel, the test lists approved templates, messages go as WATI templates with {{1}}.. values", async () => {
-    sql("delete from settings where key like 'wati_%'");
-    await a.goto(`${BASE}/admin/integrations`, { waitUntil: "networkidle" });
-    const card = a.locator('[data-integration="wati"]');
-    await card.locator('input[name="wati_endpoint"]').fill("http://localhost:4010/wati/123456");
-    await card.locator('input[name="wati_token"]').fill("Bearer test-wati-token");
-    await card.getByRole("button", { name: "حفظ المفاتيح" }).click();
-    await a.getByText("تم حفظ مفاتيح واتي WATI.").waitFor();
-    await a.reload({ waitUntil: "networkidle" });
-    assert((await a.getByTestId("whatsapp-state").innerText()).includes("عن طريق WATI"), "WATI in use");
-    assert(!(await a.content()).includes("test-wati-token"), "the token is never shown back");
-    const t = a.getByTestId("whatsapp-test");
-    await t.locator('input[name="to"]').fill("0501234567");
-    await t.getByRole("button", { name: "اختبار الاتصال" }).click();
-    await a.getByText("الاتصال بـ WATI ناجح").waitFor();
-    assert((await t.innerText()).includes("payment_receipt_ar") && !(await t.innerText()).includes("draft_one"), "approved templates only");
-    // a message with a template set goes through WATI
-    await a.goto(`${BASE}/admin/messages`, { waitUntil: "networkidle" });
-    await a.getByText("قوالب واتساب").click();
-    await a.fill('input[name="wa_tpl_customer_driver"]', "customer_driver");
-    await a.getByRole("button", { name: "حفظ", exact: true }).click();
-    await a.getByText("تم الحفظ.").waitFor();
-    await mf("/__wa_reset");
-    const r = paidBooking({ name: "Wati Customer", phone: "+966551112233" });
-    await a.goto(`${BASE}/admin/bookings/${r}`, { waitUntil: "networkidle" });
-    await a.getByTestId("driver-card").locator('select[name="driverId"]').selectOption(String(driverId));
-    await a.getByRole("button", { name: "إسناد وإرسال الرسائل" }).click();
-    await a.getByText("أُرسلت رسالتا الواتساب").waitFor();
-    const msgs = (await wa()).filter((m) => m.via === "wati");
-    const cust = msgs.find((m) => m.to === "966551112233");
-    assert(cust && cust.template.name === "customer_driver" && cust.parameters[0].name === "1" && cust.parameters[0].value === "Wati Customer", "template with ordered values: " + JSON.stringify(cust));
-    assert(msgs.some((m) => m.type === "text"), "no template for the driver's message: a session message");
-    sql("delete from settings where key like 'wati_%' or key='wa_tpl_customer_driver'");
-  });
-
   await check("WhatsApp refused or not connected: the message waits in the panel with a ready 'send on WhatsApp' button", async () => {
     await mf("/__wa_reset");
     const r3 = paidBooking({ phone: "+966550000000" }); // the mock refuses numbers ending in 0000
