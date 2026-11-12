@@ -278,6 +278,9 @@ export async function testWhatsApp(to: string, st: Record<string, string>) {
     // 190: the token itself is wrong (not a Meta token, cut while copying, or expired)
     if (json?.error?.code === 190)
       return { ok: false as const, error: "الـ Access Token المحفوظ مو توكن Meta صحيح، أو انتهت صلاحيته. توكن Meta يبدأ بـ EAA وتاخذه من Meta Business Settings ← System users ← Generate token. الصقه في خانة Access Token واحفظ، ثم جرّب مرة ثانية. (190)" };
+    // 100: the token can't reach this ID — usually a WABA / app ID pasted in the phone field
+    if (json?.error?.code === 100 && /Authorization|does not exist|missing permission/i.test(json.error.message ?? ""))
+      return { ok: false as const, error: "التوكن ما يقدر يوصل للرقم المكتوب في خانة Phone Number ID. تأكد إنه «Phone number ID» نفسه من Meta ← WhatsApp ← API Setup (مو رقم WhatsApp Business Account ID ولا رقم التطبيق)، وإن الرقم تابع لنفس الحساب اللي طلع منه التوكن. (100)" };
     return { ok: false as const, error: `واتساب رفض: ${json?.error?.message ?? res.status}${json?.error?.code ? ` (${json.error.code})` : ""}` };
   } catch (e) {
     return { ok: false as const, error: `تعذّر الاتصال بواتساب: ${(e as Error).message}` };
