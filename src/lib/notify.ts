@@ -265,6 +265,9 @@ export async function testWhatsApp(to: string, st: Record<string, string>) {
     });
     const json = (await res.json().catch(() => null)) as { messages?: { id: string }[]; error?: { message?: string; code?: number } } | null;
     if (res.ok && json?.messages?.[0]?.id) return { ok: true as const };
+    // 190: the token itself is wrong (not a Meta token, cut while copying, or expired)
+    if (json?.error?.code === 190)
+      return { ok: false as const, error: "الـ Access Token المحفوظ مو توكن Meta صحيح، أو انتهت صلاحيته. توكن Meta يبدأ بـ EAA وتاخذه من Meta Business Settings ← System users ← Generate token. الصقه في خانة Access Token واحفظ، ثم جرّب مرة ثانية. (190)" };
     return { ok: false as const, error: `واتساب رفض: ${json?.error?.message ?? res.status}${json?.error?.code ? ` (${json.error.code})` : ""}` };
   } catch (e) {
     return { ok: false as const, error: `تعذّر الاتصال بواتساب: ${(e as Error).message}` };

@@ -3784,7 +3784,7 @@ if (!ONLY || ONLY === "drivers") {
     const test = a.getByTestId("whatsapp-test");
     await test.locator('input[name="to"]').fill("0501112299");
     await test.getByRole("button", { name: "إرسال رسالة تجريبية" }).click();
-    await a.getByText("واتساب رفض: Invalid OAuth access token.").waitFor();
+    await a.getByText("مو توكن Meta صحيح").waitFor();
     // the right token: the message goes out from that number
     await a.reload({ waitUntil: "networkidle" });
     assert((await a.locator('[data-integration="whatsapp"]').innerText()).includes("المحفوظ: wron…-123"), "token shown masked");
