@@ -72,6 +72,21 @@ const store = {
   },
 };
 
+/**
+ * The best voice this device has for the language. For Arabic a Saudi voice (ar-SA) comes first, and among
+ * equals the natural-sounding ones (the "Natural", "Online", "Enhanced", "Premium" and Google voices).
+ */
+function pickVoice(voices: SpeechSynthesisVoice[], arabic: boolean) {
+  const want = arabic ? "ar" : "en";
+  const exact = arabic ? "ar-sa" : "en-us";
+  const score = (v: SpeechSynthesisVoice) => {
+    const l = v.lang.replace("_", "-").toLowerCase();
+    if (!l.startsWith(want)) return -1;
+    return (l === exact ? 10 : 0) + (/natural|online|neural|enhanced|premium|google/i.test(v.name) ? 5 : 0) + (v.localService ? 0 : 1);
+  };
+  return voices.map((v) => ({ v, s: score(v) })).filter((x) => x.s >= 0).sort((a, b) => b.s - a.s)[0]?.v ?? null;
+}
+
 function MicIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -149,8 +164,7 @@ export function VoiceAssistant({ lang, labels: L }: { lang: "ar" | "en"; labels:
       const u = new SpeechSynthesisUtterance(text);
       const arabic = /[؀-ۿ]/.test(text);
       u.lang = arabic ? "ar-SA" : "en-US";
-      const voices = synth.getVoices();
-      const voice = voices.find((v) => v.lang.replace("_", "-") === u.lang) ?? voices.find((v) => v.lang.toLowerCase().startsWith(arabic ? "ar" : "en"));
+      const voice = pickVoice(synth.getVoices(), arabic);
       if (voice) u.voice = voice;
       u.onend = finish;
       u.onerror = finish;
@@ -273,6 +287,16 @@ export function VoiceAssistant({ lang, labels: L }: { lang: "ar" | "en"; labels:
     if (saved.length) listen();
     else speak(L.greeting, () => openRef.current && (go("idle"), listenRef.current()));
   };
+
+  // browsers load their voices a moment after the page: ask early so the first answer already has the right one
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    synth.getVoices();
+    const load = () => synth.getVoices();
+    synth.addEventListener?.("voiceschanged", load);
+    return () => synth.removeEventListener?.("voiceschanged", load);
+  }, []);
 
   // stop the microphone and the voice when the page goes away
   useEffect(
