@@ -14,7 +14,7 @@ import { getBrand } from "@/lib/brand";
 import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
 import { NoticeBar } from "@/components/site/notice-bar";
-import { ChatLauncher } from "@/components/site/chat-launcher";
+import { ChatLauncher, VoiceLauncher } from "@/components/site/chat-launcher";
 
 export function generateStaticParams() {
   return locales.map((lang) => ({ lang }));
@@ -55,6 +55,7 @@ async function BrandShell({ lang, children }: { lang: Locale; children: React.Re
       <div className="contents print:hidden">
         <SiteFooter lang={lang} t={t} brand={brand} />
         <ChatLauncher lang={lang} t={t} />
+        <VoiceLauncher lang={lang} t={t} />
         <Suspense fallback={null}>
           <RouteLoader label={lang === "ar" ? "جارٍ التحميل…" : "Loading…"} mark={brand.mark[lang]} />
         </Suspense>
