@@ -53,6 +53,8 @@ async function Content({ lang, t, searchParams }: { lang: Locale; t: Dictionary;
     );
   }
 
+  const multiCities = [...new Set(quote.legs.flatMap((l) => [l.from.city, l.to.city]).filter(Boolean))];
+
   const trips: FormTrip[] = quote.options.map(({ vehicle, price }) => ({
     id: `m:${vehicle.id}`,
     price,
@@ -63,6 +65,7 @@ async function Content({ lang, t, searchParams }: { lang: Locale; t: Dictionary;
     passengers: vehicle.passengers,
     bags: vehicle.bags,
     imageUrl: vehicle.imageUrl,
+    cities: multiCities,
   }));
   const first = quote.options[0];
   const name = (p: { nameAr: string; nameEn: string }) => (lang === "ar" ? p.nameAr : p.nameEn);

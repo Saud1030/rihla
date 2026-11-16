@@ -693,6 +693,32 @@ export const seasons = pgTable("seasons", {
 });
 export type SeasonRow = typeof seasons.$inferSelect;
 
+/** Per-city overrides for a season: when present, only trips involving these cities get the increase, at the city-specific % */
+export const seasonCities = pgTable(
+  "season_cities",
+  {
+    id: serial("id").primaryKey(),
+    seasonId: integer("season_id")
+      .notNull()
+      .references(() => seasons.id, { onDelete: "cascade" }),
+    city: text("city")
+      .notNull()
+      .references(() => cities.slug, { onDelete: "cascade", onUpdate: "cascade" }),
+    percent: integer("percent").notNull(),
+  },
+  (t) => [uniqueIndex("season_cities_uq").on(t.seasonId, t.city)],
+);
+export type SeasonCityRow = typeof seasonCities.$inferSelect;
+
+export const seasonsRelations = relations(seasons, ({ many }) => ({
+  cityOverrides: many(seasonCities),
+}));
+
+export const seasonCitiesRelations = relations(seasonCities, ({ one }) => ({
+  season: one(seasons, { fields: [seasonCities.seasonId], references: [seasons.id] }),
+  cityRow: one(cities, { fields: [seasonCities.city], references: [cities.slug] }),
+}));
+
 /** Packages (Admin -> Packages): a fixed offer with its price, paid in 1 or more installments */
 export const packages = pgTable("packages", {
   id: serial("id").primaryKey(),

@@ -139,7 +139,7 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
   const settingRows = await db.select().from(s.settings).where(inArray(s.settings.key, ["vat_rate", "prices_include_vat", "vat_number"]));
   const vat = parseVatConfig(Object.fromEntries(settingRows.map((r) => [r.key, r.value])));
   // Hajj & Umrah season increase and running offers, by the trip date
-  const adjusted = adjustPrice(resolved.price, d.date, await getPriceRules());
+  const adjusted = adjustPrice(resolved.price, d.date, await getPriceRules(), resolved.cities);
   const priceAdjust = adjusted.price - resolved.price;
   const priceAdjustNote = adjusted.lines.map((l) => `${l.name.ar} ${l.amount > 0 ? "+" : "-"}${l.percent}%`).join(" · ");
   // a promo code takes its percentage off the price before VAT
@@ -221,6 +221,8 @@ type Resolved = {
   km: number | null;
   /** minutes the booking lasts, for the end / arrival time */
   durationMin: number | null;
+  /** from/to city slugs for per-city season pricing */
+  cities?: string[];
 };
 
 async function resolveFixedTrip(id: number, wantReversed: boolean, locale: Locale): Promise<Resolved | null> {
@@ -243,6 +245,7 @@ async function resolveFixedTrip(id: number, wantReversed: boolean, locale: Local
     toId: to?.id ?? null,
     km: trip.route.distanceKm,
     durationMin: trip.route.durationMin,
+    cities: [...new Set([from?.city, to?.city].filter(Boolean))] as string[],
   };
 }
 
@@ -268,6 +271,7 @@ async function resolveDistanceTrip(vehicleId: number, fromSlug: string, toSlug: 
     toId: to.id,
     km,
     durationMin: driveMinutes(km),
+    cities: [...new Set([from.city, to.city].filter(Boolean))] as string[],
   };
 }
 
@@ -303,6 +307,7 @@ async function resolveHourlyTrip(vehicleId: number, placeSlug: string, toSlug: s
     toId: dest?.id ?? null,
     km: null,
     durationMin: hours * 60,
+    cities: [...new Set([place.city, dest?.city].filter(Boolean))] as string[],
   };
 }
 
@@ -324,6 +329,7 @@ async function resolveMultiTrip(vehicleId: number, legSlugs: [string, string][] 
     toId: q.legs[0].to.id,
     km: q.km || null,
     durationMin: q.legs[0].minutes,
+    cities: [...new Set(q.legs.flatMap((l) => [l.from.city, l.to.city]).filter(Boolean))] as string[],
   };
 }
 
@@ -344,7 +350,7 @@ async function resolveCityHourlyTrip(vehicleId: number, citySlug: string, hours:
     locale === "ar"
       ? `سيارة مع سائق ${durationText(total, "ar")} – مدينة ${city.nameAr}`
       : `Car with driver, ${durationText(total, "en")} – ${city.nameEn}`;
-  return { mode: "hourly", hours: total, hourlyCity: city.slug, tripId: null, vehicle, price, title, reversed: false, fromId: place?.id ?? null, toId: null, km: null, durationMin: total * 60 };
+  return { mode: "hourly", hours: total, hourlyCity: city.slug, tripId: null, vehicle, price, title, reversed: false, fromId: place?.id ?? null, toId: null, km: null, durationMin: total * 60, cities: [city.slug] };
 }
 
 /** The booking form checks a promo code before sending (the booking itself checks it again). */

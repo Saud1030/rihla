@@ -225,6 +225,13 @@
       "when": 1794486265846,
       "tag": "0031_drop_wati_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794828007063,
+      "tag": "0032_season_cities",
+      "breakpoints": true
     }
   ]
 }

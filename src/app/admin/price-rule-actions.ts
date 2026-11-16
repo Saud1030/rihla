@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
 import { invalidateCatalogCache } from "@/lib/catalog";
@@ -19,6 +19,27 @@ const WORDS = {
 function done(kind: RuleKind) {
   invalidateCatalogCache();
   revalidatePath(`/admin/${kind}`);
+}
+
+/** Parse city override fields: citySlug_0, cityPct_0, citySlug_1, cityPct_1, … */
+function parseCityOverrides(formData: FormData): { city: string; percent: number }[] {
+  const result: { city: string; percent: number }[] = [];
+  for (let i = 0; i < 20; i++) {
+    const city = String(formData.get(`citySlug_${i}`) ?? "").trim();
+    const pct = Number(digits(formData.get(`cityPct_${i}`)));
+    if (!city) continue;
+    if (!Number.isInteger(pct) || pct < 0 || pct > 300) continue;
+    result.push({ city, percent: pct });
+  }
+  return result;
+}
+
+/** Replace city overrides for a season */
+async function saveCityOverrides(seasonId: number, overrides: { city: string; percent: number }[]) {
+  await db.delete(s.seasonCities).where(eq(s.seasonCities.seasonId, seasonId));
+  if (overrides.length) {
+    await db.insert(s.seasonCities).values(overrides.map((o) => ({ seasonId, city: o.city, percent: o.percent })));
+  }
 }
 
 /** A whole list on or off at once (the switch at the top of the page) */
@@ -52,7 +73,11 @@ export async function addRule(_prev: ActionState, formData: FormData): Promise<A
   const kind = kindOf(formData);
   const r = readRule(kind, formData);
   if ("error" in r) return { error: r.error };
-  await db.insert(ruleTable(kind)).values({ ...r.values, active: true });
+  const [inserted] = await db.insert(ruleTable(kind)).values({ ...r.values, active: true }).returning({ id: ruleTable(kind).id });
+  if (kind === "seasons" && inserted) {
+    const overrides = parseCityOverrides(formData);
+    if (overrides.length) await saveCityOverrides(inserted.id, overrides);
+  }
   done(kind);
   return { ok: true, message: `${WORDS[kind].added} «${r.values.nameAr}».` };
 }
@@ -63,8 +88,13 @@ export async function saveRule(_prev: ActionState, formData: FormData): Promise<
   const r = readRule(kind, formData);
   if ("error" in r) return { error: r.error };
   const t = ruleTable(kind);
-  const rows = await db.update(t).set(r.values).where(eq(t.id, Number(formData.get("id") ?? 0))).returning({ id: t.id });
+  const id = Number(formData.get("id") ?? 0);
+  const rows = await db.update(t).set(r.values).where(eq(t.id, id)).returning({ id: t.id });
   if (!rows.length) return { error: `${WORDS[kind].one} غير موجود.` };
+  if (kind === "seasons") {
+    const overrides = parseCityOverrides(formData);
+    await saveCityOverrides(id, overrides);
+  }
   done(kind);
   return { ok: true, message: "تم الحفظ." };
 }

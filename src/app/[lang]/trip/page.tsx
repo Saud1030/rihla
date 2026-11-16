@@ -79,6 +79,8 @@ async function TripContent({
     return `${KIND_LABELS[l.kind][lang]} · ${c ? (lang === "ar" ? `مدينة ${c.nameAr}` : c.nameEn) : ""}`;
   };
 
+  const tripCities = [...new Set([quote.from.city, quote.to.city].filter(Boolean))];
+
   const trips: FormTrip[] = quote.options.map(({ vehicle, price }) => ({
     id: `d:${vehicle.id}`,
     price,
@@ -89,6 +91,7 @@ async function TripContent({
     passengers: vehicle.passengers,
     bags: vehicle.bags,
     imageUrl: vehicle.imageUrl,
+    cities: tripCities,
   }));
 
   return (

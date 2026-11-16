@@ -1,7 +1,7 @@
-import { desc } from "drizzle-orm";
-import { db } from "@/db";
+import { desc, eq } from "drizzle-orm";
+import { db, schema as s } from "@/db";
 import { requireSection } from "@/lib/auth";
-import { getSettings } from "@/lib/catalog";
+import { getCities, getSettings } from "@/lib/catalog";
 import { todayInRiyadh } from "@/lib/booking";
 import { formatDate, formatNumber } from "@/lib/format";
 import { ruleTable, rulesEnabled, type RuleKind } from "@/lib/price-rules-server";
@@ -10,6 +10,8 @@ import { ActionForm } from "@/components/admin/action-form";
 import { Card, Field } from "@/components/admin/ui";
 
 type Row = { id: number; nameAr: string; nameEn: string; percent: number; startDate: string; endDate: string; active: boolean };
+type CityOption = { slug: string; nameAr: string };
+type CityOverride = { city: string; percent: number };
 
 const TEXT = {
   seasons: {
@@ -57,7 +59,17 @@ export async function RuleList({ kind }: { kind: RuleKind }) {
   await requireSection("catalog");
   const T = TEXT[kind];
   const t = ruleTable(kind);
-  const [st, rows] = await Promise.all([getSettings(), db.select().from(t).orderBy(desc(t.startDate), desc(t.id)) as Promise<Row[]>]);
+  const [st, rows, cities] = await Promise.all([getSettings(), db.select().from(t).orderBy(desc(t.startDate), desc(t.id)) as Promise<Row[]>, kind === "seasons" ? getCities() : ([] as CityOption[])]);
+  // load city overrides for existing seasons
+  const overridesMap = new Map<number, CityOverride[]>();
+  if (kind === "seasons" && rows.length) {
+    const allOverrides = await db.select().from(s.seasonCities);
+    for (const r of allOverrides) {
+      let arr = overridesMap.get(r.seasonId);
+      if (!arr) { arr = []; overridesMap.set(r.seasonId, arr); }
+      arr.push({ city: r.city, percent: r.percent });
+    }
+  }
   const on = rulesEnabled(st, kind);
   const today = todayInRiyadh();
   const state = (o: Row) =>
@@ -83,6 +95,7 @@ export async function RuleList({ kind }: { kind: RuleKind }) {
         <ActionForm action={addRule} submitLabel={T.addBtn}>
           <input type="hidden" name="kind" value={kind} />
           <RuleFields kind={kind} />
+          {kind === "seasons" && <CityOverridesFields cities={cities} overrides={[]} />}
         </ActionForm>
       </Card>
 
@@ -106,6 +119,14 @@ export async function RuleList({ kind }: { kind: RuleKind }) {
                     <span className="text-sm text-muted">
                       من {formatDate(o.startDate, "ar")} إلى {formatDate(o.endDate, "ar")}
                     </span>
+                    {kind === "seasons" && (overridesMap.get(o.id) ?? []).length > 0 && (
+                      <span className="text-sm text-muted">
+                        · مدن: {(overridesMap.get(o.id) ?? []).map((c) => {
+                          const city = cities.find((x) => x.slug === c.city);
+                          return `${city?.nameAr ?? c.city} +${formatNumber(c.percent, "ar")}٪`;
+                        }).join("، ")}
+                      </span>
+                    )}
                     <span className="ms-auto flex gap-2">
                       <ActionForm action={toggleRule} submitLabel={o.active ? "إيقاف" : "تفعيل"} submitClassName="btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm" className="">
                         <input type="hidden" name="kind" value={kind} />
@@ -124,6 +145,7 @@ export async function RuleList({ kind }: { kind: RuleKind }) {
                       <input type="hidden" name="kind" value={kind} />
                       <input type="hidden" name="id" value={o.id} />
                       <RuleFields kind={kind} o={o} />
+                      {kind === "seasons" && <CityOverridesFields cities={cities} overrides={overridesMap.get(o.id) ?? []} />}
                     </ActionForm>
                   </details>
                 </Card>
@@ -155,6 +177,92 @@ function RuleFields({ kind, o }: { kind: RuleKind; o?: Row }) {
       <Field label="إلى تاريخ (ميلادي)">
         <input name="endDate" type="date" required defaultValue={o?.endDate} className="field" />
       </Field>
+    </div>
+  );
+}
+
+/**
+ * City-level overrides for seasons. Each row: city select + percent.
+ * Sent as citySlug_0, cityPct_0, citySlug_1, cityPct_1, …
+ * Client-side JS adds/removes rows.
+ */
+function CityOverridesFields({ cities, overrides }: { cities: CityOption[]; overrides: CityOverride[] }) {
+  // start with existing overrides + one empty row for adding
+  const initial = overrides.length ? overrides : [];
+  const MAX = 20;
+  return (
+    <fieldset className="mt-4 border-t border-line pt-4">
+      <legend className="text-sm font-semibold mb-2">زيادة حسب المدينة (اختياري)</legend>
+      <p className="text-xs text-muted mb-3">إذا أضفت مدن، الزيادة العامة أعلاه تتجاهل وتُطبّق نسبة المدينة فقط على الرحلات في تلك المدن. الرحلات في مدن ثانية ما تتأثر بالموسم.</p>
+      <div data-city-overrides className="space-y-2">
+        {initial.map((co, i) => (
+          <CityRow key={i} index={i} cities={cities} city={co.city} percent={co.percent} />
+        ))}
+      </div>
+      {/* a template row that JS clones */}
+      <template data-city-row-template>
+        <CityRow index={999} cities={cities} city="" percent={0} />
+      </template>
+      <button type="button" data-add-city-row className="mt-2 btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm">
+        + إضافة مدينة
+      </button>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+(function(){
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-add-city-row]');
+    if (!btn) return;
+    var fieldset = btn.closest('fieldset');
+    var container = fieldset.querySelector('[data-city-overrides]');
+    var template = fieldset.querySelector('[data-city-row-template]');
+    if (!template || !container) return;
+    var rows = container.querySelectorAll('[data-city-row]');
+    if (rows.length >= ${MAX}) return;
+    var clone = template.content.cloneNode(true);
+    var idx = rows.length;
+    clone.querySelectorAll('[name]').forEach(function(el) {
+      el.name = el.name.replace('999', idx);
+    });
+    container.appendChild(clone);
+  });
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-remove-city-row]');
+    if (!btn) return;
+    var row = btn.closest('[data-city-row]');
+    if (row) row.remove();
+    // re-index remaining rows
+    var container = btn.closest('fieldset')?.querySelector('[data-city-overrides]');
+    if (!container) return;
+    container.querySelectorAll('[data-city-row]').forEach(function(r, i) {
+      r.querySelectorAll('[name]').forEach(function(el) {
+        el.name = el.name.replace(/\\d+/, i);
+      });
+    });
+  });
+})();
+          `,
+        }}
+      />
+    </fieldset>
+  );
+}
+
+function CityRow({ index, cities, city, percent }: { index: number; cities: CityOption[]; city: string; percent: number }) {
+  return (
+    <div data-city-row className="flex items-end gap-2">
+      <Field label="المدينة" className="flex-1 min-w-[140px]">
+        <select name={`citySlug_${index}`} defaultValue={city} className="field">
+          <option value="">— اختر مدينة —</option>
+          {cities.map((c) => (
+            <option key={c.slug} value={c.slug}>{c.nameAr}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="نسبة الزيادة ٪" className="w-28">
+        <input name={`cityPct_${index}`} type="number" min={0} max={300} defaultValue={percent || ""} dir="ltr" className="field text-start" />
+      </Field>
+      <button type="button" data-remove-city-row className="btn btn-ghost !min-h-8 !py-0.5 text-sm !text-danger mb-1">✕</button>
     </div>
   );
 }

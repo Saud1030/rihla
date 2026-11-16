@@ -25,6 +25,8 @@ export type FormTrip = {
   passengers: number;
   bags: number;
   imageUrl: string | null;
+  /** from/to city slugs — used for per-city season pricing */
+  cities?: string[];
 };
 
 type Props = {
@@ -67,7 +69,7 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
   const [checking, setChecking] = useState(false);
   const [date, setDate] = useState(v.date ?? initialDate);
   // season increase / offer discount for the chosen day, then the promo code on what is left
-  const adjusted = adjustPrice(trip.price, date, rules);
+  const adjusted = adjustPrice(trip.price, date, rules, trip.cities);
   const discount = promo ? Math.round((adjusted.price * promo.percent) / 100) : 0;
   const money = withVat(adjusted.price - discount, vat.rateBp);
   async function applyPromo() {
@@ -158,7 +160,7 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
                     {x.compareAtPrice && x.compareAtPrice > x.price && (
                       <span className="block text-xs text-muted line-through tabular">{formatSAR(displayPrice(x.compareAtPrice, vat), lang)}</span>
                     )}
-                    <span className="block font-display font-semibold tabular">{formatSAR(displayPrice(adjustPrice(x.price, date, rules).price, vat), lang)}</span>
+                    <span className="block font-display font-semibold tabular">{formatSAR(displayPrice(adjustPrice(x.price, date, rules, x.cities).price, vat), lang)}</span>
                   </span>
                   {active && (
                     <span className="absolute -top-2.5 start-2 inline-flex items-center gap-1 rounded-full bg-sign text-white text-xs px-2 py-0.5">

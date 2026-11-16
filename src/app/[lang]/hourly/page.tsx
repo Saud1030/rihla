@@ -79,6 +79,7 @@ async function HourlyContent({
     passengers: v.passengers,
     bags: v.bags,
     imageUrl: v.imageUrl,
+    cities: [city.slug],
   }));
 
   return (

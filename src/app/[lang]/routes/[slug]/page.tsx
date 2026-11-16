@@ -65,6 +65,10 @@ async function RouteContent({
   const wantedCategory = typeof sp.vehicle === "string" ? sp.vehicle : undefined;
   const initial = route.trips.find((x) => x.vehicle.category === wantedCategory) ?? route.trips[0];
 
+  // city slugs for per-city season pricing
+  const [fromLoc, toLoc] = reversed ? [route.to, route.from] : [route.from, route.to];
+  const routeCities = [...new Set([fromLoc?.city, toLoc?.city].filter(Boolean))] as string[];
+
   const trips: FormTrip[] = route.trips.map((x) => ({
     id: String(x.id),
     price: x.price,
@@ -75,6 +79,7 @@ async function RouteContent({
     passengers: x.vehicle.passengers,
     bags: x.vehicle.bags,
     imageUrl: x.vehicle.imageUrl,
+    cities: routeCities,
   }));
 
   const directions = route.bidirectional
