@@ -6,7 +6,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
-import { findRoute, getCatalog, getCities, getVatConfig, pairTitle, quoteDistanceTrip, getLeadHours, getUsdRate } from "@/lib/catalog";
+import { findRoute, getCatalog, getCities, getVatConfig, pairTitle, quoteDistanceTrip, getLeadHours } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { formatDuration, formatNumber } from "@/lib/format";
 import { KIND_LABELS } from "@/lib/regions";
@@ -130,7 +130,6 @@ async function TripContent({
         initialTime={isClock(sp.time) ? sp.time : ""}
         span={{ minutes: quote.minutes, kind: "arrives" }}
         action={createBooking.bind(null, lang)}
-        usdRate={await getUsdRate()}
       />
     </>
   );

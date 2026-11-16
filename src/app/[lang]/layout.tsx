@@ -16,6 +16,7 @@ import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
 import { NoticeBar } from "@/components/site/notice-bar";
 import { ChatLauncher } from "@/components/site/chat-launcher";
+import { CurrencyProvider } from "@/components/site/currency-context";
 
 export function generateStaticParams() {
   return locales.map((lang) => ({ lang }));
@@ -44,13 +45,14 @@ export async function generateMetadata({ params }: LayoutProps<"/[lang]">): Prom
 async function BrandShell({ lang, children }: { lang: Locale; children: React.ReactNode }) {
   await connection();
   const [brand, t] = [await getBrand(), getDictionary(lang)];
+  const usdRate = await getUsdRate();
   return (
-    <>
+    <CurrencyProvider usdRate={usdRate}>
       <style>{brand.css}</style>
       {/* printing a voucher or an invoice prints the page content only */}
       <div className="contents print:hidden">
         <NoticeBar lang={lang} />
-        <SiteHeader lang={lang} t={t} brand={brand} packages={(await activePackages()).length > 0} usdRate={await getUsdRate()} />
+        <SiteHeader lang={lang} t={t} brand={brand} packages={(await activePackages()).length > 0} />
       </div>
       <main className="flex-1">{children}</main>
       <div className="contents print:hidden">
@@ -60,7 +62,7 @@ async function BrandShell({ lang, children }: { lang: Locale; children: React.Re
           <RouteLoader label={lang === "ar" ? "جارٍ التحميل…" : "Loading…"} mark={brand.mark[lang]} />
         </Suspense>
       </div>
-    </>
+    </CurrencyProvider>
   );
 }
 

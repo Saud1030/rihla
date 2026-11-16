@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
 import type { Brand } from "@/lib/brand";
-import { RIYAL } from "@/lib/format";
 import { LangSwitch } from "./lang-switch";
+import { CurrencySwitch } from "./currency-switch";
 import { GlassNav, ThemeButton, type GlassLink } from "./glass-nav";
 
 export function Logo({ lang, brand }: { lang: Locale; brand: Brand }) {
@@ -22,7 +22,7 @@ export function Logo({ lang, brand }: { lang: Locale; brand: Brand }) {
   );
 }
 
-export function SiteHeader({ lang, t, brand, packages = false, usdRate = 0 }: { lang: Locale; t: Dictionary; brand: Brand; packages?: boolean; usdRate?: number }) {
+export function SiteHeader({ lang, t, brand, packages = false }: { lang: Locale; t: Dictionary; brand: Brand; packages?: boolean }) {
   const links: GlassLink[] = [
     { href: `/${lang}`, label: t.nav.home, icon: "home", exact: true },
     { href: `/${lang}/routes`, label: t.nav.routes, icon: "routes" },
@@ -42,14 +42,7 @@ export function SiteHeader({ lang, t, brand, packages = false, usdRate = 0 }: { 
         <div className="ms-auto lg:ms-0 flex items-center gap-1 sm:gap-2 min-w-0">
           {/* dark / light mode, in both languages, on every screen size */}
           <ThemeButton labels={themeLabels} />
-          {usdRate > 0 && (() => {
-            const sarPerUsd = (1 / usdRate).toFixed(2);
-            return (
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs tabular text-muted bg-stone" title={lang === "ar" ? "سعر صرف الدولار" : "USD exchange rate"}>
-                $1 = {sarPerUsd} {RIYAL}
-              </span>
-            );
-          })()}
+          <CurrencySwitch arLabel={lang === "ar" ? "تبديل العملة" : "Switch currency"} enLabel={lang === "ar" ? "تبديل العملة" : "Switch currency"} />
           <Suspense fallback={<span className="px-3 py-2 text-[15px] text-muted">{t.nav.switchLang}</span>}>
             <LangSwitch lang={lang} label={t.nav.switchLang} short={lang === "ar" ? "EN" : "ع"} />
           </Suspense>

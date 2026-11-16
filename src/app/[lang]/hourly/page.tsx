@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
-import { getCities, getLocations, getSettings, getVatConfig, getVehicles, getLeadHours, getUsdRate } from "@/lib/catalog";
+import { getCities, getLocations, getSettings, getVatConfig, getVehicles, getLeadHours } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { cleanDays, durationText, HOUR_PACKAGES, isHourPackage, MAX_DAYS } from "@/lib/policy";
 import { cityHourlyPrices } from "@/lib/hourly";
@@ -144,7 +144,6 @@ async function HourlyContent({
         initialTime={isClock(sp.time) ? sp.time : ""}
         span={{ minutes: hours * 60 * days, kind: "ends" }}
         action={createBooking.bind(null, lang)}
-        usdRate={await getUsdRate()}
       />
     </>
   );

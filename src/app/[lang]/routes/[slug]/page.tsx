@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
-import { getRouteBySlug, getVatConfig, routeTitle, getLeadHours, getUsdRate } from "@/lib/catalog";
+import { getRouteBySlug, getVatConfig, routeTitle, getLeadHours } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { formatDuration, formatNumber } from "@/lib/format";
 import { isClock, isDay } from "@/lib/timespan";
@@ -124,7 +124,6 @@ async function RouteContent({
         initialTime={isClock(sp.time) ? sp.time : ""}
         span={route.durationMin ? { minutes: route.durationMin, kind: route.to ? "arrives" : "ends" } : null}
         action={createBooking.bind(null, lang)}
-        usdRate={await getUsdRate()}
       />
     </>
   );

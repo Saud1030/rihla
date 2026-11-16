@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
-import { getVatConfig, getLeadHours, getUsdRate } from "@/lib/catalog";
+import { getVatConfig, getLeadHours } from "@/lib/catalog";
 import { maxBookingDate, todayInRiyadh } from "@/lib/booking";
 import { formatDate, formatNumber, formatSAR, formatTime } from "@/lib/format";
 import { legsFromParams, quoteMultiTrip } from "@/lib/multi";
@@ -126,7 +126,6 @@ async function Content({ lang, t, searchParams }: { lang: Locale; t: Dictionary;
           date: asked[n + 1].date,
           time: asked[n + 1].time,
         }))}
-        usdRate={await getUsdRate()}
       />
     </>
   );
