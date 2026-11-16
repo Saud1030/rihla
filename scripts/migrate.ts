@@ -21,7 +21,7 @@ const timer = setTimeout(() => {
 
 async function main() {
   const url = requireDatabaseUrl({ direct: true });
-  const client = postgres(url, { max: 1, connect_timeout: 15 });
+  const client = postgres(url, { max: 1, connect_timeout: 15, prepare: false });
   const db = drizzle(client);
   console.log("Running migrations…");
   await migrate(db, { migrationsFolder: "./drizzle" });

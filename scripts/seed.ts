@@ -22,7 +22,7 @@ const CITIES = FULL ? ALL_CITIES : MAIN_CITIES;
 const PLACES = FULL ? ALL_PLACES : MAIN_PLACES;
 import { CHAT_FAQS, CHAT_SETTINGS } from "./data/chat-faqs";
 
-const client = postgres(requireDatabaseUrl(), { max: 1 });
+const client = postgres(requireDatabaseUrl(), { max: 1, prepare: false });
 const db = drizzle(client, { schema: s });
 
 const SAR = (n: number) => Math.round(n * 100);
