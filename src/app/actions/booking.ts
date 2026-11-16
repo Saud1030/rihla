@@ -19,6 +19,7 @@ import { phoneWithCountry } from "@/lib/phone";
 import { DEFAULT_COUNTRY, dialCode } from "@/lib/countries";
 import { multiTitle, parseLegs, quoteMultiTrip } from "@/lib/multi";
 import { cityHourlyPrices } from "@/lib/hourly";
+import { notifyNewBooking } from "@/lib/trip-messages";
 
 export type BookingFormState = {
   errors?: Partial<Record<FieldName, true>>;
@@ -157,7 +158,7 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
   for (let attempt = 0; attempt < 5; attempt++) {
     ref = newBookingRef();
     try {
-      await db.insert(s.bookings).values({
+      const [inserted] = await db.insert(s.bookings).values({
         ref,
         tripId: resolved.tripId,
         pricingMode: resolved.mode,
@@ -193,7 +194,26 @@ export async function createBooking(lang: string, _prev: BookingFormState, formD
         amount: money.total,
         currency: "SAR",
         locale,
-      });
+      }).returning();
+      // fire-and-forget: notify admin (email + WhatsApp) without blocking the customer
+      notifyNewBooking({
+        id: inserted.id,
+        ref: inserted.ref,
+        number: inserted.number,
+        routeTitle: resolved.title,
+        customerName: d.name,
+        customerPhone: d.phone,
+        customerEmail: d.email || null,
+        pickupDate: d.date,
+        pickupTime: d.time,
+        pickupAddress: d.pickup,
+        dropoffAddress: d.dropoff || null,
+        passengers: d.passengers,
+        bags: d.bags,
+        amount: money.total,
+        locale,
+        notes: d.notes || null,
+      }).catch(() => {}); // never block the booking
       break;
     } catch (e) {
       const code = (e as { code?: string; cause?: { code?: string } }).cause?.code ?? (e as { code?: string }).code;

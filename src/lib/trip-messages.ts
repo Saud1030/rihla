@@ -111,6 +111,83 @@ export async function requestRating(bookingId: string) {
   return notify({ bookingId: b.id, channel: "whatsapp", kind: "rating_request", recipient: b.customerPhone, recipientName: b.customerName, body, params: [b.customerName, driverName, link, invoice] });
 }
 
+/** Notify the admin (email + WhatsApp) when a new booking is created */
+export async function notifyNewBooking(b: {
+  id: string;
+  ref: string;
+  number: number;
+  routeTitle: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+  pickupDate: string;
+  pickupTime: string;
+  pickupAddress: string;
+  dropoffAddress: string | null;
+  passengers: number;
+  bags: number;
+  amount: number;
+  locale: string;
+  notes: string | null;
+}) {
+  const st = await readSettings();
+  if (st.notify_new_booking === "0") return; // admin disabled
+  const base = await publicBaseUrl();
+  const body = [
+    `🔔 حجز جديد رقم ${bookingNo(b.number)}`,
+    "",
+    `العميل: ${b.customerName}`,
+    `جوال العميل: ${b.customerPhone}`,
+    b.customerEmail ? `بريد العميل: ${b.customerEmail}` : "",
+    `الرحلة: ${b.routeTitle}`,
+    `الموعد: ${formatDate(b.pickupDate, "ar")} الساعة ${formatTime(b.pickupTime, "ar")}`,
+    `الاستلام: ${b.pickupAddress}`,
+    b.dropoffAddress ? `الوجهة: ${b.dropoffAddress}` : "",
+    `الركاب: ${b.passengers} · الحقائب: ${b.bags}`,
+    `المبلغ: ${formatSAR(b.amount, "ar")}`,
+    b.notes ? `ملاحظات: ${b.notes}` : "",
+    "",
+    `تفاصيل الحجز: ${base}/admin/bookings/${b.ref}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const promises: Promise<unknown>[] = [];
+
+  // Email to admin
+  const email = (st.notify_email || st.email || "").trim();
+  if (email) {
+    promises.push(
+      notify({
+        bookingId: b.id,
+        channel: "email",
+        kind: "new_booking",
+        recipient: email,
+        recipientName: companyName(st, "ar"),
+        subject: `حجز جديد رقم ${bookingNo(b.number)} - ${b.customerName}`,
+        body,
+      }),
+    );
+  }
+
+  // WhatsApp to admin phone
+  const phone = (st.notify_phone || "").trim();
+  if (phone) {
+    promises.push(
+      notify({
+        bookingId: b.id,
+        channel: "whatsapp",
+        kind: "new_booking",
+        recipient: phone,
+        recipientName: companyName(st, "ar"),
+        body,
+      }),
+    );
+  }
+
+  await Promise.allSettled(promises);
+}
+
 /** The new rating goes to the company email (settings: rating email, or the contact email) */
 export async function emailRating(r: Rating, b: Booking, driverName: string | null) {
   const st = await readSettings();

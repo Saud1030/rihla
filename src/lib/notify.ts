@@ -18,7 +18,7 @@ import { waNumber } from "./phone";
  * (or the mail app) ready to send by hand. Nothing here ever throws into the booking flow.
  */
 
-export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked" | "payment_receipt" | "payment_invoice" | "trip_invoice" | "promo_code" | "installment_link" | "installment_paid";
+export type NotifyKind = "driver_trip" | "customer_driver" | "rating_request" | "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked" | "payment_receipt" | "payment_invoice" | "trip_invoice" | "promo_code" | "installment_link" | "installment_paid" | "new_booking";
 
 export const KIND_LABELS: Record<NotifyKind, string> = {
   driver_trip: "بيانات العميل للسائق",
@@ -35,10 +35,11 @@ export const KIND_LABELS: Record<NotifyKind, string> = {
   promo_code: "رمز ترويجي للعميل",
   installment_link: "رابط دفعة باقة",
   installment_paid: "استلام دفعة باقة",
+  new_booking: "إشعار حجز جديد",
 };
 
 /** Template parameters in order ({{1}}, {{2}} ...) and a suggested Arabic template text to create in Meta */
-export const TEMPLATES: Record<Exclude<NotifyKind, "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked" | "installment_link" | "installment_paid">, { setting: string; params: string[]; suggested: string }> = {
+export const TEMPLATES: Record<Exclude<NotifyKind, "rating_received" | "driver_approved" | "driver_rejected" | "driver_suspended" | "driver_blocked" | "installment_link" | "installment_paid" | "new_booking">, { setting: string; params: string[]; suggested: string }> = {
   driver_trip: {
     setting: "wa_tpl_driver_trip",
     params: ["اسم السائق", "رقم الحجز", "اسم العميل", "جوال العميل", "الموعد", "مكان الاستلام", "الوجهة", "الركاب والحقائب", "ملاحظات"],

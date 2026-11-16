@@ -53,6 +53,7 @@ const settingsSchema = z.object({
   wa_tpl_trip_invoice: z.string().trim().regex(/^[a-z0-9_]{0,512}$/),
   wa_tpl_promo_code: z.string().trim().regex(/^[a-z0-9_]{0,512}$/),
   notify_email: z.union([z.literal(""), z.email().max(200)]),
+  notify_phone: z.string().trim().regex(/^[\d+\s()-]{0,20}$/).default(""),
 });
 
 export async function saveNotifySettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -67,6 +68,7 @@ export async function saveNotifySettings(_prev: ActionState, formData: FormData)
     wa_tpl_trip_invoice: formData.get("wa_tpl_trip_invoice") ?? "",
     wa_tpl_promo_code: formData.get("wa_tpl_promo_code") ?? "",
     notify_email: String(formData.get("notify_email") ?? "").trim(),
+    notify_phone: String(formData.get("notify_phone") ?? "").trim(),
   });
   if (!parsed.success) {
     const f = String(parsed.error.issues[0]?.path[0] ?? "");
@@ -76,6 +78,7 @@ export async function saveNotifySettings(_prev: ActionState, formData: FormData)
     ...parsed.data,
     wa_auto: formData.get("wa_auto") === "on" ? "1" : "0",
     rating_enabled: formData.get("rating_enabled") === "on" ? "1" : "0",
+    notify_new_booking: formData.get("notify_new_booking") === "on" ? "1" : "0",
   };
   for (const [key, value] of Object.entries(values))
     await db.insert(s.settings).values({ key, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });

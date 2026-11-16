@@ -27,7 +27,7 @@ const TYPES = [
   ["rating", "التقييم"],
 ] as const;
 type TypeKey = Exclude<(typeof TYPES)[number][0], "">;
-const CUSTOMER_KINDS = ["customer_driver", "rating_request", "payment_receipt", "payment_invoice", "trip_invoice", "promo_code"];
+const CUSTOMER_KINDS = ["customer_driver", "rating_request", "payment_receipt", "payment_invoice", "trip_invoice", "promo_code", "new_booking"];
 const DRIVER_KINDS = ["driver_trip", "driver_approved", "driver_rejected", "driver_suspended", "driver_blocked"];
 const typeWhere = (t: TypeKey) =>
   t === "customer"
@@ -124,6 +124,13 @@ async function Messages({ searchParams }: { searchParams: Promise<Record<string,
         <h2 className="font-semibold mb-4">الإعدادات</h2>
         <ActionForm action={saveNotifySettings} submitLabel="حفظ">
           <label className="flex items-start gap-3">
+            <input type="checkbox" name="notify_new_booking" defaultChecked={st.notify_new_booking !== "0"} className="size-4 mt-1 accent-sign" />
+            <span>
+              <span className="block font-medium">إشعار عند حجز جديد</span>
+              <span className="block text-sm text-muted">يرسل لك بريد إلكتروني + واتساب فورًا عند كل حجز جديد من العميل.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3">
             <input type="checkbox" name="wa_auto" defaultChecked={st.wa_auto !== "0"} className="size-4 mt-1 accent-sign" />
             <span>
               <span className="block font-medium">إرسال رسائل واتساب تلقائيًا</span>
@@ -136,8 +143,11 @@ async function Messages({ searchParams }: { searchParams: Promise<Record<string,
               <span className="block font-medium">طلب التقييم من العميل بعد انتهاء الرحلة</span>
             </span>
           </label>
-          <Field label="بريد الشركة لاستلام التقييمات" hint={`اتركه فارغًا لاستخدام بريد التواصل (${st.email || "غير محدد"})`}>
+          <Field label="بريد الشركة لاستلام الإشعارات والتقييمات" hint={`اتركه فارغًا لاستخدام بريد التواصل (${st.email || "غير محدد"})`}>
             <input name="notify_email" type="email" defaultValue={st.notify_email ?? ""} dir="ltr" className="field text-start" />
+          </Field>
+          <Field label="رقم واتساب الأدمن لإشعارات الحجوزات الجديدة" hint="رقم الواتساب مع رمز الدولة (مثل 966500000000)">
+            <input name="notify_phone" type="tel" defaultValue={st.notify_phone ?? ""} dir="ltr" className="field text-start" placeholder="966500000000" />
           </Field>
           <details className="rounded-lg border border-line p-4">
             <summary className="cursor-pointer font-medium">قوالب واتساب (للمطوّر أو عند الربط)</summary>
