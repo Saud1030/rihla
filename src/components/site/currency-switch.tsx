@@ -17,11 +17,11 @@ export function CurrencySwitch({ arLabel, enLabel }: { arLabel?: string; enLabel
       type="button"
       onClick={() => setCurrency(isSar ? "USD" : "SAR")}
       aria-label={label}
-      className="inline-flex items-center gap-1 px-2 sm:px-3 py-2 rounded-md text-[15px] text-muted hover:text-ink hover:bg-stone whitespace-nowrap tabular"
+      className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-lg sm:text-xl text-muted hover:text-ink hover:bg-stone whitespace-nowrap tabular"
     >
-      <span className={isSar ? "font-semibold text-ink" : ""}>{RIYAL}</span>
-      <span className="text-xs text-muted">/</span>
-      <span className={!isSar ? "font-semibold text-ink" : ""}>$</span>
+      <span className={isSar ? "font-bold text-ink" : ""}>{RIYAL}</span>
+      <span className="text-sm text-muted">/</span>
+      <span className={!isSar ? "font-bold text-ink" : ""}>$</span>
     </button>
   );
 }
