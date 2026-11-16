@@ -11,6 +11,7 @@ import "../globals.css";
 import { dir, getDictionary, isLocale, locales, type Locale } from "@/i18n/dictionaries";
 import { site } from "@/config/site";
 import { getBrand } from "@/lib/brand";
+import { getUsdRate } from "@/lib/catalog";
 import { SiteHeader } from "@/components/site/header";
 import { SiteFooter } from "@/components/site/footer";
 import { NoticeBar } from "@/components/site/notice-bar";
@@ -49,7 +50,7 @@ async function BrandShell({ lang, children }: { lang: Locale; children: React.Re
       {/* printing a voucher or an invoice prints the page content only */}
       <div className="contents print:hidden">
         <NoticeBar lang={lang} />
-        <SiteHeader lang={lang} t={t} brand={brand} packages={(await activePackages()).length > 0} />
+        <SiteHeader lang={lang} t={t} brand={brand} packages={(await activePackages()).length > 0} usdRate={await getUsdRate()} />
       </div>
       <main className="flex-1">{children}</main>
       <div className="contents print:hidden">
