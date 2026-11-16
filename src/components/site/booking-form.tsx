@@ -5,7 +5,7 @@ import { useActionState, useState } from "react";
 import Image from "next/image";
 import type { Dictionary, Locale } from "@/i18n/dictionaries";
 import { checkPromo, type BookingFormState } from "@/app/actions/booking";
-import { formatDate, formatNumber, formatSAR, formatTime, vatNote } from "@/lib/format";
+import { formatDate, formatNumber, formatSAR, formatTime, formatUSD, vatNote } from "@/lib/format";
 import { displayPrice, withVat, type VatConfig } from "@/lib/pricing";
 import { PersonIcon, BagIcon, CheckIcon, LockIcon } from "@/components/icons";
 import { addToClock, formatEnd, isClock } from "@/lib/timespan";
@@ -55,9 +55,11 @@ type Props = {
   countries: CountryOption[];
   /** Hajj & Umrah season increase and offers, by the trip date */
   rules?: PriceRules;
+  /** SAR → USD exchange rate; 0 or undefined = hide USD */
+  usdRate?: number;
 };
 
-export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action, schedule = [], leadHours = 0, countries, rules }: Props) {
+export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, directions, initialReversed, minDate, maxDate, initialDate = "", initialTime = "", span = null, action, schedule = [], leadHours = 0, countries, rules, usdRate = 0 }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const v = state.values ?? {};
   const [tripId, setTripId] = useState<string>(v.tripId || initialTripId);
@@ -161,6 +163,7 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
                       <span className="block text-xs text-muted line-through tabular">{formatSAR(displayPrice(x.compareAtPrice, vat), lang)}</span>
                     )}
                     <span className="block font-display font-semibold tabular">{formatSAR(displayPrice(adjustPrice(x.price, date, rules, x.cities).price, vat), lang)}</span>
+                    {usdRate > 0 && <span className="block text-xs text-muted tabular">{formatUSD(displayPrice(adjustPrice(x.price, date, rules, x.cities).price, vat), usdRate, lang)}</span>}
                   </span>
                   {active && (
                     <span className="absolute -top-2.5 start-2 inline-flex items-center gap-1 rounded-full bg-sign text-white text-xs px-2 py-0.5">
@@ -370,7 +373,10 @@ export function BookingForm({ lang, t, trips, initialTripId, vat, hidden = {}, d
           )}
           <div className="flex items-baseline justify-between pt-1.5">
             <dt className="text-muted">{t.form.total}</dt>
-            <dd className="font-display text-2xl font-semibold">{formatSAR(money.total, lang)}</dd>
+            <dd className="font-display text-2xl font-semibold">
+              {formatSAR(money.total, lang)}
+              {usdRate > 0 && <span className="block text-sm font-normal text-muted">{formatUSD(money.total, usdRate, lang)}</span>}
+            </dd>
           </div>
         </dl>
         {(state.formError === "generic" || state.errors) && (

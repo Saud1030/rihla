@@ -98,6 +98,11 @@ export async function getBankConfig() {
   return { bankName: st.bank_name, accountName: st.bank_account_name, iban: st.bank_iban };
 }
 
+export async function getUsdRate(): Promise<number> {
+  const v = Number((await getSettings()).usd_rate);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+
 export async function isDistancePricingOn() {
   return (await getSettings()).distance_pricing !== "0";
 }

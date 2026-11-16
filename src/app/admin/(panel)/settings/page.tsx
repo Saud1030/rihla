@@ -98,6 +98,19 @@ async function Content() {
                   </span>
                 </span>
               </label>
+              <Field
+                label="سعر صرف الدولار (اختياري)"
+                hint="كم دولار يساوي ريال واحد، مثلًا 0.2667. اتركه فارغًا أو ٠ لإخفاء الدولار من صفحة الحجز."
+              >
+                <input
+                  name="usd_rate"
+                  inputMode="decimal"
+                  defaultValue={values.usd_rate ?? ""}
+                  placeholder="0.2667"
+                  className="field w-40 tabular"
+                  dir="ltr"
+                />
+              </Field>
             </div>
           </ActionForm>
         </Card>

@@ -589,6 +589,7 @@ const pricingSchema = z.object({
     .regex(/^(\d{15})?$/),
   prices_include_vat: z.enum(["0", "1"]),
   distance_pricing: z.enum(["0", "1"]),
+  usd_rate: z.string().trim(),
 });
 
 export async function savePricingSettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -600,6 +601,7 @@ export async function savePricingSettings(_prev: ActionState, formData: FormData
     vat_number: String(raw.vat_number ?? "").replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).replace(/\s/g, ""),
     prices_include_vat: raw.prices_include_vat === "on" ? "1" : "0",
     distance_pricing: raw.distance_pricing === "on" ? "1" : "0",
+    usd_rate: String(raw.usd_rate ?? "").replace(/[٠-٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c))).trim(),
   });
   if (!parsed.success) {
     const f = parsed.error.issues[0]?.path[0];
@@ -607,7 +609,7 @@ export async function savePricingSettings(_prev: ActionState, formData: FormData
     return { error: "نسبة الضريبة رقم بين ٠ و ١٠٠." };
   }
   const d = parsed.data;
-  const rows = { vat_rate: String(d.vat_rate), vat_number: d.vat_number, prices_include_vat: d.prices_include_vat, distance_pricing: d.distance_pricing };
+  const rows = { vat_rate: String(d.vat_rate), vat_number: d.vat_number, prices_include_vat: d.prices_include_vat, distance_pricing: d.distance_pricing, usd_rate: d.usd_rate };
   await db.transaction(async (tx) => {
     for (const [key, value] of Object.entries(rows)) {
       await tx.insert(s.settings).values({ key, value }).onConflictDoUpdate({ target: s.settings.key, set: { value } });

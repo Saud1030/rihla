@@ -24,6 +24,16 @@ export function formatSARText(halalas: number, locale: Locale) {
   return locale === "ar" ? `${n} ر.س` : `SAR ${n}`;
 }
 
+/** Convert halalas to USD and format: $123.45 */
+export function formatUSD(halalas: number, rate: number, locale: Locale) {
+  const usd = (halalas / 100) * rate;
+  const fmt = new Intl.NumberFormat(locale === "ar" ? "ar-SA" : "en-US", {
+    minimumFractionDigits: usd % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(usd);
+  return `$${fmt}`;
+}
+
 export function formatNumber(n: number, locale: Locale, decimals?: number) {
   const opts = decimals === undefined ? {} : { minimumFractionDigits: decimals, maximumFractionDigits: decimals };
   return new Intl.NumberFormat(locale === "ar" ? "ar-SA" : "en-SA", opts).format(n);
