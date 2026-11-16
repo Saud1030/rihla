@@ -187,9 +187,10 @@ function RuleFields({ kind, o }: { kind: RuleKind; o?: Row }) {
  * Client-side JS adds/removes rows.
  */
 function CityOverridesFields({ cities, overrides }: { cities: CityOption[]; overrides: CityOverride[] }) {
-  // start with existing overrides + one empty row for adding
   const initial = overrides.length ? overrides : [];
   const MAX = 20;
+  // Build the city <option> tags as an HTML string for JS to use
+  const optionsHtml = `<option value="">— اختر مدينة —</option>` + cities.map((c) => `<option value="${c.slug}">${c.nameAr}</option>`).join("");
   return (
     <fieldset className="mt-4 border-t border-line pt-4">
       <legend className="text-sm font-semibold mb-2">زيادة حسب المدينة (اختياري)</legend>
@@ -199,11 +200,13 @@ function CityOverridesFields({ cities, overrides }: { cities: CityOption[]; over
           <CityRow key={i} index={i} cities={cities} city={co.city} percent={co.percent} />
         ))}
       </div>
-      {/* a template row that JS clones */}
-      <template data-city-row-template>
-        <CityRow index={999} cities={cities} city="" percent={0} />
-      </template>
-      <button type="button" data-add-city-row className="mt-2 btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm">
+      <button
+        type="button"
+        data-add-city-row
+        data-options-html={optionsHtml}
+        data-max={MAX}
+        className="mt-2 btn btn-ghost border border-line !min-h-8 !py-0.5 text-sm"
+      >
         + إضافة مدينة
       </button>
       <script
@@ -215,23 +218,26 @@ function CityOverridesFields({ cities, overrides }: { cities: CityOption[]; over
     if (!btn) return;
     var fieldset = btn.closest('fieldset');
     var container = fieldset.querySelector('[data-city-overrides]');
-    var template = fieldset.querySelector('[data-city-row-template]');
-    if (!template || !container) return;
+    if (!container) return;
     var rows = container.querySelectorAll('[data-city-row]');
-    if (rows.length >= ${MAX}) return;
-    var clone = template.content.cloneNode(true);
+    var max = Number(btn.dataset.max) || ${MAX};
+    if (rows.length >= max) return;
     var idx = rows.length;
-    clone.querySelectorAll('[name]').forEach(function(el) {
-      el.name = el.name.replace('999', idx);
-    });
-    container.appendChild(clone);
+    var opts = btn.dataset.optionsHtml || '';
+    var div = document.createElement('div');
+    div.setAttribute('data-city-row', '');
+    div.className = 'flex items-end gap-2';
+    div.innerHTML =
+      '<label class="block flex-1 min-w-[140px]"><span class="block text-sm font-medium mb-1">المدينة</span><select name="citySlug_' + idx + '" class="field">' + opts + '</select></label>' +
+      '<label class="block w-28"><span class="block text-sm font-medium mb-1">نسبة الزيادة ٪</span><input name="cityPct_' + idx + '" type="number" min="0" max="300" dir="ltr" class="field text-start" /></label>' +
+      '<button type="button" data-remove-city-row class="btn btn-ghost !min-h-8 !py-0.5 text-sm !text-danger mb-1">✕</button>';
+    container.appendChild(div);
   });
   document.addEventListener('click', function(e) {
     var btn = e.target.closest('[data-remove-city-row]');
     if (!btn) return;
     var row = btn.closest('[data-city-row]');
     if (row) row.remove();
-    // re-index remaining rows
     var container = btn.closest('fieldset')?.querySelector('[data-city-overrides]');
     if (!container) return;
     container.querySelectorAll('[data-city-row]').forEach(function(r, i) {
