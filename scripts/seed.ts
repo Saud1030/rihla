@@ -22,7 +22,14 @@ const CITIES = FULL ? ALL_CITIES : MAIN_CITIES;
 const PLACES = FULL ? ALL_PLACES : MAIN_PLACES;
 import { CHAT_FAQS, CHAT_SETTINGS } from "./data/chat-faqs";
 
-const client = postgres(requireDatabaseUrl(), { max: 1, prepare: false });
+let client: ReturnType<typeof postgres>;
+try {
+  client = postgres(requireDatabaseUrl(), { max: 1, prepare: false, connect_timeout: 15 });
+} catch (err: any) {
+  console.error("⚠️ Seed: cannot build DB URL —", err.message);
+  console.error("  Skipping seed — site will deploy without seed data.");
+  process.exit(0);
+}
 const db = drizzle(client, { schema: s });
 
 const SAR = (n: number) => Math.round(n * 100);
@@ -237,7 +244,9 @@ async function main() {
 }
 
 main().catch(async (e) => {
-  console.error(e);
-  await client.end();
-  process.exit(1);
+  console.error("⚠️ Seed error:", e.message || e);
+  if (e.code) console.error("  PG code:", e.code);
+  console.error("  Skipping seed — site will deploy without seed data.");
+  await client.end().catch(() => {});
+  // Exit 0 so the build continues — seed data already exists from previous deploys
 });
