@@ -111,7 +111,7 @@ export async function requestRating(bookingId: string) {
   return notify({ bookingId: b.id, channel: "whatsapp", kind: "rating_request", recipient: b.customerPhone, recipientName: b.customerName, body, params: [b.customerName, driverName, link, invoice] });
 }
 
-/** Notify the admin (email + WhatsApp) when a new booking is created */
+/** Notify the admin (email) + send booking confirmation to customer (WhatsApp, manual or auto) */
 export async function notifyNewBooking(b: {
   id: string;
   ref: string;
@@ -169,6 +169,42 @@ export async function notifyNewBooking(b: {
       }),
     );
   }
+
+  // WhatsApp booking confirmation to customer (manual send from admin panel)
+  const ar = b.locale !== "en";
+  const link = `${base}/${ar ? "ar" : "en"}/booking/${b.ref}`;
+  const customerBody = ar
+    ? [
+        `مرحبًا ${b.customerName}، تم استلام حجزك بنجاح.`,
+        `رقم الحجز: ${b.ref}`,
+        `الرحلة: ${b.routeTitle}`,
+        `الموعد: ${formatDate(b.pickupDate, "ar")} الساعة ${formatTime(b.pickupTime, "ar")}`,
+        `الاستلام: ${b.pickupAddress}`,
+        `المبلغ: ${formatSAR(b.amount, "ar")}`,
+        `تفاصيل حجزك: ${link}`,
+        `شكرًا لاختيارك ${companyName(st, "ar")}.`,
+      ].join("\n")
+    : [
+        `Hello ${b.customerName}, your booking has been confirmed.`,
+        `Booking ref: ${b.ref}`,
+        `Trip: ${b.routeTitle}`,
+        `Pickup: ${formatDate(b.pickupDate, "en")} at ${formatTime(b.pickupTime, "en")}`,
+        `From: ${b.pickupAddress}`,
+        `Amount: ${formatSAR(b.amount, "en")}`,
+        `Booking details: ${link}`,
+        `Thank you for choosing ${companyName(st, "en")}.`,
+      ].join("\n");
+
+  promises.push(
+    notify({
+      bookingId: b.id,
+      channel: "whatsapp",
+      kind: "new_booking",
+      recipient: b.customerPhone,
+      recipientName: b.customerName,
+      body: customerBody,
+    }),
+  );
 
   await Promise.allSettled(promises);
 }
