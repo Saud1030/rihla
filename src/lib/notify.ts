@@ -233,46 +233,6 @@ async function sendEmail(row: Notification) {
   }
 }
 
-/** Voice call config: Twilio credentials from env vars */
-export function twilioConfigured() {
-  return !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
-}
-
-/** Make a voice call via Twilio that reads the message aloud in Arabic */
-export async function sendVoiceCall(to: string, message: string): Promise<{ ok: boolean; error?: string }> {
-  const sid = process.env.TWILIO_ACCOUNT_SID!;
-  const token = process.env.TWILIO_AUTH_TOKEN!;
-  const from = process.env.TWILIO_PHONE_NUMBER!;
-
-  // Normalize the recipient number
-  const toNumber = waNumber(to);
-
-  // TwiML: repeat the message twice so the admin catches it, with a pause
-  const twiml = `<Response><Say language="ar-XA" voice="Google.ar-XA-Standard-A">${escapeXml(message)}</Say><Pause length="2"/><Say language="ar-XA" voice="Google.ar-XA-Standard-A">${escapeXml(message)}</Say></Response>`;
-
-  try {
-    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ To: toNumber, From: from, Twiml: twiml }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    const json = await res.json().catch(() => null) as { sid?: string; message?: string } | null;
-    if (res.ok && json?.sid) return { ok: true };
-    return { ok: false, error: `Twilio ${res.status}: ${json?.message ?? "unknown error"}` };
-  } catch (e) {
-    console.error("Voice call failed:", e);
-    return { ok: false, error: `Twilio: ${(e as Error).message}` };
-  }
-}
-
-function escapeXml(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
-}
-
 /** Background retry (messages from the last 24 hours): failed ones get up to 3 tries; pending ones go out once a provider is connected */
 export async function retryDue() {
   const rows = await db

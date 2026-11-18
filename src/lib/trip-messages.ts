@@ -6,7 +6,7 @@ import { db, schema as s } from "@/db";
 import type { Booking, Driver, Rating } from "@/db/schema";
 import { publicBaseUrl } from "./public-url";
 import { bookingNo, formatDate, formatSARText as formatSAR, formatTime, stopLines } from "./format";
-import { companyName, notify, readSettings, sendVoiceCall, twilioConfigured } from "./notify";
+import { companyName, notify, readSettings } from "./notify";
 import { invoiceLink, invoiceNo, issueInvoice } from "./documents";
 
 /** The messages sent around a trip: driver assigned (to both sides), rating request, new rating (to the company email). */
@@ -166,38 +166,6 @@ export async function notifyNewBooking(b: {
         recipientName: companyName(st, "ar"),
         subject: `حجز جديد رقم ${bookingNo(b.number)} - ${b.customerName}`,
         body,
-      }),
-    );
-  }
-
-  // WhatsApp to admin phone
-  const phone = (st.notify_phone || "").trim();
-  if (phone) {
-    promises.push(
-      notify({
-        bookingId: b.id,
-        channel: "whatsapp",
-        kind: "new_booking",
-        recipient: phone,
-        recipientName: companyName(st, "ar"),
-        body,
-      }),
-    );
-  }
-
-  // Voice call to admin phone (Twilio)
-  if (phone && twilioConfigured() && st.notify_call !== "0") {
-    const callMsg = [
-      `حجز جديد رقم ${b.number}.`,
-      `العميل ${b.customerName}.`,
-      `الرحلة ${b.routeTitle}.`,
-      `الموعد ${formatDate(b.pickupDate, "ar")} الساعة ${formatTime(b.pickupTime, "ar")}.`,
-      `عدد الركاب ${b.passengers}.`,
-      `المبلغ ${b.amount} ريال.`,
-    ].join(" ");
-    promises.push(
-      sendVoiceCall(phone, callMsg).then((r) => {
-        if (!r.ok) console.error("Voice call notification failed:", r.error);
       }),
     );
   }
