@@ -533,7 +533,7 @@ export type Dictionary = typeof ar;
 
 const en: Dictionary = {
   meta: {
-    title: "Private transfers between Jeddah, Makkah and Madinah",
+    title: "Private transfers",
     description: "Book your ride from the airport or hotel to Makkah and Madinah or book a car with a driver by the hour, at a clear price paid via MyFatoorah or bank transfer.",
   },
   nav: {
