@@ -15,7 +15,7 @@ const client = g.__pg ?? postgres(url, {
     // drop idle connections so a restarted database (codespace resume, failover) doesn't leave dead ones in the pool
     idle_timeout: 30,
     max_lifetime: 60 * 30,
-    connect_timeout: 10,
+    connect_timeout: 30,
   });
 if (process.env.NODE_ENV !== "production") g.__pg = client;
 
