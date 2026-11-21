@@ -1,5 +1,6 @@
-// End-to-end test suite: booking flow, MyFatoorah payments, security, admin, mobile, a11y, load.
-// Runs against a running server that points at tests/mock-myfatoorah.mjs. See tests/README.md.
+// End-to-end test suite: booking flow, security, admin, mobile, a11y, load.
+// Runs against a running server and tests/mock-services.mjs. See tests/README.md.
+// TODO: the online-payment sections were written for the removed MyFatoorah gateway and must be rewritten for bank transfer / cash.
 // Each check is independent; failures are collected and reported at the end.
 import { chromium } from "playwright";
 import { execSync, execFileSync } from "node:child_process";

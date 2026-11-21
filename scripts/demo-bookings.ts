@@ -71,7 +71,7 @@ async function main() {
     const paid = b.status !== "pending_payment";
     const vat = Math.round(t.price * 0.15);
     const created = new Date(Date.now() - (demo.length - i) * 3.7 * 3600e3);
-    // every third booking (and the unpaid one) uses bank transfer, the rest MyFatoorah
+    // every third booking (and the unpaid one) uses bank transfer, the rest cash
     const bank = i % 3 === 1 || !paid;
     const bookingRef = ref();
     const paymentId = paid ? (bank ? `BT-${bookingRef}` : `0707${String(6400100 + i)}${randomBytes(4).toString("hex")}`) : null;
@@ -82,7 +82,7 @@ async function main() {
         payment_id, payment_method, duration_min, paid_at, locale, admin_note, created_at, updated_at)
       values (${bookingRef}, ${t.id}, ${title}, ${ar ? t.name_ar : t.name_en}, ${b.rev}, ${b.name}, ${b.phone},
         ${b.pax}, ${b.bags}, ${day(b.date)}, ${b.time}, ${b.pickup}, ${b.flight}, ${t.price}, 1500, ${vat}, ${t.price + vat}, 'SAR', ${b.status},
-        ${paymentId}, ${bank ? "bank_transfer" : "myfatoorah"}, ${t.duration_min}, ${paid ? new Date(created.getTime() + 4 * 60e3) : null}, ${b.locale},
+        ${paymentId}, ${bank ? "bank_transfer" : "cash"}, ${t.duration_min}, ${paid ? new Date(created.getTime() + 4 * 60e3) : null}, ${b.locale},
         ${"note" in b ? b.note : null}, ${created}, ${created})
       returning id`;
     if ("driver" in b) {

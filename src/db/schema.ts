@@ -48,9 +48,9 @@ export const pricingMode = pgEnum("pricing_mode", ["fixed", "distance", "hourly"
 export const refundStatus = pgEnum("refund_status", [
   "none", // nothing to refund
   "pending_approval", // customer cancelled, waiting for the admin to approve the refund
-  "requested", // sent to MyFatoorah, their finance team executes it
+  "requested", // legacy: was sent to the online gateway (no longer used)
   "manual", // handled outside the system (marked by the admin)
-  "failed", // the refund request to MyFatoorah failed
+  "failed", // legacy: the gateway refund request failed (no longer used)
 ]);
 
 /** how the customer chose to pay */
@@ -237,7 +237,7 @@ export const bookings = pgTable(
     amount: integer("amount").notNull(),
     currency: text("currency").notNull().default("SAR"),
     status: bookingStatus("status").notNull().default("pending_payment"),
-    /** latest MyFatoorah invoice created for this booking */
+    /** legacy: invoice id of the online gateway (no longer used) */
     invoiceId: text("invoice_id"),
     /** the gateway payment that settled this booking (one payment => one booking) */
     paymentId: text("payment_id").unique(),
@@ -291,7 +291,7 @@ export const bookings = pgTable(
 
 /** Every payment we heard about from the gateway (audit log) */
 export const payments = pgTable("payments", {
-  id: text("id").primaryKey(), // gateway payment id (MyFatoorah PaymentId)
+  id: text("id").primaryKey(), // payment id (legacy online gateway payments keep their row here)
   invoiceId: text("invoice_id"),
   bookingId: uuid("booking_id").references(() => bookings.id, { onDelete: "set null" }),
   status: paymentStatus("status").notNull(),
@@ -757,7 +757,7 @@ export const installments = pgTable(
     token: text("token").notNull().unique(),
     invoiceId: text("invoice_id"),
     paymentId: text("payment_id").unique(),
-    /** myfatoorah, or how the admin received it by hand (cash, transfer) */
+    /** how it was received: cash or transfer (legacy rows may say myfatoorah) */
     method: text("method"),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     linkSentAt: timestamp("link_sent_at", { withTimezone: true }),

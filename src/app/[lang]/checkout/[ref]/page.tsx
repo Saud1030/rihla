@@ -7,12 +7,9 @@ import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
 import { getBookingByRef } from "@/lib/booking";
 import { getBankConfig, getSettings } from "@/lib/catalog";
-import { isGatewayConfigured } from "@/lib/myfatoorah";
-import { formatSAR } from "@/lib/format";
-import { chooseBankTransfer, chooseCash, startPayment } from "@/app/actions/payment";
+import { chooseBankTransfer, chooseCash } from "@/app/actions/payment";
 import { cashEnabled } from "@/lib/cash";
 import { BookingSummary } from "@/components/site/booking-summary";
-import { PayButton } from "@/components/site/pay-button";
 import { LockIcon } from "@/components/icons";
 import type { Booking } from "@/db/schema";
 
@@ -68,43 +65,19 @@ async function Checkout({ lang, t, params }: { lang: Locale; t: Dictionary; para
   );
 }
 
-/** Ways to pay: MyFatoorah's hosted page, a bank transfer the admin confirms, or cash to the driver. */
+/** Ways to pay: a bank transfer the admin confirms, or cash to the driver. */
 async function PaymentOptions({ b, lang, t }: { b: Booking; lang: Locale; t: Dictionary }) {
   const bank = await getBankConfig();
-  const mf = await isGatewayConfigured();
   const cash = cashEnabled(await getSettings());
-  if (!mf && !bank && !cash) return <p className="text-danger bg-danger-soft rounded-md p-4 text-sm">{t.checkout.notConfigured}</p>;
+  if (!bank && !cash) return <p className="text-danger bg-danger-soft rounded-md p-4 text-sm">{t.checkout.notConfigured}</p>;
   return (
     <div>
       <h2 className="font-semibold flex items-center gap-2">
         <LockIcon className="size-4 text-sign" />
         {t.checkout.payTitle}
       </h2>
-      {mf && (
-        <div className="mt-4" data-method="myfatoorah">
-          <h3 className="font-medium">{t.checkout.mfTitle}</h3>
-          <p className="mt-1 mb-3 text-sm text-muted">{t.checkout.payLead}</p>
-          <PayButton
-            action={startPayment.bind(null, b.ref, lang)}
-            labels={{
-              pay: `${t.checkout.pay} ${formatSAR(b.amount, lang)}`,
-              redirecting: t.checkout.redirecting,
-              gatewayError: t.checkout.gatewayError,
-              notConfigured: t.checkout.notConfigured,
-            }}
-          />
-          <p className="mt-3 text-xs text-muted">{t.checkout.secure}</p>
-        </div>
-      )}
-      {mf && bank && (
-        <div className="my-5 flex items-center gap-3 text-sm text-muted" aria-hidden="true">
-          <span className="h-px flex-1 bg-line" />
-          {t.checkout.or}
-          <span className="h-px flex-1 bg-line" />
-        </div>
-      )}
       {bank && (
-        <div className={mf ? "" : "mt-4"} data-method="bank_transfer">
+        <div className="mt-4" data-method="bank_transfer">
           <h3 className="font-medium">{t.checkout.bankTitle}</h3>
           <p className="mt-1 mb-3 text-sm text-muted">{t.checkout.bankLead}</p>
           {b.paymentMethod === "bank_transfer" && <p className="mb-3 text-sm bg-sign-soft rounded-md px-3 py-2">{t.checkout.bankChosen}</p>}
@@ -115,7 +88,7 @@ async function PaymentOptions({ b, lang, t }: { b: Booking; lang: Locale; t: Dic
           </form>
         </div>
       )}
-      {cash && (mf || bank) && (
+      {cash && bank && (
         <div className="my-5 flex items-center gap-3 text-sm text-muted" aria-hidden="true">
           <span className="h-px flex-1 bg-line" />
           {t.checkout.or}
@@ -123,7 +96,7 @@ async function PaymentOptions({ b, lang, t }: { b: Booking; lang: Locale; t: Dic
         </div>
       )}
       {cash && (
-        <div className={mf || bank ? "" : "mt-4"} data-method="cash">
+        <div className={bank ? "" : "mt-4"} data-method="cash">
           <h3 className="font-medium">{t.checkout.cashTitle}</h3>
           <p className="mt-1 mb-3 text-sm text-muted">{t.checkout.cashLead}</p>
           <form action={chooseCash.bind(null, b.ref, lang)}>

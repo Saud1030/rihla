@@ -29,8 +29,6 @@ export async function chooseGateway(_prev: ActionState, formData: FormData): Pro
   const g = GATEWAYS.find((x) => x.id === id);
   if (!g) return { error: "اختر بوابة من القائمة." };
   if (!g.ready) return { error: `${g.name} محفوظة، لكنها تحتاج ربط قبل التشغيل. اطلب ربطها ثم فعّلها.` };
-  const st = await readSettings();
-  if (id === "myfatoorah" && !(st.mf_api_key || process.env.MYFATOORAH_API_KEY)) return { error: "اكتب مفتاح API لماي فاتورة أولًا واحفظه." };
   await save({ pay_gateway: id });
   return { ok: true, message: `تم تشغيل ${g.name}. يظهر الدفع الإلكتروني للعملاء الآن.` };
 }

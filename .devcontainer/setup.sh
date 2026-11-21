@@ -23,11 +23,6 @@ NEXT_PUBLIC_SITE_URL=${SITE}
 AUTH_SECRET=$(openssl rand -hex 32)
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=Rihla-Test-2026
-# mock MyFatoorah (tests/mock-myfatoorah.mjs): no real money, Pay / Decline buttons
-MYFATOORAH_API_KEY=test-mf-token-123
-MYFATOORAH_API_BASE=http://localhost:4010
-MYFATOORAH_WEBHOOK_SECRET=test-mf-webhook-secret
-MOCK_PUBLIC_URL=${MOCK}
 # the public Codespaces domain in front of the app
 SERVER_ACTIONS_ALLOWED_ORIGINS=*.app.github.dev,*.githubpreview.dev
 ENV

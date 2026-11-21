@@ -20,7 +20,7 @@ import { SETTING_KEYS } from "@/lib/settings-keys";
 import { normalizePhone } from "@/lib/phone";
 import { requestRating } from "@/lib/trip-messages";
 import { invalidateCatalogCache } from "@/lib/catalog";
-import { cancelPaidBooking, requestRefund } from "@/lib/cancellation";
+import { cancelPaidBooking } from "@/lib/cancellation";
 import { driveMinutes, roadKm } from "@/lib/pricing";
 import { detectFile, IMAGE_TYPES, MB } from "@/lib/files";
 import { recordCashPayment } from "@/lib/cash";
@@ -826,25 +826,10 @@ export async function adminCancelWithRefund(_prev: ActionState, formData: FormDa
   if (!b) return { error: "الحجز غير موجود." };
   const amount = toHalalasInput(formData.get("refund"));
   if (Number.isNaN(amount) || amount < 0 || amount > b.amount) return { error: `مبلغ الاسترداد يجب أن يكون بين ٠ و ${b.amount / 100} ريال.` };
-  const sendNow = formData.get("sendNow") === "on";
-  const done = await cancelPaidBooking(b.id, "admin", amount, sendNow);
+  const done = await cancelPaidBooking(b.id, "admin", amount);
   if (!done) return { error: "لا يمكن إلغاء هذا الحجز بهذه الطريقة: هو ليس مدفوعًا أو مؤكدًا." };
   revalidatePath(`/admin/bookings/${b.ref}`);
-  if (done.refundStatus === "failed") return { error: `تم الإلغاء، لكن طلب الاسترداد فشل: ${done.refundError ?? ""}` };
-  return { ok: true, message: amount === 0 ? "تم إلغاء الحجز بدون استرداد." : done.paymentMethod === "bank_transfer" ? "تم الإلغاء. حوّل المبلغ للعميل ثم اضغط «تم الاسترداد يدويًا»." : sendNow ? "تم الإلغاء وإرسال طلب الاسترداد إلى ماي فاتورة." : "تم الإلغاء. الاسترداد بانتظار موافقتك." };
-}
-
-/** Send a pending (or failed) refund to MyFatoorah */
-export async function approveRefund(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  await requireSection("bookings");
-  const id = String(formData.get("id") ?? "");
-  const b = await requestRefund(id);
-  if (!b) return { error: "الحجز غير موجود." };
-  if (b.paymentMethod === "bank_transfer") return { error: "هذا الحجز مدفوع بتحويل بنكي: حوّل المبلغ للعميل من حسابك ثم اضغط «تم الاسترداد يدويًا»." };
-  revalidatePath(`/admin/bookings/${b.ref}`);
-  revalidatePath("/admin");
-  if (b.refundStatus === "failed") return { error: `فشل طلب الاسترداد: ${b.refundError ?? ""}` };
-  return { ok: true, message: `أُرسل طلب الاسترداد إلى ماي فاتورة. المرجع: ${b.refundReference ?? "—"}` };
+  return { ok: true, message: amount === 0 ? "تم إلغاء الحجز بدون استرداد." : "تم الإلغاء. حوّل المبلغ للعميل ثم اضغط «تم الاسترداد يدويًا»." };
 }
 
 /** The refund was handled outside the system (bank transfer, cash...) */
@@ -871,7 +856,6 @@ const policySchema = z.object({
   cancel_full_hours: z.coerce.number().int().min(0).max(720),
   cancel_partial_percent: z.coerce.number().int().min(0).max(100),
   min_lead_hours: z.coerce.number().int().min(0).max(72),
-  refund_auto: z.enum(["0", "1"]),
 });
 
 export async function savePolicySettings(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -882,7 +866,6 @@ export async function savePolicySettings(_prev: ActionState, formData: FormData)
     hourly_enabled: raw.hourly_enabled === "on" ? "1" : "0",
     multi_enabled: raw.multi_enabled === "on" ? "1" : "0",
     cancel_enabled: raw.cancel_enabled === "on" ? "1" : "0",
-    refund_auto: raw.refund_auto === "on" ? "1" : "0",
     cancel_full_hours: digits(raw.cancel_full_hours),
     cancel_partial_percent: digits(raw.cancel_partial_percent),
     min_lead_hours: digits(raw.min_lead_hours),

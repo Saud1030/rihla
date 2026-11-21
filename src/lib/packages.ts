@@ -38,7 +38,7 @@ export const payLink = async (lang: "ar" | "en", token: string) => `${await publ
 const langOf = (b: Pick<Booking, "locale">) => (b.locale === "en" ? "en" : "ar");
 
 /**
- * One installment was paid (online, or marked by the admin). The first one books the trip (status paid);
+ * One installment was paid (marked by the admin after a bank transfer or cash). The first one books the trip (status paid);
  * every payment gets a WhatsApp message; when all are paid the customer gets the payment voucher.
  */
 export async function afterInstallmentPaid(inst: Installment) {
@@ -49,7 +49,7 @@ export async function afterInstallmentPaid(inst: Installment) {
   if (b.status === "pending_payment")
     await db
       .update(s.bookings)
-      .set({ status: "paid", paymentMethod: "myfatoorah", paidAt: new Date(), updatedAt: new Date() })
+      .set({ status: "paid", paymentMethod: inst.method === "cash" ? "cash" : "bank_transfer", paidAt: new Date(), updatedAt: new Date() })
       .where(and(eq(s.bookings.id, b.id), eq(s.bookings.status, "pending_payment")));
   const lang = langOf(b);
   const ar = lang === "ar";

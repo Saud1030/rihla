@@ -77,7 +77,6 @@ const defaultSettings: Record<string, string> = {
   cancel_enabled: "1",
   cancel_full_hours: "24",
   cancel_partial_percent: "50",
-  refund_auto: "0",
   bank_enabled: "0",
   bank_name: "",
   bank_account_name: "",

@@ -78,12 +78,6 @@ SITE_URL_FROM_REQUEST=1
 AUTH_SECRET=${randomBytes(32).toString("hex")}
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=Rihla-Test-2026
-# test payment page (tests/mock-myfatoorah.mjs): no real money, Pay / Decline buttons
-MYFATOORAH_API_KEY=test-mf-token-123
-MYFATOORAH_API_BASE=http://localhost:4010
-MYFATOORAH_WEBHOOK_SECRET=test-mf-webhook-secret
-MOCK_PUBLIC_URL=/mock-pay
-MOCK_VIA_SITE=1
 # addresses allowed when you share the site from VS Code (Ports) or similar tunnels
 SERVER_ACTIONS_ALLOWED_ORIGINS=localhost:3000,127.0.0.1:3000,**.devtunnels.ms,*.app.github.dev,*.githubpreview.dev,**.ngrok-free.app,**.trycloudflare.com
 `,
@@ -151,7 +145,7 @@ function staleOnPort(port) {
   const found = [...pids].filter((pid) => comm.test(out("ps", ["-p", String(pid), "-o", "comm="])));
   if (found.length) return found;
   // lsof can miss some sockets: fall back to this site's own programs by name
-  const name = isDb ? /@embedded-postgres\/.*\/bin\/postgres /: port === 3000 ? /next-server|next\/dist\/bin\/next start/ : /tests\/mock-myfatoorah\.mjs/;
+  const name = isDb ? /@embedded-postgres\/.*\/bin\/postgres /: port === 3000 ? /next-server|next\/dist\/bin\/next start/ : /tests\/mock-services\.mjs/;
   return out("ps", ["-eo", "pid=,args="])
     .split("\n")
     .map((l) => l.trim().match(/^(\d+)\s+(.*)$/))
@@ -293,7 +287,7 @@ const run = (args, name) => {
   c.on("exit", (code) => !stopping && (console.log(`[${name}] توقف (${code})`), shutdown(1)));
   children.push(c);
 };
-run(["tests/mock-myfatoorah.mjs"], "payment");
+run(["tests/mock-services.mjs"], "mocks");
 run([bin("next", "dist/bin/next"), "start", "-p", "3000"], "site");
 fs.writeFileSync(PIDS, JSON.stringify([process.pid, ...children.map((c) => c.pid)]));
 
