@@ -292,7 +292,7 @@ async function Detail({
               طريقة الدفع:{" "}
               {b.paymentMethod === "bank_transfer"
                 ? "تحويل بنكي"
-                : b.paymentMethod === "myfatoorah"
+                : b.paymentMethod === "online"
                   ? "دفع إلكتروني"
                   : b.paymentMethod === "cash"
                     ? b.paymentId

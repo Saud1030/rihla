@@ -232,6 +232,13 @@
       "when": 1794828007063,
       "tag": "0032_season_cities",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795283244162,
+      "tag": "0033_remove_gateway_name",
+      "breakpoints": true
     }
   ]
 }

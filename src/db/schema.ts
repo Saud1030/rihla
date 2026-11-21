@@ -54,7 +54,7 @@ export const refundStatus = pgEnum("refund_status", [
 ]);
 
 /** how the customer chose to pay */
-export const paymentMethod = pgEnum("payment_method", ["myfatoorah", "bank_transfer", "cash"]);
+export const paymentMethod = pgEnum("payment_method", ["online", "bank_transfer", "cash"]);
 
 /** running numbers of payment vouchers and invoices (never reused, even if a number is skipped) */
 export const receiptSeq = pgSequence("receipt_no_seq", { startWith: 1 });
@@ -757,7 +757,7 @@ export const installments = pgTable(
     token: text("token").notNull().unique(),
     invoiceId: text("invoice_id"),
     paymentId: text("payment_id").unique(),
-    /** how it was received: cash or transfer (legacy rows may say myfatoorah) */
+    /** how it was received: cash or transfer (older rows may say online) */
     method: text("method"),
     paidAt: timestamp("paid_at", { withTimezone: true }),
     linkSentAt: timestamp("link_sent_at", { withTimezone: true }),
