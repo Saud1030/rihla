@@ -41,8 +41,6 @@ export type CancelPolicy = {
   fullHours: number;
   /** percent refunded when cancelling later than that (but before pickup) */
   partialPercent: number;
-  /** send the refund to MyFatoorah immediately, without admin approval */
-  autoRefund: boolean;
 };
 
 export function parseCancelPolicy(st: Record<string, string>): CancelPolicy {
@@ -54,7 +52,6 @@ export function parseCancelPolicy(st: Record<string, string>): CancelPolicy {
     enabled: st.cancel_enabled !== "0",
     fullHours: num(st.cancel_full_hours, 24, 720),
     partialPercent: num(st.cancel_partial_percent, 50, 100),
-    autoRefund: st.refund_auto === "1",
   };
 }
 

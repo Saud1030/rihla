@@ -10,9 +10,7 @@ import { earliestPickup, farEnough, parseLeadHours } from "@/lib/lead-time";
 import { parseVatConfig, withVat } from "@/lib/pricing";
 import { phoneWithCountry } from "@/lib/phone";
 import { DEFAULT_COUNTRY, dialCode } from "@/lib/countries";
-import { createInstallments, installmentsOf } from "@/lib/packages";
-import { createInstallmentInvoice, GatewayError, isGatewayConfigured } from "@/lib/myfatoorah";
-import { publicBaseUrl } from "@/lib/public-url";
+import { createInstallments } from "@/lib/packages";
 
 export type PackageFormState = {
   errors?: Partial<Record<"date" | "time" | "name" | "phone" | "email" | "passengers" | "pickup", true>>;
@@ -101,27 +99,4 @@ export async function createPackageBooking(lang: string, packageId: number, _pre
   }
   const [first] = await createInstallments(bookingId, money.total, pkg.installments, pkg.afterTrip);
   redirect(`/${locale}/pay/${first.token}`);
-}
-
-export type InstallmentPayState = { error?: "gateway" | "not_configured" };
-
-/** The customer opens the payment link of an installment and presses Pay: a MyFatoorah invoice for that amount */
-export async function payInstallment(token: string, lang: string, _prev: InstallmentPayState, _formData: FormData): Promise<InstallmentPayState> {
-  const locale = isLocale(lang) ? lang : "ar";
-  const inst = /^[A-Za-z0-9_-]{20,40}$/.test(token) ? await db.query.installments.findFirst({ where: eq(s.installments.token, token) }) : undefined;
-  if (!inst) redirect(`/${locale}`);
-  const b = await db.query.bookings.findFirst({ where: eq(s.bookings.id, inst.bookingId) });
-  if (!b || inst.paidAt || b.status === "cancelled") redirect(`/${locale}/pay/${token}`);
-  if (!(await isGatewayConfigured())) return { error: "not_configured" };
-  const count = (await installmentsOf(b.id)).length;
-  let url: string;
-  try {
-    const invoice = await createInstallmentInvoice(b, inst, count, locale, await publicBaseUrl());
-    await db.update(s.installments).set({ invoiceId: invoice.invoiceId }).where(eq(s.installments.id, inst.id));
-    url = invoice.url;
-  } catch (e) {
-    console.error("installment payment failed", e instanceof GatewayError ? e.message : e);
-    return { error: "gateway" };
-  }
-  redirect(url);
 }

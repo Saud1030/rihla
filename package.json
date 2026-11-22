@@ -12,7 +12,7 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "test:mock": "node tests/mock-myfatoorah.mjs",
+    "test:mock": "node tests/mock-services.mjs",
     "test:e2e": "node tests/e2e.mjs",
     "local": "node scripts/local.mjs"
   },

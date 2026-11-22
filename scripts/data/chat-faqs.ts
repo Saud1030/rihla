@@ -13,8 +13,8 @@ export const CHAT_FAQS = [
   {
     questionAr: "ما طرق الدفع المتاحة؟",
     questionEn: "How can I pay?",
-    answerAr: "الدفع عبر ماي فاتورة (بطاقة أو محفظة إلكترونية)، أو بالتحويل البنكي: تظهر لك بيانات الحساب، وترفع صورة الإيصال في صفحة حجزك، ونؤكد الحجز بعد وصول المبلغ.",
-    answerEn: "Pay online through MyFatoorah, or by bank transfer: you'll see our account details, upload the receipt on your booking page, and we confirm once the money arrives.",
+    answerAr: "الدفع بالتحويل البنكي أو نقدًا للسائق. في التحويل البنكي تظهر لك بيانات الحساب، وترفع صورة الإيصال في صفحة حجزك، ونؤكد الحجز بعد وصول المبلغ.",
+    answerEn: "Pay by bank transfer or cash to the driver. For a bank transfer you'll see our account details, upload the receipt on your booking page, and we confirm once the money arrives.",
     keywords: "دفع, الدفع, تحويل, بنك, ايبان, بطاقه, مدى, فاتورة, payment, pay, transfer, card",
   },
   {

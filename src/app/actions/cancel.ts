@@ -43,7 +43,7 @@ export async function cancelByCustomer(ref: string, lang: string, _prev: CancelS
   const quote = cancelQuote(b, policy);
   if (!quote.allowed) return { error: "not_allowed" };
 
-  const done = await cancelPaidBooking(b.id, "customer", quote.refund, policy.autoRefund);
+  const done = await cancelPaidBooking(b.id, "customer", quote.refund);
   if (!done) return { error: "not_allowed" };
 
   redirect(`/${locale}/booking/${b.ref}?cancelled=1`);

@@ -10,7 +10,6 @@ import { requireSection } from "@/lib/auth";
 import { getBookingWithPayments } from "@/lib/admin-data";
 import {
   adminCancelWithRefund,
-  approveRefund,
   confirmBankTransfer,
   confirmCash,
   resendEinvoice,
@@ -293,8 +292,8 @@ async function Detail({
               طريقة الدفع:{" "}
               {b.paymentMethod === "bank_transfer"
                 ? "تحويل بنكي"
-                : b.paymentMethod === "myfatoorah"
-                  ? "ماي فاتورة"
+                : b.paymentMethod === "online"
+                  ? "دفع إلكتروني"
                   : b.paymentMethod === "cash"
                     ? b.paymentId
                       ? "كاش (تم الاستلام)"
@@ -556,15 +555,6 @@ async function Detail({
                     dir="ltr"
                   />
                 </Field>
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    name="sendNow"
-                    defaultChecked
-                    className="size-4 mt-0.5 accent-sign"
-                  />
-                  <span>أرسل طلب الاسترداد إلى ماي فاتورة الآن</span>
-                </label>
               </ActionForm>
             </Card>
           )}
@@ -703,12 +693,6 @@ async function Detail({
                   <dt className="text-muted">ألغاه</dt>
                   <dd>{b.cancelledBy === "customer" ? "العميل" : "الإدارة"}</dd>
                 </div>
-                {b.refundReference && (
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-muted">مرجع ماي فاتورة</dt>
-                    <dd dir="ltr">{b.refundReference}</dd>
-                  </div>
-                )}
               </dl>
               {b.refundError && (
                 <p className="mt-2 text-sm text-danger bg-danger-soft rounded-md px-3 py-2">
@@ -718,23 +702,9 @@ async function Detail({
               {(b.refundStatus === "pending_approval" ||
                 b.refundStatus === "failed") && (
                 <div className="mt-4 space-y-3">
-                  {b.paymentMethod === "bank_transfer" ? (
-                    <p className="text-sm bg-amber/15 rounded-md px-3 py-2">
-                      دفع العميل بتحويل بنكي: اطلب منه رقم الآيبان على واتساب،
-                      حوّل المبلغ من حسابك، ثم اضغط «تم الاسترداد يدويًا».
-                    </p>
-                  ) : (
-                    <ActionForm
-                      action={approveRefund}
-                      submitLabel={
-                        b.refundStatus === "failed"
-                          ? "إعادة إرسال الاسترداد"
-                          : "موافقة وإرسال الاسترداد"
-                      }
-                    >
-                      <input type="hidden" name="id" value={b.id} />
-                    </ActionForm>
-                  )}
+                  <p className="text-sm bg-amber/15 rounded-md px-3 py-2">
+                    الاسترداد يدوي: اطلب من العميل رقم الآيبان على واتساب، حوّل المبلغ من حسابك، ثم اضغط «تم الاسترداد يدويًا».
+                  </p>
                   <ActionForm
                     action={markRefundManual}
                     submitLabel="تم الاسترداد يدويًا"
@@ -755,7 +725,7 @@ async function Detail({
 const REFUND_LABELS: Record<string, string> = {
   none: "لا يوجد",
   pending_approval: "بانتظار موافقتك",
-  requested: "أُرسل إلى ماي فاتورة",
+  requested: "تم الإرسال",
   manual: "عولج يدويًا",
   failed: "فشل الإرسال",
 };
@@ -785,7 +755,7 @@ async function InstallmentsAdmin({ bookingId, lang }: { bookingId: string; lang:
                 </span>
                 {x.paidAt ? (
                   <span className="text-xs rounded-md px-2 py-0.5 bg-sign-soft text-sign">
-                    مدفوعة {x.method === "cash" ? "كاش" : x.method === "transfer" ? "تحويل" : "ماي فاتورة"} · {formatDateTime(x.paidAt, "ar")}
+                    مدفوعة {x.method === "cash" ? "كاش" : x.method === "transfer" ? "تحويل" : "إلكتروني"} · {formatDateTime(x.paidAt, "ar")}
                   </span>
                 ) : (
                   <span className="text-xs text-muted">{x.linkSentAt ? `أُرسل الرابط ${formatDateTime(x.linkSentAt, "ar")}` : "لم تُدفع"}</span>

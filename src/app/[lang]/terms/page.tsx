@@ -15,7 +15,7 @@ const TERMS = {
     ["تغيير الموعد", "يمكن تغيير موعد الرحلة مجانًا مرة واحدة قبل الموعد بـ١٢ ساعة على الأقل عبر واتساب."],
     ["الحجز بالساعة", "تبدأ المدة من وقت الاستلام المحدد في الحجز، والسائق معك طوال المدة. الوقت الإضافي يُتفق عليه مع السائق ويُدفع له مباشرة."],
     ["الركاب والحقائب", "لا يجوز تجاوز عدد الركاب والحقائب المسموح به للسيارة المختارة. يحق للسائق رفض الحمولة الزائدة."],
-    ["الدفع", "يتم الدفع عبر ماي فاتورة أو بالتحويل البنكي. الحجز بالتحويل البنكي يُؤكَّد بعد وصول المبلغ إلى حسابنا، واسترداده يكون بتحويل بنكي إلى حسابك. لا نحتفظ ببيانات البطاقات."],
+    ["الدفع", "يتم الدفع بالتحويل البنكي أو نقدًا للسائق. الحجز بالتحويل البنكي يُؤكَّد بعد وصول المبلغ إلى حسابنا، واسترداده يكون بتحويل بنكي إلى حسابك."],
   ],
   en: [
     ["Prices", "Prices are per vehicle and include fuel and road fees. They do not apply during Ramadan and Hajj unless stated."],
@@ -24,7 +24,7 @@ const TERMS = {
     ["Changing your booking", "You can move your pickup time once for free, at least 12 hours ahead, by messaging us on WhatsApp."],
     ["Hourly bookings", "The time starts at the pickup time in your booking, and the driver stays with you throughout. Extra time is agreed with and paid to the driver."],
     ["Passengers and luggage", "The number of passengers and bags may not exceed the selected vehicle's capacity. Drivers may refuse extra load."],
-    ["Payment", "You can pay through MyFatoorah or by bank transfer. A bank-transfer booking is confirmed once the money reaches our account, and its refund is sent back by bank transfer. We do not store card details."],
+    ["Payment", "You can pay by bank transfer or cash to the driver. A bank-transfer booking is confirmed once the money reaches our account, and its refund is sent back by bank transfer."],
   ],
 } as const;
 

@@ -1,5 +1,4 @@
 import "server-only";
-import { getSettings } from "./catalog";
 
 /**
  * Payment gateways and e-invoicing platforms (Admin -> Payment gateways & invoicing).
@@ -12,21 +11,14 @@ export type Integration = { id: string; name: string; site: string; ready: boole
 
 export const GATEWAYS: Integration[] = [
   {
-    id: "myfatoorah",
-    name: "ماي فاتورة MyFatoorah",
-    site: "https://myfatoorah.com",
+    id: "edfapay",
+    name: "إدفع باي EdfaPay",
+    site: "https://edfapay.com",
     ready: true,
     fields: [
-      { key: "mf_api_key", label: "مفتاح API (Token)", secret: true, hint: "من بوابة ماي فاتورة: Integration Settings ← API Key" },
-      {
-        key: "mf_api_base",
-        label: "البيئة",
-        options: [
-          ["https://apitest.myfatoorah.com", "تجريبي (Test)"],
-          ["https://api-sa.myfatoorah.com", "حقيقي — السعودية (Live)"],
-        ],
-      },
-      { key: "mf_webhook_secret", label: "Webhook Secret (اختياري)", secret: true, hint: "يأكد الدفع حتى لو العميل ما رجع للموقع" },
+      { key: "gw_edfapay_mode", label: "البيئة", options: [["live", "فعلي (Production)"], ["test", "تجريبي (Sandbox)"]] },
+      { key: "gw_edfapay_key", label: "API Key (X-API-KEY)", secret: true, hint: "من لوحة EdfaPay. يُستعمل من السيرفر فقط." },
+      { key: "gw_edfapay_secret", label: "Webhook Secret", secret: true, hint: "لازم تحطه هنا وفي لوحة EdfaPay (Webhook) مع الرابط: https://موقعك/api/payments/edfapay. بدونه ما ينقبل أي دفع." },
     ],
   },
   { id: "moyasar", name: "ميسر Moyasar", site: "https://moyasar.com", ready: false, fields: [{ key: "gw_moyasar_public", label: "Publishable Key" }, { key: "gw_moyasar_secret", label: "Secret Key", secret: true }] },
@@ -58,21 +50,3 @@ export const WHATSAPP: Integration = {
 };
 
 export const allIntegrationKeys = () => [...GATEWAYS, ...EINVOICE_PLATFORMS, WHATSAPP].flatMap((g) => g.fields);
-
-/** Online payment is offered only when a connected gateway is chosen in the panel and has its key */
-export async function onlinePaymentOn() {
-  const st = await getSettings();
-  return st.pay_gateway === "myfatoorah" && !!(await mfConfig(st));
-}
-
-/** MyFatoorah's key and address: the panel first, else the server's environment (.env) */
-export async function mfConfig(st?: Record<string, string>) {
-  const s = st ?? (await getSettings());
-  const key = (s.mf_api_key || process.env.MYFATOORAH_API_KEY || "").trim();
-  if (!key) return null;
-  return {
-    key,
-    base: (s.mf_api_base || process.env.MYFATOORAH_API_BASE || "https://apitest.myfatoorah.com").replace(/\/$/, ""),
-    webhookSecret: (s.mf_webhook_secret || process.env.MYFATOORAH_WEBHOOK_SECRET || "").trim(),
-  };
-}

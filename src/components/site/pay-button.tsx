@@ -10,7 +10,7 @@ type Props = {
   labels: { pay: string; redirecting: string; gatewayError: string; notConfigured: string };
 };
 
-/** Sends the customer to MyFatoorah's payment page. */
+/** Sends the customer to EdfaPay's payment page. */
 export function PayButton({ action, labels }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   return (

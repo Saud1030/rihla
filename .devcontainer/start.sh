@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts the site (port 3000) and the mock payment gateway (port 4010), repairing what it can first.
+# Starts the site (port 3000) and the mock services (port 4010), repairing what it can first.
 # Runs when the codespace starts and when you open it; safe to run by hand any time:
 #   bash .devcontainer/start.sh
 cd "$(dirname "$0")/.."
@@ -56,10 +56,10 @@ fi
 if curl -fs -o /dev/null http://localhost:3000/ar; then
   echo "الموقع يعمل من قبل."
 else
-  pkill -f "tests/mock-myfatoorah.mjs" 2>/dev/null || true
+  pkill -f "tests/mock-services.mjs" 2>/dev/null || true
   pkill -f "next start" 2>/dev/null || true
   # setsid + nohup: fully detached, so they keep running after this script ends
-  setsid nohup node tests/mock-myfatoorah.mjs > /tmp/mock.log 2>&1 < /dev/null &
+  setsid nohup node tests/mock-services.mjs > /tmp/mock.log 2>&1 < /dev/null &
   setsid nohup npx next start -p 3000 > /tmp/site.log 2>&1 < /dev/null &
   for i in $(seq 1 60); do curl -fs -o /dev/null http://localhost:3000/ar && break; sleep 1; done
 fi

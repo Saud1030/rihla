@@ -188,20 +188,6 @@ async function Content() {
                   dir="ltr"
                 />
               </Field>
-              <label className="flex items-start gap-2 sm:col-span-2">
-                <input
-                  type="checkbox"
-                  name="refund_auto"
-                  defaultChecked={values.refund_auto === "1"}
-                  className="size-4 mt-1 accent-sign"
-                />
-                <span>
-                  إرسال الاسترداد إلى ماي فاتورة تلقائيًا عند إلغاء العميل
-                  <span className="block text-xs text-muted">
-                    عند إيقافه يظهر الاسترداد في لوحة التحكم بانتظار موافقتك.
-                  </span>
-                </span>
-              </label>
             </div>
           </ActionForm>
         </Card>
@@ -233,7 +219,7 @@ async function Content() {
         <Card className="p-6">
           <h2 className="font-semibold mb-1">طرق الدفع</h2>
           <p className="text-sm text-muted mb-4">
-            يرى العميل في صفحة الدفع خيارين: ماي فاتورة، والتحويل البنكي إذا فعّلته هنا. بعد وصول التحويل افتح الحجز واضغط «تأكيد استلام التحويل».
+            يرى العميل في صفحة الدفع التحويل البنكي إذا فعّلته هنا، والدفع النقدي إذا فعّلته. بعد وصول التحويل افتح الحجز واضغط «تأكيد استلام التحويل».
           </p>
           <ActionForm action={saveBankSettings} submitLabel="حفظ بيانات التحويل">
             <div className="grid sm:grid-cols-2 gap-4">

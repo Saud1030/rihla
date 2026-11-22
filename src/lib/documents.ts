@@ -9,7 +9,6 @@ import { afterPaid } from "./promo";
 
 /**
  * The customer's documents:
- *  - paid online (MyFatoorah): the proforma invoice (فاتورة مبدئية), sent on WhatsApp as soon as it's paid
  *  - paid by bank transfer or cash: the payment voucher (سند صرف) when the payment is confirmed,
  *    and the proforma invoice when the trip ends (with the rating request)
  * Both are pages behind the booking's secret ref, numbered in order (REC-0001, INV-0001).
@@ -32,13 +31,10 @@ export const invoicePdfLink = async (b: Pick<Booking, "ref">) => `${await public
 export const invoiceLink = async (b: Pick<Booking, "ref" | "locale">) => `${await publicBaseUrl()}/${lang(b)}/booking/${b.ref}/invoice`;
 
 /**
- * A booking was paid: the customer gets his document on WhatsApp. Paid online: the proforma invoice
- * (numbered now). Otherwise: the payment voucher. Once per booking. Never throws.
+ * A booking was paid: the customer gets the payment voucher on WhatsApp. Once per booking. Never throws.
  */
 export async function issueReceipt(bookingId: string) {
   try {
-    const paid = await db.query.bookings.findFirst({ where: eq(s.bookings.id, bookingId), columns: { paymentMethod: true } });
-    if (paid?.paymentMethod === "myfatoorah") return await issueProforma(bookingId);
     const [b] = await db
       .update(s.bookings)
       .set({ receiptNo: sql`nextval('receipt_no_seq')`, receiptAt: new Date() })
@@ -86,35 +82,7 @@ export async function issueReceipt(bookingId: string) {
   }
 }
 
-/** Paid online: number the proforma invoice now and send it (PDF + link) instead of a voucher */
-async function issueProforma(bookingId: string) {
-  const [b] = await db
-    .update(s.bookings)
-    .set({ invoiceNo: sql`nextval('invoice_no_seq')`, invoiceAt: new Date() })
-    .where(and(eq(s.bookings.id, bookingId), isNull(s.bookings.invoiceNo), isNotNull(s.bookings.paymentId)))
-    .returning();
-  if (!b) return null; // not paid, or already issued
-  const ar = lang(b) === "ar";
-  const link = await invoiceLink(b);
-  const amount = formatSAR(b.amount, ar ? "ar" : "en");
-  const body = ar
-    ? [`مرحبًا ${b.customerName}، استلمنا دفعتك بنجاح.`, `رقم الحجز: ${b.ref}`, `المبلغ: ${amount}`, `مرفق الفاتورة المبدئية رقم ${invoiceNo(b.invoiceNo)}، ورابطها: ${link}`, "", THANKS.ar].join("\n")
-    : [`Hello ${b.customerName}, we have received your payment.`, `Booking: ${b.ref}`, `Amount: ${amount}`, `Your proforma invoice ${invoiceNo(b.invoiceNo)} is attached. Link: ${link}`, "", THANKS.en].join("\n");
-  const sent = await notify({
-    bookingId: b.id,
-    channel: "whatsapp",
-    kind: "payment_invoice",
-    recipient: b.customerPhone,
-    recipientName: b.customerName,
-    body,
-    params: [b.customerName, b.ref, amount, link],
-    attachment: { url: await invoicePdfLink(b), name: `${invoiceNo(b.invoiceNo)}.pdf` },
-  });
-  await afterPaid(b);
-  return sent;
-}
-
-/** Give a finished trip its invoice number (once; a booking paid online already has it). Returns the booking with it, or null if not completed. */
+/** Give a finished trip its invoice number (once). Returns the booking with it, or null if not completed. */
 export async function issueInvoice(bookingId: string): Promise<Booking | null> {
   const [b] = await db
     .update(s.bookings)

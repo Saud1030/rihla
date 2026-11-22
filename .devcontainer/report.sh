@@ -9,11 +9,11 @@ R=/tmp/rihla-report.txt
   echo "commit: $(git rev-parse --short HEAD 2>/dev/null)"
   echo "user: $(whoami)  node: $(node -v 2>/dev/null)  codespace: ${CODESPACE_NAME:-none}"
   echo "----- .env (secrets hidden)"
-  sed -E 's/^(AUTH_SECRET|ADMIN_PASSWORD|MYFATOORAH_API_KEY|MYFATOORAH_WEBHOOK_SECRET)=.*/\1=(hidden)/' .env 2>&1
+  sed -E 's/^(AUTH_SECRET|ADMIN_PASSWORD)=.*/\1=(hidden)/' .env 2>&1
   echo "----- setup state"
   ls -la .devcontainer/.setup-done .next/BUILD_ID node_modules/.package-lock.json 2>&1
   echo "----- processes"
-  ps -eo pid,user,etime,cmd | grep -E "next|mock-myfatoorah|setup.sh|start.sh" | grep -v grep
+  ps -eo pid,user,etime,cmd | grep -E "next|mock-services|setup.sh|start.sh" | grep -v grep
   echo "----- database"
   if [ -f .env ]; then
     set -a; . ./.env; set +a
@@ -33,7 +33,7 @@ const sql=require('postgres')(process.env.DATABASE_URL,{max:1,connect_timeout:5}
     curl -s -o /dev/null -w "%{http_code} plain $p\n" "http://localhost:3000$p"
     curl -s -o /dev/null -w "%{http_code} forwarded $p\n" -H "X-Forwarded-Host: $PUB" -H "X-Forwarded-Proto: https" "http://localhost:3000$p"
   done
-  curl -s -o /dev/null -w "%{http_code} mock\n" http://localhost:4010/__refunds
+  curl -s -o /dev/null -w "%{http_code} mock\n" http://localhost:4010/__wa
   echo "----- /tmp/site.log"
   tail -n 200 /tmp/site.log 2>&1
   for f in /tmp/migrate.log /tmp/seed.log /tmp/build.log; do echo "----- $f"; tail -n 40 "$f" 2>&1; done

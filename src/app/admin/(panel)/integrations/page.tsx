@@ -33,7 +33,7 @@ async function Content({ searchParams }: { searchParams: Promise<Record<string, 
   const sp = await searchParams;
   const active = GATEWAYS.find((g) => g.id === values.pay_gateway) ?? null;
   const hasKeys = (g: Integration) =>
-    g.fields.some((f) => (values[f.key] ?? "").trim()) || (g.id === "myfatoorah" && !!process.env.MYFATOORAH_API_KEY) || (g.id === "whatsapp" && !!process.env.WHATSAPP_TOKEN);
+    g.fields.some((f) => (values[f.key] ?? "").trim()) || (g.id === "whatsapp" && !!process.env.WHATSAPP_TOKEN);
   const waOn = whatsappConfigured(values);
 
   return (

@@ -8,8 +8,11 @@ import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
 import { installmentsOf } from "@/lib/packages";
 import { formatDate, formatNumber, formatSAR, formatTime } from "@/lib/format";
-import { payInstallment } from "@/app/actions/package";
+import { getBankConfig } from "@/lib/catalog";
+import { BankDetails } from "@/components/site/bank-details";
 import { PayButton } from "@/components/site/pay-button";
+import { startInstallmentOnlinePayment } from "@/app/actions/payment";
+import { onlinePaymentOn } from "@/lib/edfapay";
 import { CheckIcon } from "@/components/icons";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -17,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: getDictionary(lang).checkout.title, robots: { index: false } };
 }
 
-/** The link of one installment (the first right after booking a package; the others are sent by the admin) */
+/** The link of one installment (the first right after booking a package; the others are sent by the admin). Paid by bank transfer, confirmed by the admin. */
 export default async function InstallmentPage({ params }: PageProps<"/[lang]/pay/[token]">) {
   const lang = await getLocale();
   const t = getDictionary(lang);
@@ -37,6 +40,9 @@ async function View({ lang, t, params }: { lang: Locale; t: Dictionary; params: 
   if (!inst) notFound();
   const [b, all] = await Promise.all([db.query.bookings.findFirst({ where: eq(s.bookings.id, inst.bookingId) }), installmentsOf(inst.bookingId)]);
   if (!b) notFound();
+  const bank = await getBankConfig();
+  // only the next unpaid installment can be paid online
+  const online = (await onlinePaymentOn()) && all.find((x) => !x.paidAt)?.id === inst.id;
   const n = (x: number) => formatNumber(x, lang);
   const title = t.packages.payTitle.replace("{k}", n(inst.seq)).replace("{n}", n(all.length));
   return (
@@ -69,10 +75,19 @@ async function View({ lang, t, params }: { lang: Locale; t: Dictionary; params: 
       ) : b.status === "cancelled" ? (
         <p className="text-danger">{t.checkout.cancelled}</p>
       ) : (
-        <PayButton
-          action={payInstallment.bind(null, token, lang)}
-          labels={{ pay: `${t.checkout.pay} ${formatSAR(inst.amount, lang)}`, redirecting: t.checkout.redirecting, gatewayError: t.checkout.gatewayError, notConfigured: t.checkout.notConfigured }}
-        />
+        <div className="space-y-5">
+          {online && (
+            <div data-testid="installment-online">
+              <h2 className="font-medium mb-1">{t.checkout.onlineTitle}</h2>
+              <p className="mb-3 text-sm text-muted">{t.checkout.onlineLead}</p>
+              <PayButton action={startInstallmentOnlinePayment.bind(null, token, lang)} labels={{ pay: t.checkout.onlinePay, redirecting: t.checkout.onlineBusy, gatewayError: t.checkout.onlineError, notConfigured: t.checkout.notConfigured }} />
+            </div>
+          )}
+        <div data-testid="installment-bank">
+          <p className="mb-3 text-sm text-muted">{bank ? t.packages.payBankLead : t.packages.payNoBank}</p>
+          {bank && <BankDetails bank={bank} amount={formatSAR(inst.amount, lang)} refCode={b.ref} labels={t.checkout.bank} />}
+        </div>
+        </div>
       )}
       <Link href={`/${lang}/booking/${b.ref}`} className="block text-sm text-sign hover:underline">
         {t.packages.viewBooking}
