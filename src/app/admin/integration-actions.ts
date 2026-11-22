@@ -29,6 +29,10 @@ export async function chooseGateway(_prev: ActionState, formData: FormData): Pro
   const g = GATEWAYS.find((x) => x.id === id);
   if (!g) return { error: "اختر بوابة من القائمة." };
   if (!g.ready) return { error: `${g.name} محفوظة، لكنها تحتاج ربط قبل التشغيل. اطلب ربطها ثم فعّلها.` };
+  if (g.id === "edfapay") {
+    const st = await readSettings();
+    if (!st.gw_edfapay_key?.trim() || !st.gw_edfapay_secret?.trim()) return { error: "احفظ API Key و Webhook Secret لـ EdfaPay أولًا. بدون السر ما نقدر نتأكد أن الدفع فعلًا وصل." };
+  }
   await save({ pay_gateway: id });
   return { ok: true, message: `تم تشغيل ${g.name}. يظهر الدفع الإلكتروني للعملاء الآن.` };
 }

@@ -49,7 +49,7 @@ export async function afterInstallmentPaid(inst: Installment) {
   if (b.status === "pending_payment")
     await db
       .update(s.bookings)
-      .set({ status: "paid", paymentMethod: inst.method === "cash" ? "cash" : "bank_transfer", paidAt: new Date(), updatedAt: new Date() })
+      .set({ status: "paid", paymentMethod: inst.method === "cash" ? "cash" : inst.method === "online" ? "online" : "bank_transfer", paidAt: new Date(), updatedAt: new Date() })
       .where(and(eq(s.bookings.id, b.id), eq(s.bookings.status, "pending_payment")));
   const lang = langOf(b);
   const ar = lang === "ar";

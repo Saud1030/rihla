@@ -7,7 +7,9 @@ import { getLocale } from "@/i18n/server";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n/dictionaries";
 import { getBookingByRef } from "@/lib/booking";
 import { getBankConfig, getSettings } from "@/lib/catalog";
-import { chooseBankTransfer, chooseCash } from "@/app/actions/payment";
+import { chooseBankTransfer, chooseCash, startOnlinePayment } from "@/app/actions/payment";
+import { onlinePaymentOn } from "@/lib/edfapay";
+import { PayButton } from "@/components/site/pay-button";
 import { cashEnabled } from "@/lib/cash";
 import { BookingSummary } from "@/components/site/booking-summary";
 import { LockIcon } from "@/components/icons";
@@ -69,13 +71,28 @@ async function Checkout({ lang, t, params }: { lang: Locale; t: Dictionary; para
 async function PaymentOptions({ b, lang, t }: { b: Booking; lang: Locale; t: Dictionary }) {
   const bank = await getBankConfig();
   const cash = cashEnabled(await getSettings());
-  if (!bank && !cash) return <p className="text-danger bg-danger-soft rounded-md p-4 text-sm">{t.checkout.notConfigured}</p>;
+  const online = await onlinePaymentOn();
+  if (!bank && !cash && !online) return <p className="text-danger bg-danger-soft rounded-md p-4 text-sm">{t.checkout.notConfigured}</p>;
   return (
     <div>
       <h2 className="font-semibold flex items-center gap-2">
         <LockIcon className="size-4 text-sign" />
         {t.checkout.payTitle}
       </h2>
+      {online && (
+        <div className="mt-4" data-method="online">
+          <h3 className="font-medium">{t.checkout.onlineTitle}</h3>
+          <p className="mt-1 mb-3 text-sm text-muted">{t.checkout.onlineLead}</p>
+          <PayButton action={startOnlinePayment.bind(null, b.ref, lang)} labels={{ pay: t.checkout.onlinePay, redirecting: t.checkout.onlineBusy, gatewayError: t.checkout.onlineError, notConfigured: t.checkout.notConfigured }} />
+        </div>
+      )}
+      {online && (bank || cash) && (
+        <div className="my-5 flex items-center gap-3 text-sm text-muted" aria-hidden="true">
+          <span className="h-px flex-1 bg-line" />
+          {t.checkout.or}
+          <span className="h-px flex-1 bg-line" />
+        </div>
+      )}
       {bank && (
         <div className="mt-4" data-method="bank_transfer">
           <h3 className="font-medium">{t.checkout.bankTitle}</h3>

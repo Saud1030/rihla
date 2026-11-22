@@ -10,6 +10,17 @@ export type IntegrationField = { key: string; label: string; secret?: boolean; h
 export type Integration = { id: string; name: string; site: string; ready: boolean; fields: IntegrationField[] };
 
 export const GATEWAYS: Integration[] = [
+  {
+    id: "edfapay",
+    name: "إدفع باي EdfaPay",
+    site: "https://edfapay.com",
+    ready: true,
+    fields: [
+      { key: "gw_edfapay_mode", label: "البيئة", options: [["live", "فعلي (Production)"], ["test", "تجريبي (Sandbox)"]] },
+      { key: "gw_edfapay_key", label: "API Key (X-API-KEY)", secret: true, hint: "من لوحة EdfaPay. يُستعمل من السيرفر فقط." },
+      { key: "gw_edfapay_secret", label: "Webhook Secret", secret: true, hint: "لازم تحطه هنا وفي لوحة EdfaPay (Webhook) مع الرابط: https://موقعك/api/payments/edfapay. بدونه ما ينقبل أي دفع." },
+    ],
+  },
   { id: "moyasar", name: "ميسر Moyasar", site: "https://moyasar.com", ready: false, fields: [{ key: "gw_moyasar_public", label: "Publishable Key" }, { key: "gw_moyasar_secret", label: "Secret Key", secret: true }] },
   { id: "tap", name: "تاب Tap Payments", site: "https://tap.company", ready: false, fields: [{ key: "gw_tap_public", label: "Public Key" }, { key: "gw_tap_secret", label: "Secret Key", secret: true }] },
   { id: "hyperpay", name: "هايبر باي HyperPay", site: "https://hyperpay.com", ready: false, fields: [{ key: "gw_hyperpay_entity", label: "Entity ID" }, { key: "gw_hyperpay_token", label: "Access Token", secret: true }] },
